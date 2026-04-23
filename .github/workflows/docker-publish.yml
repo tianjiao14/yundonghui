@@ -2,18 +2,16 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: [ "main" ]  # 仅在推送到 main 分支时触发
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+    branches: [ "main" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 🏆 核心修复：显式增加以下权限声明
     permissions:
       contents: read
-      packages: write
+      packages: write    # 允许写入包（GHCR）
+      id-token: write    # 某些构建场景需要
 
     steps:
       - name: Checkout repository
@@ -22,7 +20,7 @@ jobs:
       - name: Log in to the Container registry
         uses: docker/login-action@v2
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -31,4 +29,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: tianjiao14/yundonghui:latest
+          # 确保这里的镜像名是小写的，GHCR 不支持大写
+          tags: ghcr.io/${{ github.repository_owner }}/yundonghui:latest
