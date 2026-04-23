@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员登录</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-800 h-screen flex items-center justify-center">
+    <div class="bg-white p-8 rounded-lg shadow-2xl w-96 text-center">
+        <h1 class="text-2xl font-bold mb-6 text-gray-800">🔐 管理后台登录</h1>
+        <input type="password" id="pwd" placeholder="请输入管理员密码" class="w-full border p-2 rounded mb-4 focus:ring-2 focus:ring-blue-500 outline-none">
+        <button onclick="login()" class="w-full bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700">进入系统</button>
+    </div>
+    <script>
+        function login() {
+            fetch('/api/auth', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ type: 'admin', password: document.getElementById('pwd').value })
+            }).then(r=>r.json()).then(res => {
+                if(res.status==='success') location.href = res.redirect;
+                else alert(res.msg);
+            });
+        }
+    </script>
+</body>
+</html>

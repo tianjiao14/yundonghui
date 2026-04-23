@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{{ title }}</title>
+    <script src="/static/js/tailwind.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background-color: #f3f4f6; -webkit-tap-highlight-color: transparent; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 16px; overflow: hidden; }
+        .btn-primary { background-color: #2563eb; color: white; font-weight: bold; padding: 12px; border-radius: 8px; width: 100%; text-align: center; transition: background 0.2s; }
+        .btn-primary:active { background-color: #1d4ed8; }
+        .form-input { width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; outline: none; transition: border 0.2s; }
+        .form-input:focus { border-color: #2563eb; background: white; }
+        .list-item { animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* 复选框样式 */
+        .chk-box { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: white; transition: all 0.2s; cursor: pointer; }
+        .chk-box.selected { background-color: #eff6ff; border-color: #2563eb; color: #1e40af; font-weight: bold; }
+        .chk-box.selected::after { content: '✔'; color: #2563eb; font-size: 14px; }
+        .chk-box.disabled { opacity: 0.5; background-color: #f3f4f6; cursor: not-allowed; border-color: #eee; }
+        
+        .chk-box.fun-item { border-left: 4px solid #f97316; }
+        .chk-box.fun-item.selected { background-color: #fff7ed; border-color: #f97316; color: #c2410c; }
+        .chk-box.fun-item.selected::after { color: #c2410c; }
+
+        .chk-box.relay-item { border-left: 4px solid #10b981; } 
+        .relay-tag { background: #d1fae5; color: #059669; font-size: 10px; padding: 2px 4px; border-radius: 4px; margin-left: 6px; }
+    </style>
+</head>
+<body class="p-4 pb-20">
+    <div class="flex justify-between items-start mb-6">
+        <div class="text-left">
+            <h1 class="text-2xl font-extrabold text-gray-800" id="pageTitle">{{ title }}</h1>
+            <p class="text-sm text-gray-500 mt-1">领队专用版</p>
+        </div>
+        <a href="/api/logout" onclick="return confirm('确定要退出登录吗？')" class="bg-red-50 text-red-500 text-xs font-bold px-3 py-2 rounded-lg border border-red-100 flex items-center gap-1">
+    <span>退出</span>
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+    </svg>
+</a>
+    </div>
+
+    <div class="card p-4">
+        <h3 class="font-bold text-gray-700 border-b pb-2 mb-3 flex items-center">
+            <span class="bg-blue-100 text-blue-600 w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">1</span> 
+            选择班级
+        </h3>
+        <div class="space-y-3">
+            <select id="groupSelect" class="form-input" onchange="loadTeams()">
+                <option value="">-- 请选择组别 --</option>
+                {% for g in groups %}
+                <option value="{{ g.id }}">{{ g.name }}</option>
+                {% endfor %}
+            </select>
+            <select id="teamSelect" class="form-input" disabled onchange="loadMembers()">
+                <option value="">-- 请选择班级 --</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="card p-4 hidden" id="inputSection">
+        <h3 class="font-bold text-gray-700 border-b pb-2 mb-3 flex items-center">
+            <span class="bg-blue-100 text-blue-600 w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">2</span> 
+            添加运动员
+        </h3>
+        <div class="space-y-3">
+            <input type="text" id="stuName" class="form-input" placeholder="请输入姓名 (必填)">
+            <div class="flex gap-4">
+                <label class="flex-1 flex items-center justify-center p-3 border rounded-lg cursor-pointer bg-white" id="lblMale">
+                    <input type="radio" name="gender" value="男" class="mr-2" onchange="handleGenderChange(this.value)"> 
+                    <span class="font-bold text-gray-600">我是男生</span>
+                </label>
+                <label class="flex-1 flex items-center justify-center p-3 border rounded-lg cursor-pointer bg-white" id="lblFemale">
+                    <input type="radio" name="gender" value="女" class="mr-2" onchange="handleGenderChange(this.value)"> 
+                    <span class="font-bold text-gray-600">我是女生</span>
+                </label>
+            </div>
+            <div id="eventSelectionArea" class="mt-4 hidden">
+                <div id="limitTip" class="text-xs bg-blue-50 text-blue-600 p-2 rounded mb-3 text-center border border-blue-100">
+                    竞技项目限报 2 项，接力/趣味项目不限
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <div class="text-xs font-bold text-gray-400 mb-2 flex items-center gap-1">🏃 竞技项目 <span id="compCount" class="text-blue-600 ml-1">(个人赛已选 0/2)</span></div>
+                        <div id="compEventsList" class="grid grid-cols-2 gap-2"></div>
+                    </div>
+                    <div id="funSection" class="hidden">
+                        <div class="text-xs font-bold text-orange-400 mb-2">✨ 趣味项目 (不占名额)</div>
+                        <div id="funEventsList" class="grid grid-cols-2 gap-2"></div>
+                    </div>
+                </div>
+            </div>
+            <button onclick="submitAthlete()" class="btn-primary mt-2">确认提交</button>
+        </div>
+    </div>
+
+    <div class="card p-4 hidden" id="listSection">
+        <h3 class="font-bold text-gray-700 border-b pb-2 mb-3 flex justify-between items-center">
+            <span class="flex items-center"><span class="bg-green-100 text-green-600 w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">3</span>本班已报名单</span>
+            <span class="text-xs font-normal text-gray-400" id="countBadge">0人</span>
+        </h3>
+        <div id="memberList" class="space-y-2"></div>
+    </div>
+
+ <script>
+        // 1. 初始化从 Flask 传来的基础数据
+        let db = { 
+            groups: {{ groups|tojson if groups else '[]' }}, 
+            teams: {{ teams_json|safe if teams_json else '[]' }}, 
+            events: [] 
+        };
+        
+        const rawEvents = {{ events_json|safe if events_json else '[]' }};
+        db.events = rawEvents.map(e => ({
+            ...e,
+            isRelay: (String(e.isRelay) === 'true' || String(e.is_relay) === '1')
+        }));
+
+        /**
+         * 加载班级列表
+         */
+        function loadTeams() {
+            const gid = document.getElementById('groupSelect').value;
+            const tSelect = document.getElementById('teamSelect');
+            
+            tSelect.innerHTML = '<option value="">-- 请选择班级 --</option>'; 
+            tSelect.disabled = !gid;
+            
+            const inputSection = document.getElementById('inputSection');
+            const listSection = document.getElementById('listSection');
+            if (inputSection) inputSection.classList.add('hidden');
+            if (listSection) listSection.classList.add('hidden');
+
+            if (gid) { 
+                // 核心过滤：兼容 group_id 或 groupId 命名
+                const currentTeams = db.teams.filter(t => 
+                    String(t.group_id || t.groupId) === String(gid)
+                );
+                
+                if (currentTeams.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.innerText = "该组别下暂无班级数据";
+                    tSelect.appendChild(opt);
+                } else {
+                    currentTeams.forEach(t => { 
+                        const opt = document.createElement('option'); 
+                        opt.value = t.id; 
+                        opt.innerText = t.name; 
+                        tSelect.appendChild(opt); 
+                    }); 
+                }
+            }
+        }
+
+        /**
+         * 加载本班已报名成员名单
+         */
+        function loadMembers() {
+            const tid = document.getElementById('teamSelect').value; 
+            if (!tid) return;
+
+            document.getElementById('inputSection').classList.remove('hidden'); 
+            document.getElementById('listSection').classList.remove('hidden');
+            
+            fetch('/api/team_members/' + tid)
+                .then(r => r.json())
+                .then(rows => {
+                    const aggregated = {};
+                    rows.forEach(row => {
+                        const key = row.name;
+                        if (!aggregated[key]) aggregated[key] = { id: row.id, name: row.name, gender: row.gender, events: [] };
+                        aggregated[key].events.push(row.event_name);
+                    });
+                    const listDiv = document.getElementById('memberList'); 
+                    listDiv.innerHTML = '';
+                    const list = Object.values(aggregated); 
+                    document.getElementById('countBadge').innerText = `${list.length} 人`;
+                    
+                    if (list.length === 0) {
+                        listDiv.innerHTML = '<div class="text-center text-gray-400 py-4 text-sm">暂无报名数据</div>';
+                    } else {
+                        list.forEach(p => { 
+                            listDiv.innerHTML += `
+                                <div class="list-item bg-gray-50 p-3 rounded-lg border border-gray-100 flex justify-between items-center">
+                                    <div>
+                                        <div class="font-bold text-gray-800">${p.name} 
+                                            <span class="text-xs font-normal ${p.gender==='男'?'text-blue-500':'text-pink-500'} ml-1">${p.gender}</span>
+                                        </div>
+                                        <div class="text-xs text-gray-500 mt-1">${p.events.join('，')}</div>
+                                    </div>
+                                    <button onclick="deleteMember('${p.name}')" class="text-red-400 text-sm px-2 py-1">删除</button>
+                                </div>`; 
+                        });
+                    }
+                });
+        }
+
+        function handleGenderChange(gender) {
+            const maleLabel = document.getElementById('lblMale'); 
+            const femaleLabel = document.getElementById('lblFemale');
+            if (maleLabel) maleLabel.className = `flex-1 flex items-center justify-center p-3 border rounded-lg cursor-pointer ${gender==='男' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-gray-200'}`;
+            if (femaleLabel) femaleLabel.className = `flex-1 flex items-center justify-center p-3 border rounded-lg cursor-pointer ${gender==='女' ? 'bg-pink-50 border-pink-500 text-pink-700' : 'bg-white border-gray-200'}`;
+            
+            if (!gender) { 
+                document.getElementById('eventSelectionArea').classList.add('hidden'); 
+                return; 
+            }
+            renderEvents(gender);
+        }
+
+        function renderEvents(gender) {
+            const compListDiv = document.getElementById('compEventsList');
+            const funListDiv = document.getElementById('funEventsList');
+            const area = document.getElementById('eventSelectionArea');
+            
+            compListDiv.innerHTML = ''; 
+            funListDiv.innerHTML = ''; 
+            area.classList.remove('hidden');
+
+            const gid = document.getElementById('groupSelect').value;
+            const groupObj = db.groups.find(g => String(g.id) === String(gid));
+            const currentGroupName = groupObj ? groupObj.name : "";
+
+            const filterFn = e => {
+                const genderMatch = (!e.gender || e.gender === gender || e.gender === '混合');
+                const allowedStr = e.allowedGroups || e.allowed_groups || ""; 
+                const groupMatch = (allowedStr === "" || allowedStr.split(',').includes(currentGroupName));
+                return genderMatch && groupMatch;
+            };
+
+            db.events.filter(e => filterFn(e) && e.type !== '趣味项目').forEach(e => {
+                const el = document.createElement('div'); 
+                el.className = 'chk-box comp-item';
+                el.dataset.isRelay = e.isRelay ? "true" : "false";
+                el.dataset.val = e.name;
+                if (e.isRelay) {
+                    el.classList.add('relay-item');
+                    el.innerHTML = `<span>${e.name}</span><span class="relay-tag">团体</span>`;
+                } else {
+                    el.innerText = e.name;
+                }
+                el.onclick = function() { toggleSelection(this, 'comp'); };
+                compListDiv.appendChild(el);
+            });
+
+            const funEvents = db.events.filter(e => filterFn(e) && e.type === '趣味项目');
+            if (funEvents.length > 0) {
+                document.getElementById('funSection').classList.remove('hidden');
+                funEvents.forEach(e => {
+                    const el = document.createElement('div'); 
+                    el.className = 'chk-box fun-item'; 
+                    el.innerText = e.name;
+                    el.dataset.val = e.name;
+                    el.onclick = function() { toggleSelection(this, 'fun'); };
+                    funListDiv.appendChild(el);
+                });
+            } else { 
+                document.getElementById('funSection').classList.add('hidden'); 
+            }
+            checkLimit();
+        }
+
+        function toggleSelection(el, type) { 
+            if (el.classList.contains('disabled')) return; 
+            el.classList.toggle('selected'); 
+            if (type === 'comp') checkLimit(); 
+        }
+
+        function checkLimit() {
+            const selectedComps = document.querySelectorAll('.comp-item.selected');
+            let count = 0;
+            selectedComps.forEach(el => { if (el.dataset.isRelay !== "true") count++; });
+            const max = 2; 
+            const tipEl = document.getElementById('compCount');
+            if (tipEl) tipEl.innerText = `(个人赛已选 ${count}/${max})`;
+            
+            document.querySelectorAll('.comp-item').forEach(el => {
+                const isRelay = (el.dataset.isRelay === "true"); 
+                const isSelected = el.classList.contains('selected');
+                if (isRelay) { 
+                    el.classList.remove('disabled'); 
+                } else if (count >= max && !isSelected) {
+                    el.classList.add('disabled'); 
+                } else {
+                    el.classList.remove('disabled');
+                }
+            });
+        }
+
+        function submitAthlete() {
+            const name = document.getElementById('stuName').value.trim(); 
+            const gender = document.querySelector('input[name="gender"]:checked')?.value;
+            const selected = Array.from(document.querySelectorAll('.chk-box.selected')).map(el => el.dataset.val);
+            
+            if (!name) return alert('请填写姓名'); 
+            if (!gender) return alert('请选择性别'); 
+            if (selected.length === 0) return alert('请至少选择一个项目');
+            
+            const btn = document.querySelector('button[onclick="submitAthlete()"]'); 
+            btn.innerText = '提交中...'; 
+            btn.disabled = true;
+            
+            fetch('/api/add_athlete', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ 
+                    group_id: document.getElementById('groupSelect').value, 
+                    team_id: document.getElementById('teamSelect').value, 
+                    name: name, 
+                    gender: gender, 
+                    events: selected 
+                }) 
+            })
+            .then(r => r.json()).then(res => { 
+                btn.innerText = '确认提交'; 
+                btn.disabled = false; 
+                if (res.status === 'success') { 
+                    alert('✅ 报名成功！'); 
+                    document.getElementById('stuName').value = '';
+                    loadMembers(); 
+                } else { 
+                    alert('❌ ' + res.msg); 
+                } 
+            }).catch(() => { 
+                btn.innerText = '确认提交'; 
+                btn.disabled = false; 
+                alert('网络错误'); 
+            });
+        }
+
+        function deleteMember(name) {
+            if (!confirm(`确定要删除【${name}】的所有报名吗？`)) return;
+            fetch('/api/delete_athlete', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ 
+                    name: name, 
+                    team_id: document.getElementById('teamSelect').value 
+                }) 
+            })
+            .then(r => r.json()).then(res => { 
+                if (res.status === 'success') loadMembers(); 
+                else alert('删除失败'); 
+            });
+        }
+
+        window.onload = function() {
+            const loginGroupId = "{{ user_group_id }}"; 
+            const loginTeamId = "{{ user_team_id }}";
+            const userRole = "{{ user_role }}";
+
+            if (userRole === 'team' && loginGroupId && loginTeamId) {
+                const gSelect = document.getElementById('groupSelect');
+                if (gSelect) gSelect.value = loginGroupId;
+                loadTeams(); 
+                const tSelect = document.getElementById('teamSelect');
+                if (tSelect) tSelect.value = loginTeamId;
+                loadMembers();
+            }
+        };
+    </script>
+</body>
+</html>

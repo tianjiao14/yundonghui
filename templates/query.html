@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>运动会成绩查询</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Microsoft YaHei', sans-serif; background-color: #f8fafc; }
+        .score-card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-md mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-extrabold text-blue-800">🏆 成绩实时查询</h1>
+            <p class="text-gray-500 mt-2">请选择项目获取最新排名</p>
+        </header>
+
+        <div class="score-card p-6 mb-6">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">1. 选择组别</label>
+                    <select id="groupSel" onchange="updateGenderOptions()" class="w-full border-2 border-gray-100 p-3 rounded-lg focus:border-blue-500 outline-none">
+                        <option value="">加载中...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">2. 选择性别</label>
+                    <select id="genderSel" onchange="updateEventOptions()" disabled class="w-full border-2 border-gray-100 p-3 rounded-lg focus:border-blue-500 outline-none bg-gray-50">
+                        <option value="">-- 先选组别 --</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">3. 选择项目</label>
+                    <select id="eventSel" disabled class="w-full border-2 border-gray-100 p-3 rounded-lg focus:border-blue-500 outline-none bg-gray-50">
+                        <option value="">-- 再选性别 --</option>
+                    </select>
+                </div>
+                <button onclick="searchScores()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition active:scale-95">
+                    🔍 立即查询成绩
+                </button>
+            </div>
+        </div>
+
+        <div id="resultArea" class="space-y-4"></div>
+    </div>
+
+    <script>
+        let db = { groups: [], events: [], athletes: [], teams: [] };
+
+        // 页面初始化：获取元数据
+        window.onload = () => {
+            fetch('/api/get_data').then(r => r.json()).then(data => {
+                db = data;
+                const gSel = document.getElementById('groupSel');
+                gSel.innerHTML = '<option value="">-- 请选择组别 --</option>';
+                db.groups.forEach(g => {
+                    gSel.innerHTML += `<option value="${g.name}">${g.name}</option>`;
+                });
+            });
+        };
+function parseTimeVal(val) {
+    if (!val) return 0;
+    let s = String(val).trim();
+    if (s.includes(':') || s.includes('：')) {
+        s = s.replace(/：/g, ':');
+        let parts = s.split(':');
+        if (parts.length === 2) return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+        if (parts.length === 3) return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
+    }
+    return parseFloat(s) || 0;
+}
+        // 联动逻辑：更新性别选项
+        function updateGenderOptions() {
+            const gName = document.getElementById('groupSel').value;
+            const genSel = document.getElementById('genderSel');
+            genSel.innerHTML = '<option value="">-- 选择性别 --</option>';
+            genSel.disabled = !gName;
+            genSel.classList.toggle('bg-gray-50', !gName);
+            
+            if(gName) {
+                // 固定为男/女，或者根据数据动态提取
+                ['男', '女'].forEach(g => {
+                    genSel.innerHTML += `<option value="${g}">${g}</option>`;
+                });
+            }
+        }
+
+        // 联动逻辑：更新项目选项
+        function updateEventOptions() {
+            const gender = document.getElementById('genderSel').value;
+            const evtSel = document.getElementById('eventSel');
+            evtSel.innerHTML = '<option value="">-- 选择项目 --</option>';
+            evtSel.disabled = !gender;
+            evtSel.classList.toggle('bg-gray-50', !gender);
+
+            if(gender) {
+                // 筛选对应性别的项目
+                const evts = db.events.filter(e => e.gender === gender || e.gender === '混合');
+                evts.forEach(e => {
+                    evtSel.innerHTML += `<option value="${e.name}">${e.name}</option>`;
+                });
+            }
+        }
+
+        // 核心查询逻辑
+        function searchScores() {
+            const gName = document.getElementById('groupSel').value;
+            const evtName = document.getElementById('eventSel').value;
+            const resArea = document.getElementById('resultArea');
+
+            if(!evtName) return alert("请完整选择查询条件");
+
+            resArea.innerHTML = '<div class="text-center py-10 text-gray-400">正在获取最新排名...</div>';
+
+            fetch('/api/get_event_start_list', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ event_name: evtName, group_name: gName })
+            })
+            .then(r => r.json())
+            .then(data => {
+                const scored = data.filter(i => i.score && i.score.trim() !== '');
+                if(scored.length === 0) {
+                    resArea.innerHTML = '<div class="score-card p-10 text-center text-gray-400">该项目暂无成绩发布</div>';
+                    return;
+                }
+
+                // 排序逻辑
+                const isField = evtName.includes('跳') || evtName.includes('投') || evtName.includes('铅球');
+                scored.sort((a,b) => {
+                    const sa = parseTimeVal(a.score); 
+                    const sb = parseTimeVal(b.score);
+                    return isField ? (sb - sa) : (sa - sb); });
+
+                let html = `<div class="font-bold text-gray-600 mb-2 px-1">共找到 ${scored.length} 条成绩</div>`;
+                scored.forEach((item, idx) => {
+                    const rank = idx + 1;
+                    const rankColor = rank === 1 ? 'text-yellow-500' : (rank === 2 ? 'text-gray-400' : (rank === 3 ? 'text-orange-400' : 'text-blue-800'));
+                    
+                    html += `
+                    <div class="score-card p-4 flex items-center justify-between border-l-4 ${rank <= 3 ? 'border-yellow-400' : 'border-blue-500'}">
+                        <div class="flex items-center gap-4">
+                            <span class="text-2xl font-black ${rankColor} w-8">${rank}</span>
+                            <div>
+                                <div class="font-bold text-gray-800 text-lg">${item.name}</div>
+                                <div class="text-xs text-gray-400">${item.team_name} | 号码:${item.bib || '-'}</div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xl font-black text-blue-900 font-mono">${item.score}</div>
+                            <div class="text-[10px] text-gray-400 uppercase">Score</div>
+                        </div>
+                    </div>`;
+                });
+                resArea.innerHTML = html;
+            });
+        }
+    </script>
+</body>
+</html>

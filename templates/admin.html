@@ -1,0 +1,2329 @@
+ <!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>田径运动会管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'SimSun', 'Songti SC', serif; background-color: #f3f4f6; overflow: hidden; color: #000; }
+        .ui-font { font-family: 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif; }
+        
+        /* 侧边栏与布局 */
+        .nav-item { text-align: left; padding: 12px 20px; width: 100%; border-radius: 0 25px 25px 0; margin-bottom: 8px; color: #4b5563; font-weight: 500; transition: all 0.2s; }
+        .nav-item:hover { background-color: #f3f4f6; color: #2563eb; }
+        .nav-item.active { background-color: #eff6ff; color: #2563eb; border-left: 4px solid #2563eb; font-weight: bold; }
+        
+        /* 通用表格样式 */
+        .fixed-table { table-layout: fixed; width: 100%; }
+        .fixed-table th { background-color: #f8fafc; color: #64748b; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; padding: 10px; border-bottom: 2px solid #e2e8f0; white-space: nowrap; overflow: hidden; text-align: center; }
+        .fixed-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; font-size: 0.875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+        .fixed-table tr:hover { background-color: #f8fafc; }
+        
+        /* 检录表/成绩表 打印预览样式 */
+        .rc-card { background: white; border: 2px solid #000; padding: 20px; margin-bottom: 30px; font-family: "SimSun", serif; width: 100%; box-sizing: border-box; }
+        .rc-title { text-align: center; font-size: 26px; font-weight: bold; margin-bottom: 15px; letter-spacing: 2px; }
+        .rc-header { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; font-weight: bold; padding: 0 5px; }
+        .rc-table-wrapper { overflow-x: auto; }
+        .rc-table { width: 100%; border-collapse: collapse; border: 2px solid #000; font-size: 13px; text-align: center; table-layout: fixed; }
+        .rc-table td, .rc-table th { border: 1px solid #000; padding: 4px 2px; height: 32px; white-space: nowrap; overflow: hidden; }
+        .rc-footer { display: flex; justify-content: space-between; font-size: 14px; margin-top: 15px; padding: 0 10px; font-weight: bold; }
+
+        /* 标签样式 */
+        .badge { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; display: inline-block; margin: 0 2px; }
+        .badge-score { background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .badge-bonus { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .badge-double { background-color: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
+        .badge-fun { background-color: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
+        .checkbox-disabled { opacity: 0.5; cursor: not-allowed; text-decoration: line-through; color: #9ca3af; }
+
+        /* --- Step 6 成绩表专用样式 (横向道次版) --- */
+        .res-card { 
+            background: white; 
+            border: 2px solid #000; /* 外框 */
+            padding: 20px; 
+            margin-bottom: 30px; 
+            font-family: "SimSun", serif; 
+            width: 100%; 
+            box-sizing: border-box; 
+        }
+        .res-title { 
+            text-align: center; font-size: 26pt; font-weight: bold; margin-bottom: 20px; letter-spacing: 5px; 
+        }
+        .res-info-row { 
+            display: flex; justify-content: space-between; align-items: flex-end;
+            font-size: 12pt; font-weight: bold; 
+            margin-bottom: 5px; 
+            padding: 0 5px;
+        }
+        .res-table { 
+            width: 100%; border-collapse: collapse; text-align: center; margin-bottom: 15px; table-layout: fixed;
+        }
+        /* 强制表格边框 - 黑色实线 */
+        .res-table td { 
+            border: 1px solid #000 !important; 
+            padding: 8px 2px; 
+            font-size: 11pt; 
+            vertical-align: middle;
+            height: 45px; /* 增加行高，方便手写 */
+        }
+        
+        /* 表头列样式 (道次、姓名、成绩...) */
+        .res-label-col {
+            width: 100px;
+            font-weight: bold;
+            font-size: 13pt;
+            font-family: 'SimHei', sans-serif; /* 黑体 */
+            background-color: transparent;
+        }
+        
+        /* 底部签字栏 */
+        .res-footer { 
+            display: flex; justify-content: space-between; 
+            margin-top: 30px; padding: 0 20px; 
+            font-size: 12pt; font-weight: bold;
+        }
+       /* admin.html 样式修正 */
+/* 树状菜单通用样式 */
+.tree-group, .tree-team { 
+    cursor: pointer; 
+    padding: 8px 12px; 
+    border-radius: 6px; 
+    transition: all 0.2s; 
+    margin: 2px 0;
+}
+
+/* 组别选中效果：浅蓝色背景 + 左侧粗条 */
+.active-group { 
+    background-color: #dbeafe !important; /* 浅蓝 */
+    color: #1e40af !important; 
+    font-weight: bold;
+    border-left: 4px solid #2563eb; 
+}
+
+/* 班级选中效果：深蓝色背景 + 白色文字 */
+.tree-team.active { 
+    background-color: #2563eb !important; /* 深蓝 */
+    color: white !important; 
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+}
+
+/* 鼠标悬停预览 */
+.tree-group:hover:not(.active-group), 
+.tree-team:hover:not(.active) { 
+    background-color: #f3f4f6; 
+}
+@media print {
+    /* 1. 隐藏所有侧边栏和按钮 */
+    .w-64, .no-print, nav, button, .bg-yellow-50 { display: none !important; }
+    
+    /* 2. 隐藏非当前活动的面板 */
+    .step-panel { display: none !important; }
+    #step-5:not(.hidden), #step-6:not(.hidden), #step-7:not(.hidden), 
+    #step-8:not(.hidden), #step-9:not(.hidden) { 
+        display: block !important; 
+        width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+        position: static !important;
+    }
+
+    /* 3. 强制解除容器高度限制，防止空白页 */
+    body, .flex-1, main { height: auto !important; overflow: visible !important; }
+
+  /* 3. 密码条卡片样式优化：防止分页切断 */
+    #passwordList {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important; /* 打印时每行两个，更省纸 */
+        gap: 15px !important;
+    }
+
+    #passwordList > div {
+        page-break-inside: avoid !important;
+        border: 2px solid #000 !important; /* 打印时虚线改实线，更清晰 */
+    }
+}
+            .rc-card { box-shadow: none !important; margin-bottom: 20px !important; break-inside: avoid; page-break-inside: avoid; border: 2px solid #000 !important; width: 100% !important; }
+        }
+    </style>
+</head>
+<body class="flex h-screen ui-font">
+<div class="w-64 bg-white shadow-xl z-20 flex flex-col h-full border-r border-gray-200 shrink-0 no-print">
+    <div class="p-6 border-b border-gray-100">
+        <h1 class="text-xl font-extrabold text-blue-800 flex items-center gap-2">🏆 田径运动会管理系统</h1>
+    </div>
+
+    <div class="flex-1 overflow-y-auto py-4 pr-2 custom-scrollbar">
+                    <button onclick="switchStep(0)" id="nav-0" class="nav-item">0. 报名参数设置</button>
+            <button onclick="switchStep(1)" id="nav-1" class="nav-item">1. 比赛项目设置</button>
+            <button onclick="switchStep(2)" id="nav-2" class="nav-item">2. 参赛单位(组别)</button>
+            <button onclick="switchStep(3)" id="nav-3" class="nav-item">3. 参赛单位(代表队)</button>
+            <button onclick="switchStep(4)" id="nav-4" class="nav-item">4. 运动员报名</button>
+            <div class="my-2 border-t border-gray-100"></div>
+            <button onclick="switchStep(5)" id="nav-5" class="nav-item text-purple-700 bg-purple-50 font-bold">5. 智能编排 (初赛)</button>
+            <button onclick="switchStep(6)" id="nav-6" class="nav-item border-l-4 border-orange-500 bg-orange-50 text-orange-700 font-bold">6. 成绩与决赛</button>
+            <button onclick="switchStep(7)" id="nav-7" class="nav-item border-l-4 border-pink-500 bg-pink-50 text-pink-700 font-bold">7. 团体总分排名</button>
+<div class="my-2 border-t mx-4"></div>
+<button onclick="switchStep(8)" id="nav-8" class="nav-item w-full text-left px-6 py-3 text-purple-600 font-bold hover:bg-purple-50 border-l-4 border-transparent transition-all">8. 账号密码管理</button>
+<button onclick="switchStep(9)" id="nav-9" class="nav-item border-l-4 border-green-500 bg-green-50 text-green-700 font-bold">9. 报名数据统计</button>
+        </div>
+
+   <div class="p-4 border-t border-gray-100 bg-gray-50/80 space-y-4 pb-13 no-print">
+    
+    <div class="bg-red-50 p-3 rounded-lg border border-red-100 space-y-3">
+        <p class="text-red-800 font-bold text-xs flex items-center gap-1">
+            🛠️ 系统维护与数据备份
+        </p>
+        
+        <div class="flex gap-2">
+            <button onclick="handleReset('data_only')" class="flex-1 bg-red-500 text-white py-1.5 rounded text-[10px] hover:bg-red-600 transition-colors shadow-sm">
+                🗑️ 清空成绩
+            </button>
+            <button onclick="handleReset('all')" class="flex-1 bg-black text-white py-1.5 rounded text-[10px] hover:bg-gray-800 transition-colors shadow-sm">
+                🔥 完全初始化
+            </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+            <button onclick="exportSystem()" class="bg-white text-blue-700 border border-blue-200 py-1.5 rounded text-[10px] hover:bg-blue-50 font-bold flex items-center justify-center gap-1 shadow-sm">
+                📤 导出备份
+            </button>
+            <button onclick="triggerImport()" class="bg-white text-orange-700 border border-orange-200 py-1.5 rounded text-[10px] hover:bg-orange-50 font-bold flex items-center justify-center gap-1 shadow-sm">
+                📥 导入备份
+            </button>
+        </div>
+    </div>
+
+    <div class="pt-2">
+        <button onclick="saveData()" class="w-full bg-green-600 text-white py-3 rounded-lg shadow-md hover:bg-green-700 font-extrabold text-sm transition-all active:scale-95 flex items-center justify-center gap-2">
+            💾 保存所有配置
+        </button>
+    </div>
+</div>
+    
+    <input type="file" id="importFile" accept=".json" class="hidden" onchange="importSystem(this)">
+</div>
+    <div class="flex-1 bg-gray-50 h-full overflow-hidden relative flex flex-col">
+        <div id="step-0" class="step-panel h-full flex flex-col p-8 overflow-y-auto hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">🛠️ 报名参数设置</h2>
+            <div class="mb-4"><label class="font-bold text-gray-600">赛事名称：</label><input type="text" id="cfgTitle" class="border p-2 rounded w-96 font-bold text-lg text-blue-800" value="运动会在线报名"></div>
+            <div class="bg-white p-4 border rounded shadow-sm">
+                <h3 class="font-bold text-lg text-gray-700 border-b pb-2 mb-4">🔢 人数与项目限制</h3>
+                <div class="grid grid-cols-2 gap-x-12">
+                    <div>
+                        <div class="mb-2"><label>每队限报男：</label><input type="number" id="cfgMaxMale" class="border p-1 w-20" value="10"></div>
+                        <div class="mb-2"><label>每队限报女：</label><input type="number" id="cfgMaxFemale" class="border p-1 w-20" value="10"></div>
+                        <div class="mb-2"><label>每队限报总：</label><input type="number" id="cfgMaxTotal" class="border p-1 w-20" value="20"></div>
+                    </div>
+                    <div>
+                        <div class="mb-2"><label>每人限报项：</label><input type="number" id="cfgMaxPerPerson" class="border p-1 w-20" value="2"></div>
+                        <div class="mb-2"><label>每项每队限：</label><input type="number" id="cfgMaxPerEvent" class="border p-1 w-20" value="3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="step-1" class="step-panel h-full flex flex-col p-6 overflow-hidden hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">1. 比赛项目与计分规则设置</h2>
+            <div id="presetButtons" class="flex flex-wrap gap-2 mb-4 shrink-0"></div>
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4 shrink-0">
+                <div class="grid grid-cols-12 gap-3 items-end mb-3">
+                    <div class="col-span-3"><label class="text-xs font-bold text-gray-500">项目名称</label><input type="text" id="eventName" placeholder="例: 男子100米" class="w-full border border-gray-300 p-2 rounded text-sm"></div>
+                    <div class="col-span-2"><label class="text-xs font-bold text-gray-500">类型</label>
+                        <select id="eventType" class="w-full border border-gray-300 p-2 rounded text-sm"><option>径赛</option><option>田赛</option><option value="趣味项目" style="color:red;font-weight:bold;">✨ 趣味项目</option></select>
+                    </div>
+                    <div class="col-span-2"><label class="text-xs font-bold text-gray-500">性别</label><select id="eventGender" class="w-full border border-gray-300 p-2 rounded text-sm"><option value="男">男</option><option value="女">女</option><option value="混合">混合</option></select></div>
+                    <div class="col-span-5 flex items-center gap-4 bg-gray-50 h-9 border rounded px-3">
+                        <label class="flex items-center text-xs cursor-pointer"><input type="checkbox" id="needLane"  class="mr-1">分道</label>
+                        <label class="flex items-center text-xs cursor-pointer"><input type="checkbox" id="hasPrelim" class="mr-1">预决</label>
+                        <label class="flex items-center text-xs cursor-pointer"><input type="checkbox" id="isRelay" class="mr-1" onchange="toggleRelayScore()">团体接力</label>
+                    </div>
+                </div>
+                <div class="grid grid-cols-12 gap-3 items-end bg-blue-50 p-3 rounded border border-blue-100">
+                    <div class="col-span-5"><label class="text-xs font-bold text-blue-800">积分规则</label><input type="text" id="scoreRule" value="9,7,6,5,4,3,2,1" class="w-full border border-blue-300 p-2 rounded text-sm"></div>
+                    <div class="col-span-2"><label class="text-xs font-bold text-blue-800">破纪录加分</label><input type="number" id="recordBonus" value="10" class="w-full border border-blue-300 p-2 rounded text-sm text-center font-bold text-red-600"></div>
+                    <div class="col-span-3 flex items-center h-9 mt-auto"><label class="flex items-center text-xs font-bold text-blue-800 cursor-pointer select-none"><input type="checkbox" id="isDoubleScore" class="mr-1 w-4 h-4"> 接力双倍</label></div>
+                    <div class="col-span-12 bg-gray-50 p-3 rounded border border-gray-200 mt-2">
+    <label class="text-xs font-bold text-gray-500 block mb-2">限定参加组别 (不选则全部组别可见)</label>
+    <div id="eventGroupCheckboxes" class="flex flex-wrap gap-4">
+        </div>
+</div><div class="col-span-2"><button onclick="addEvent()" class="w-full bg-blue-600 text-white font-bold py-2 rounded text-sm hover:bg-blue-700 shadow transition">➕ 添加项目</button></div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
+                <div class="overflow-y-auto flex-1"><table class="fixed-table text-left"><thead class="sticky top-0 z-10 shadow-sm"><tr><th style="width:50px">序号</th><th>项目名称</th><th style="width:200px">类型</th><th style="width:120px">属性</th><th style="width:100px">当前纪录</th><th>规则</th><th style="width:60px">操作</th></tr></thead><tbody id="eventListBody"></tbody></table></div>
+            </div>
+        </div>
+
+        <div id="step-2" class="step-panel h-full flex flex-col p-6 overflow-hidden hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">2. 参赛单位 (组别)</h2>
+            <div class="bg-white p-5 rounded-lg mb-6 flex gap-4 items-end border-l-4 border-indigo-500">
+                <div class="flex-1"><label class="text-xs font-bold text-gray-500">组别名称</label><input type="text" id="groupName" class="w-full border p-2 rounded text-sm"></div>
+                <div class="w-40"><label class="text-xs font-bold text-gray-500">编号前缀</label><input type="number" id="groupPrefix" class="w-full border p-2 rounded text-sm"></div>
+                <button onclick="addGroup()" class="bg-indigo-600 text-white font-bold px-6 py-2 rounded text-sm">添加</button>
+            </div>
+            <div class="bg-white rounded-lg border overflow-hidden flex-1 flex flex-col"><div class="overflow-y-auto flex-1"><table class="fixed-table text-left"><thead class="sticky top-0 bg-gray-50"><tr><th>序号</th><th>组别名称</th><th>编号规则</th><th>操作</th></tr></thead><tbody id="groupListBody"></tbody></table></div></div>
+        </div>
+        
+        <div id="step-3" class="step-panel h-full flex flex-col p-6 overflow-hidden hidden">
+    <div class="flex justify-between items-center mb-2">
+        <h2 class="text-2xl font-bold text-gray-800">3. 参赛单位 (代表队)</h2>
+        <div class="flex gap-2">
+            <button onclick="window.location.href='/api/export_teams'" class="bg-green-50 text-green-700 border border-green-200 px-3 py-1 rounded text-sm font-bold hover:bg-green-100">
+                📥 导出/模板
+            </button>
+            <button onclick="document.getElementById('teamCsvUpload').click()" class="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded text-sm font-bold hover:bg-blue-100">
+                📤 批量导入
+            </button>
+            <input type="file" id="teamCsvUpload" class="hidden" accept=".csv" onchange="uploadTeamsCSV(this)">
+        </div>
+    </div>
+            <div class="bg-white p-5 rounded-lg mb-6 grid grid-cols-4 gap-4 items-end border-l-4 border-purple-500">
+                <div><label class="text-xs font-bold text-gray-500">组别</label><select id="teamGroupSelect" class="w-full border p-2 rounded text-sm"></select></div>
+                <div><label class="text-xs font-bold text-gray-500">队名</label><input type="text" id="teamName" class="w-full border p-2 rounded text-sm"></div>
+                <div><label class="text-xs font-bold text-gray-500">领队</label><input type="text" id="teamLeader" class="w-full border p-2 rounded text-sm"></div>
+                <button onclick="addTeam()" class="bg-purple-600 text-white font-bold py-2 rounded text-sm">添加</button>
+            </div>
+            <div class="bg-white rounded-lg border overflow-hidden flex-1 flex flex-col"><div class="overflow-y-auto flex-1"><table class="fixed-table text-left"><thead class="sticky top-0 bg-gray-50"><tr><th>序号</th><th>组别</th><th>队名</th><th>领队</th><th>操作</th></tr></thead><tbody id="teamListBody"></tbody></table></div></div>
+        </div>
+
+        <div id="step-4" class="step-panel h-full flex flex-col hidden">
+            <div class="p-4 border-b bg-white flex justify-between items-center shadow-sm shrink-0">
+                <div><h2 class="text-2xl font-bold text-gray-800">4. 运动员报名</h2></div>
+                <div id="currentViewTitle" class="text-sm font-bold text-blue-800 bg-blue-50 px-3 py-1 rounded hidden"></div>
+            </div>
+            <div class="flex flex-1 overflow-hidden">
+                <div class="w-56 bg-white border-r border-gray-200 overflow-y-auto shrink-0 p-3" id="teamTree"></div>
+                <div class="flex-1 bg-white flex flex-col min-w-0">
+                    <div class="p-2 border-b bg-gray-50 flex gap-2 shrink-0">
+                        <button onclick="autoGenerateBibs()" class="bg-purple-100 text-purple-700 border border-purple-200 px-3 py-1 rounded text-xs font-bold">⚡ 按组别/班级生成号码</button>
+                    </div>
+<div class="p-4 border-b flex gap-3 items-center bg-gray-50 flex-wrap">
+    
+    <div class="text-sm text-gray-500 font-bold mr-2" id="regStats"></div>
+    
+    <button onclick="fetchLatestData()" class="bg-white border hover:bg-gray-100 px-3 py-1 rounded text-sm font-bold text-gray-600 flex items-center gap-1">
+        🔄 刷新
+    </button>
+
+    <div class="h-6 w-px bg-gray-300 mx-2"></div> <button onclick="window.location.href='/api/export_registrations'" class="bg-green-600 text-white hover:bg-green-700 px-3 py-1 rounded text-sm font-bold flex items-center gap-1 shadow-sm">
+        📥 导出名单
+    </button>
+    
+    <button onclick="document.getElementById('csvUpload').click()" class="bg-blue-600 text-white hover:bg-blue-700 px-3 py-1 rounded text-sm font-bold flex items-center gap-1 shadow-sm">
+        📤 导入名单
+    </button>
+    <input type="file" id="csvUpload" class="hidden" accept=".csv" onchange="uploadCSV(this)">
+    
+    <div class="ml-auto text-xs text-gray-400">
+        * 导入格式：组别, 代表队, 姓名, 性别, 号码, 项目一, 项目二, 项目三...
+    </div>
+</div>
+                    <div class="flex border-b border-gray-200 shrink-0 h-auto min-h-[320px]">
+                        <div class="w-1/3 p-4 bg-gray-50 border-r border-gray-200 space-y-4">
+                            <h3 class="font-bold text-gray-700 border-b pb-2">👤 学生信息</h3>
+                            <div><label class="text-xs text-gray-500 font-bold block mb-1">姓名</label><input type="text" id="athName" class="w-full border p-2 rounded" placeholder="输入姓名"></div>
+                            <div><label class="text-xs text-gray-500 font-bold block mb-1">性别</label><select id="athGender" class="w-full border p-2 rounded"><option value="男">男</option><option value="女">女</option></select></div>
+                            <div><label class="text-xs text-gray-500 font-bold block mb-1">号码 (可选)</label><input type="text" id="athBib" class="w-full border p-2 rounded font-mono" placeholder="自动或手动"></div>
+                            <button onclick="addAthlete()" class="w-full bg-blue-600 text-white font-bold py-2 rounded shadow hover:bg-blue-700 mt-2">➕ 添加报名</button>
+                        </div>
+                        <div class="w-2/3 p-4 overflow-y-auto bg-white">
+                            <h3 class="font-bold text-gray-700 border-b pb-2 mb-2 flex justify-between">
+                                <span>🎯 选择参赛项目</span><span class="text-xs font-bold text-blue-600" id="adminLimitTip">个人竞技项限 2 个</span>
+                            </h3>
+                            <div id="eventCheckboxes" class="space-y-4"></div>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-y-auto bg-white">
+                        <table class="fixed-table text-left"><thead class="sticky top-0 bg-gray-100"><tr><th style="width:200px">组别</th><th style="width:50px">序号</th><th>姓名 (班级)</th><th style="width:60px">性别</th><th style="width:80px">号码</th><th>已报项目</th><th style="width:60px">操作</th></tr></thead><tbody id="athleteListBody"></tbody></table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="step-5" class="step-panel h-full flex flex-col hidden p-6 overflow-hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 shrink-0 flex items-center gap-2 no-print">⚡ 智能自动编排 (初赛)</h2>
+            <div class="grid grid-cols-12 gap-6 mb-6 shrink-0 h-auto no-print">
+                <div class="col-span-5 param-box bg-white border border-gray-300 p-4 rounded shadow-sm relative mt-2">
+                    <span class="absolute -top-3 left-4 bg-white px-2 text-sm font-bold text-gray-600">🛠️ 参数</span>
+                    <div class="space-y-2 mt-2">
+                        <div class="flex justify-between"><label class="text-sm font-bold">短跑道数(<=400米)：</label><input type="number" id="cfgLanes" value="8" class="border p-1 w-20 text-center"></div>
+                        <div class="flex justify-between"><label class="text-sm font-bold">道次顺序：</label><input type="text" id="cfgLaneOrder" value="4,5,3,6,2,7,1,8" class="border p-1 w-32 text-center text-xs"></div>
+                        <div class="flex justify-between"><label class="text-sm font-bold">长跑每组(>=800米)：</label><input type="number" id="cfgLongRunMax" value="20" class="border p-1 w-20 text-center"></div>
+                        <div class="flex justify-between"><label class="text-sm font-bold">田赛(趣味）每组：</label><input type="number" id="cfgFieldMax" value="99" class="border p-1 w-20 text-center"></div>
+                    </div>
+                </div>
+                <div class="col-span-7 param-box bg-yellow-50 border border-yellow-200 p-4 rounded shadow-sm relative mt-2">
+                    <span class="absolute -top-3 left-4 bg-yellow-50 px-2 text-sm font-bold text-yellow-700">🎯 选择范围</span>
+                    <div class="space-y-3 mt-2 text-sm">
+                        <div><input type="radio" name="schScope" value="all" checked onchange="toggleSchOptions()"> 全部项目</div>
+                        <div><input type="radio" name="schScope" value="event" onchange="toggleSchOptions()"> 单一项目：<select id="schSelEvent" disabled class="border p-1"></select></div>
+                        <div><input type="radio" name="schScope" value="specific" onchange="toggleSchOptions()"> 特定：<select id="schSelGroup" disabled class="border p-1 w-24"></select><select id="schSelGender" disabled class="border p-1 w-16"><option>男</option><option>女</option></select><select id="schSelSpecEvent" disabled class="border p-1"></select></div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-center gap-4 mb-4 shrink-0 no-print">
+                <button onclick="generateSchedule()" class="bg-purple-600 text-white px-8 py-2 rounded shadow hover:bg-purple-700 font-bold text-lg">🏃 开始编排</button>
+                <button onclick="db.schedule=[];renderScheduleResult();" class="bg-white border text-gray-700 px-6 py-2 rounded hover:bg-gray-100">🗑️ 清空</button>
+                <button onclick="window.print()" class="bg-blue-100 text-blue-700 px-6 py-2 rounded hover:bg-blue-200">🖨️ 打印检录表</button>
+                <button onclick="exportWord()" class="bg-blue-600 text-white border border-blue-700 px-6 py-2 rounded hover:bg-blue-700 font-bold flex items-center gap-2 shadow">📥 导出 Word 文件</button>
+                <button onclick="syncScheduleToCloud()" class="bg-green-600 text-white px-6 py-2 rounded shadow hover:bg-green-700 font-bold border border-green-700">☁️ 发布编排结果(裁判可见)</button>
+            </div>
+            <div class="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                <div class="p-3 bg-gray-50 border-b font-bold text-gray-700 flex justify-between no-print"><span>📑 检录表预览</span><span id="scheduleStatus">0 条</span></div>
+                <div class="flex-1 overflow-y-auto p-4 bg-gray-100" id="scheduleOutput"></div>
+            </div>
+        </div>
+
+       <div id="step-6" class="step-panel h-full flex flex-col hidden p-6 overflow-hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 shrink-0 flex items-center gap-2 no-print">📊 成绩管理 & 决赛编排</h2>
+            
+       <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4 shrink-0 flex gap-2 items-end no-print">
+                <div class="w-32">
+                    <label class="text-xs font-bold text-gray-500 block mb-1">1. 选组别</label>
+                    <select id="resGroupSelect" class="border p-2 rounded w-full text-sm font-bold" onchange="updateResGender()"></select>
+                </div>
+                <div class="w-24">
+                    <label class="text-xs font-bold text-gray-500 block mb-1">2. 选性别</label>
+                    <select id="resGenderSelect" class="border p-2 rounded w-full text-sm font-bold" disabled onchange="updateResEvents()">
+                        <option value="">--</option>
+                    </select>
+                </div>
+                <div class="w-48">
+                    <label class="text-xs font-bold text-gray-500 block mb-1">3. 选项目</label>
+                    <select id="resEventSelect" class="border p-2 rounded w-full text-sm font-bold" disabled onchange="renderResultSheet()">
+                        <option value="">-- 先选前两项 --</option>
+                    </select>
+                </div>
+
+                <button onclick="renderResultSheet()" class="bg-blue-100 text-blue-700 px-4 py-2 rounded hover:bg-blue-200 font-bold text-sm ml-2">🔄 刷新</button>
+                
+                <label class="flex items-center space-x-1 cursor-pointer select-none bg-yellow-50 px-3 py-2 rounded border border-yellow-200 text-yellow-700 font-bold text-sm ml-2 hover:bg-yellow-100 transition">
+                    <input type="checkbox" id="enableEditScore" onchange="renderResultSheet()" class="w-4 h-4 text-yellow-600 rounded focus:ring-yellow-500 cursor-pointer">
+                    <span>🔓 开启编辑</span>
+                </label>
+
+                <div class="border-l pl-4 ml-2 flex gap-2 items-end">
+                    <div>
+                        <label class="text-xs font-bold text-orange-500 block mb-1">晋级人数</label>
+                        <input type="number" id="finalsTopN" value="8" class="border p-2 rounded w-16 text-center text-sm font-bold text-orange-600">
+                    </div>
+                    <button onclick="generateFinals()" class="bg-orange-600 text-white px-4 py-2 rounded shadow hover:bg-orange-700 font-bold text-sm">⚡ 生成决赛表</button>
+                    <button onclick="generateResultAnnouncement()" class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 font-bold text-sm ml-2">📄 生成成绩公告</button>
+                </div>
+                
+                <div class="ml-auto flex items-center">
+                     <button onclick="window.print()" class="bg-gray-700 text-white px-4 py-2 rounded hover:bg-gray-800 font-bold text-sm ml-4">🖨️ 打印</button>
+                </div>
+            </div>
+
+            <div class="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                <div class="flex-1 overflow-y-auto p-8 bg-gray-100" id="resultOutput">
+                    <div class="text-center text-gray-400 mt-20">请在上方选择 <b>组别、性别、项目</b> 查看成绩</div>
+                </div>
+            </div>
+        </div>
+<div id="step-7" class="step-panel h-full flex flex-col hidden p-6 overflow-hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 shrink-0 flex items-center gap-2 no-print">🏆 团体总分排名</h2>
+            
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4 shrink-0 flex gap-4 items-end no-print">
+                <div class="w-48">
+                    <label class="text-xs font-bold text-gray-500 block mb-1">选择组别统计</label>
+                    <select id="rankGroupSelect" class="border p-2 rounded w-full text-sm font-bold border-pink-300 text-pink-700">
+                        <option value="">-- 请选择 --</option>
+                    </select>
+                </div>
+                <button onclick="recalculateAllPoints()" class="bg-red-600 text-white px-6 py-2 rounded shadow hover:bg-red-700 font-bold text-sm flex items-center gap-2 ml-2">
+    🔄 计算/刷新所有积分
+</button>
+               <button onclick="calculateDetailedScoreTable()" class="bg-purple-600 text-white px-6 py-2 rounded shadow hover:bg-purple-700 font-bold text-sm flex items-center gap-2">
+    📑 详细积分表</button>
+                <div class="ml-auto flex gap-2">
+                    <button onclick="window.print()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 font-bold text-sm">
+                        🖨️ 默认/竖向
+                    </button>
+                    <button onclick="printLandscape()" class="bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-900 font-bold text-sm">
+                        🖨️ 强制横向
+                    </button>
+                </div>
+            </div>
+            <div class="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                <div class="flex-1 overflow-y-auto p-8 bg-gray-50" id="rankOutput">
+                    <div class="text-center text-gray-400 mt-20">请选择组别并点击计算</div>
+                </div>
+            </div>
+        </div>
+<div id="step-8" class="step-panel h-full hidden p-6  flex flex-col">
+    <h2 class="text-2xl font-bold text-gray-800 mb-4 shrink-0 no-print">🔐 代表队账号管理</h2>
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 no-print">
+        <p class="text-sm text-yellow-700">
+            1. <b>使用说明：</b>点击“扫描并生成”，系统会为所有已存在的代表队自动生成6位随机密码。<br>
+            2. <b>分发：</b>生成后点击打印，剪裁成小条分发给各班领队。<br>
+            3. <b>登录地址：</b> 领队访问首页即可登录。
+        </p>
+    </div>
+
+    <div class="mb-4 no-print flex gap-2">
+        <button onclick="loadTeamPasswords('generate')" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-bold shadow flex items-center gap-2">
+            🔄 扫描并生成密码
+        </button>
+<button onclick="exportPasswordsToExcel()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-bold shadow flex items-center gap-2">
+            📊 导出 Excel 文件
+        </button>
+        <button onclick="window.print()" class="bg-gray-700 text-white px-4 py-2 rounded hover:bg-gray-800 font-bold shadow ml-auto flex items-center gap-2">
+            🖨️ 打印密码条
+        </button>
+    </div>
+
+    <div class="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+        <div class="flex-1 overflow-y-auto p-8 bg-gray-50">
+            <div id="passwordList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                </div>
+        </div>
+    </div>
+</div>
+<div id="step-9" class="step-panel h-full hidden p-6 overflow-y-auto">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">📊 报名数据实时统计</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+            <h3 class="font-bold text-blue-800 mb-4 border-b pb-2">👥 组别/性别人数统计</h3>
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-gray-500">
+                    <tr><th class="p-2 text-left">组别</th><th class="p-2 text-center">性别</th><th class="p-2 text-right">人数</th></tr>
+                </thead>
+                <tbody id="statsGroupBody"></tbody>
+            </table>
+        </div>
+        
+        <div class="bg-white p-5 rounded-lg shadow-sm border border-orange-200 bg-orange-50">
+            <h3 class="font-bold text-orange-800 mb-4 border-b border-orange-200 pb-2">📱 系统访问入口 (扫码使用)</h3>
+            <div class="grid grid-cols-3 gap-2 text-center" id="qrContainer">
+                </div>
+        </div>
+    </div>
+
+    <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+        <h3 class="font-bold text-purple-800 mb-4 border-b pb-2">🏃 项目报名人数分布</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4" id="statsEventContainer"></div>
+    </div>
+</div>
+
+   <script>
+    let db = { events: [], groups: [], teams: [], athletes: [], schedule: [], results: [] };
+    let viewMode = 'none'; let currentId = null;
+    let currentStepId = 0;
+function handleReset(mode) {
+    const msg = mode === 'all' ? '确定要完全初始化吗？所有项目配置、组别、班级、报名都将消失！' : '确定要清空所有报名和成绩吗？项目配置将保留。';
+    
+    if (confirm(msg) && confirm('请再次确认，此操作无法恢复！')) {
+        fetch('/api/reset_system', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ mode: mode })
+        })
+        .then(r => r.json())
+        .then(res => {
+            alert(res.msg);
+            location.reload();
+        });
+    }
+}  
+function formatTrackTime(val) {
+  
+    return val || ''; 
+}
+
+// 确认 admin.html 中的 parseTimeVal 函数逻辑
+function parseTimeVal(val) {
+    if (!val) return 0;
+    let s = String(val).trim();
+    
+    // 1. 如果包含冒号 (1:00.00)，转成秒数 (60秒)
+    if (s.includes(':') || s.includes('：')) {
+        s = s.replace(/：/g, ':');
+        let parts = s.split(':');
+        // 时:分:秒
+        if (parts.length === 3) { 
+            return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
+        }
+        // 分:秒
+        if (parts.length === 2) { 
+            return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+        }
+    }
+
+    // 2. 如果是纯数字 (58.57)，直接返回 58.57
+    let num = parseFloat(s);
+    if (isNaN(num)) return 0;
+
+    return num;
+}
+    window.onload = function() {
+        console.log("Connecting...");
+        initPresets();
+        fetchLatestData(); // 初始加载数据
+        document.getElementById('athGender').addEventListener('change', function() { updateEventCheckboxes(this.value); });
+        
+        switchStep(0); // 默认打开Step 0
+    };
+const loginTeamId = "{{ user_team_id }}";
+function autoSelectTeamByLogin() {
+    
+    const loginTeamName = "{{ team_name }}"; 
+    if (!loginTeamName || loginTeamName === "None") return;
+
+    const selGroup = document.getElementById('selGroup');
+    const selTeam = document.getElementById('selTeam');
+
+  
+    const myTeam = teamsData.find(t => t.name === loginTeamName);
+
+    if (myTeam) {
+        
+        selGroup.value = myTeam.group_id;
+        onGroupChange(); 
+        selTeam.value = myTeam.id;
+        selGroup.disabled = true;
+        selTeam.disabled = true;
+        selGroup.classList.add('bg-gray-100', 'cursor-not-allowed');
+        selTeam.classList.add('bg-gray-100', 'cursor-not-allowed');
+        loadTeamMembers(myTeam.id);
+    }
+}
+function fetchLatestData() {
+        fetch('/api/get_data').then(r=>r.json()).then(data => {
+            
+            db.groups = data.groups;
+            db.teams = data.teams;
+            db.athletes = data.athletes;
+            
+            if (data.schedule && data.schedule.length > 0) {
+            db.schedule = data.schedule;
+            // 如果当前正好在编排选项卡，立即渲染
+            if (typeof currentTab !== 'undefined' && currentTab === 'arrange') {
+                renderScheduleResult();
+            }
+        }
+            if (data.events.length > 0) {
+                db.events = data.events.map(e => ({
+                    ...e,
+                    scoreRule: e.scoreRule || e.score_rule || '9,7,6,5,4,3,2,1', 
+                    record: e.record || '',
+                    recordBonus: e.recordBonus || e.record_bonus || 0,
+                    isDoubleScore: (String(e.isDoubleScore) === 'true' || String(e.is_double_score) === '1'),
+                    needLane: (String(e.needLane) === 'true' || String(e.need_lane) === '1'),
+                    hasPrelim: (String(e.hasPrelim) === 'true' || String(e.has_prelim) === '1'),
+                    isRelay: (String(e.isRelay) === 'true' || String(e.is_relay) === '1')
+                }));
+            }
+
+            if (data.config) {
+                const c = data.config;
+                if(c.title) document.getElementById('cfgTitle').value = c.title;
+                ['MaxPerPerson','MaxPerEvent','MaxTotal','MaxMale','MaxFemale'].forEach(k => {
+                    if(c['max'+k] || c['cfg'+k]) document.getElementById('cfg'+k).value = c['max'+k] || c['cfg'+k];
+                });
+            }
+
+            renderAll();
+            
+            // --- Step 6 初始化 (修改重点：改为填充组别，实现三级联动) ---
+            const resGroupSel = document.getElementById('resGroupSelect');
+            
+            if (resGroupSel) {
+                // 1. 填充组别
+                resGroupSel.innerHTML = '<option value="">-- 1. 选组别 --</option>';
+                db.groups.forEach(g => {
+                    resGroupSel.innerHTML += `<option value="${g.name}">${g.name}</option>`;
+                });
+
+                const resGenderSel = document.getElementById('resGenderSelect');
+                if (resGenderSel) {
+                    resGenderSel.innerHTML = '<option value="">-- 2. 选性别 --</option>';
+                    resGenderSel.disabled = true;
+                }
+
+                const resEventSel = document.getElementById('resEventSelect');
+                if (resEventSel) {
+                    resEventSel.innerHTML = '<option value="">-- 3. 选项目 --</option>';
+                    resEventSel.disabled = true;
+                }
+            }
+            
+        }).catch(e=>console.error("加载数据失败:", e));
+    }
+function updateResGender() {
+        const gName = document.getElementById('resGroupSelect').value;
+        const genSel = document.getElementById('resGenderSelect');
+        const evtSel = document.getElementById('resEventSelect');
+        
+        genSel.innerHTML = '<option value="">-- 性别 --</option>';
+        evtSel.innerHTML = '<option value="">--</option>';
+        evtSel.disabled = true;
+        
+        if(!gName) { genSel.disabled = true; return; }
+
+        const targetGroup = db.groups.find(g => g.name === gName);
+        if(!targetGroup) return;
+        const teamIds = db.teams.filter(t => String(t.groupId) === String(targetGroup.id)).map(t => t.id);
+        
+       
+        const groupAthletes = db.athletes.filter(a => teamIds.includes(parseInt(a.teamId)));
+        const genders = [...new Set(groupAthletes.map(a => a.gender))].sort();
+        
+        genders.forEach(g => {
+            genSel.innerHTML += `<option value="${g}">${g}</option>`;
+        });
+        genSel.disabled = false;
+        
+        if(genders.length === 1) {
+            genSel.value = genders[0];
+            updateResEvents();
+        }
+    }
+
+    function updateResEvents() {
+        const gName = document.getElementById('resGroupSelect').value;
+        const gender = document.getElementById('resGenderSelect').value;
+        const evtSel = document.getElementById('resEventSelect');
+        
+        evtSel.innerHTML = '<option value="">-- 项目 --</option>';
+        
+        if(!gName || !gender) { evtSel.disabled = true; return; }
+
+        const targetGroup = db.groups.find(g => g.name === gName);
+        const teamIds = db.teams.filter(t => String(t.groupId) === String(targetGroup.id)).map(t => t.id);
+        const validAthletes = db.athletes.filter(a => teamIds.includes(parseInt(a.teamId)) && a.gender === gender);
+        
+        const events = [...new Set(validAthletes.flatMap(a => a.events))].sort();
+        
+        events.forEach(e => {
+            evtSel.innerHTML += `<option value="${e}">${e}</option>`;
+        });
+        evtSel.disabled = false;
+    }
+    function saveData() {
+        const getVal = (id, def) => document.getElementById(id) ? document.getElementById(id).value : def;
+        const config = {
+            title: getVal('cfgTitle', ''),
+            maxPerPerson: parseInt(getVal('cfgMaxPerPerson', 2)),
+            maxPerEvent: parseInt(getVal('cfgMaxPerEvent', 3)),
+            maxMale: parseInt(getVal('cfgMaxMale', 10)),
+            maxFemale: parseInt(getVal('cfgMaxFemale', 10)),
+            maxTotal: parseInt(getVal('cfgMaxTotal', 20))
+        };
+        fetch('/api/save_config', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ config, groups: db.groups, teams: db.teams, events: db.events, athletes: db.athletes })
+        }).then(r => r.json())
+    .then(d => {
+        alert(d.msg);
+        fetchLatestData(); // ✨ 关键：保存后立即从数据库刷新 ID，防止后续操作冲突
+    });
+}
+function renderGroupCheckboxes() {
+    const container = document.getElementById('eventGroupCheckboxes');
+    if (!container) return;
+    
+    // 从本地数据库 db.groups 中获取数据
+    container.innerHTML = db.groups.map(g => `
+        <label class="flex items-center space-x-1 cursor-pointer bg-white px-2 py-1 border rounded hover:bg-gray-50">
+            <input type="checkbox" class="group-limit-check" value="${g.name}">
+            <span class="text-sm">${g.name}</span>
+        </label>
+    `).join('') || '<span class="text-gray-400 text-xs">请先在 Step 2 设置组别</span>';
+}
+    /**
+ * 核心切换函数：处理页面跳转、导航高亮及数据按需加载
+ *
+ */
+function switchStep(stepId) {
+    currentStepId = stepId; // 👈 记录当前步骤 ID
+
+    // 1. 重置导航样式
+    document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.classList.remove('active', 'bg-blue-50', 'text-blue-700', 'font-bold', 'border-l-4', 'bg-opacity-50');
+    });
+    const activeBtn = document.querySelector(`[onclick*="switchStep(${stepId})"]`);
+    if (activeBtn) {
+        activeBtn.classList.add('active');
+        if (stepId >= 5) activeBtn.classList.add('bg-opacity-50', 'border-l-4', 'font-bold');
+    }
+
+    // 2. 切换面板
+    document.querySelectorAll('.step-panel').forEach(c => c.classList.add('hidden'));
+    const targetPanel = document.getElementById('step-' + stepId);
+    if (targetPanel) {
+        targetPanel.classList.remove('hidden');
+        targetPanel.scrollTop = 0; 
+    }
+
+    // 3. 各步骤逻辑
+    switch (stepId) {
+        case 1: typeof renderGroupCheckboxes === 'function' && renderGroupCheckboxes(); break;
+        case 4: 
+            typeof renderTeamTree === 'function' && renderTeamTree();
+            const genderVal = document.getElementById('athGender')?.value;
+            genderVal && typeof updateEventCheckboxes === 'function' && updateEventCheckboxes(genderVal);
+            break;
+        case 5:
+            // 👈 重点：如果本地有数据，直接渲染；如果没有，尝试从数据库获取的 db.schedule 渲染
+            if (db && db.schedule) {
+                renderScheduleResult(); 
+            }
+            typeof refreshSchOptions === 'function' && refreshSchOptions();
+            break;
+        case 6: typeof fetchLatestData === 'function' && fetchLatestData(); break;
+        case 7: typeof initRankPage === 'function' && initRankPage(); break;
+        case 8: typeof loadTeamPasswords === 'function' && loadTeamPasswords('get'); break;
+        case 9: typeof renderQRCodes === 'function' && renderQRCodes(); typeof loadStatistics === 'function' && loadStatistics(); break;
+    }
+}
+
+    function initPresets() {
+        const presets = ["100米","200米","400米","800米","1500米","4x100米","跳高","跳远","铅球"];
+        document.getElementById('presetButtons').innerHTML = presets.map(n => 
+            `<button onclick="addPreset('${n}')" class="text-xs bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded hover:bg-blue-600 font-bold">+ ${n}</button>`
+        ).join('');
+    }
+    
+    function toggleRelayScore() { document.getElementById('isDoubleScore').checked = document.getElementById('isRelay').checked; }
+
+    function addPreset(baseName) {
+        const score = document.getElementById('scoreRule').value;
+        const bonus = document.getElementById('recordBonus').value;
+        // 修改点：添加 index 参数，利用它生成不同的整数 ID
+        ['男','女'].forEach((g, index) => {
+            const name = (g==='男'?'男子':'女子') + baseName;
+            if(!db.events.find(e=>e.name===name)) {
+                db.events.push({
+                 
+                    id: Date.now() + (index * 100) + Math.floor(Math.random() * 50), 
+                    name, 
+                    type: baseName.includes('米')?'径赛':'田赛',
+                    gender: g, 
+                    needLane: baseName.includes('米')&&!baseName.includes('800')&&!baseName.includes('1500'),
+                    hasPrelim: baseName.includes('100')||baseName.includes('200'),
+                    isRelay: baseName.includes('4x'), 
+                    scoreRule: score, 
+                    isDoubleScore: baseName.includes('4x'), 
+                    recordBonus: bonus, 
+                    record: ''
+                });
+            }
+        });
+        renderAll();
+    }
+
+function addEvent() {
+    const name = document.getElementById('eventName').value;
+    if(!name) return;
+    
+    // ✨ 核心：获取当前勾选的限定组别
+    const allowed = Array.from(document.querySelectorAll('.group-limit-check:checked'))
+                         .map(el => el.value).join(',');
+
+    db.events.push({
+        id: Date.now(), name, 
+        type: document.getElementById('eventType').value, 
+        gender: document.getElementById('eventGender').value,
+        allowedGroups: allowed, // ✨ 保存限定信息
+        needLane: document.getElementById('needLane').checked, 
+        hasPrelim: document.getElementById('hasPrelim').checked, 
+        isRelay: document.getElementById('isRelay').checked,
+        scoreRule: document.getElementById('scoreRule').value, 
+        isDoubleScore: document.getElementById('isDoubleScore').checked,
+        recordBonus: document.getElementById('recordBonus').value, record: ''
+    });
+    renderAll();
+}
+    
+    function renderEventList() {
+        document.getElementById('eventListBody').innerHTML = db.events.map((e, i) => `
+            <tr class="border-b hover:bg-blue-50 transition">
+                <td class="font-mono text-gray-400 text-xs">${i+1}</td>
+                <td class="font-bold text-gray-700">${e.name}</td>
+                <td class="text-xs text-gray-500">${e.type} / ${e.gender}</td>
+                <td class="text-xs text-gray-400">
+                    ${e.needLane ? '<span class="bg-gray-100 px-1 rounded mr-1 font-bold">道</span>' : ''}
+                    ${e.hasPrelim ? '<span class="bg-blue-50 text-blue-600 px-1 rounded mr-1 font-bold">预</span>' : ''}
+                    ${e.isRelay ? '<span class="bg-orange-50 text-orange-600 px-1 rounded font-bold">团</span>' : ''}
+                </td>
+                <td>
+                    <input type="text" value="${e.record || ''}" onchange="updateEventRecord(${e.id}, this.value)"
+                       placeholder="如: 10.5" class="border border-gray-200 rounded px-2 py-1 text-sm w-20 text-center focus:border-blue-500 font-mono text-red-600 font-bold bg-white">
+                </td>
+                <td>
+                    <span class="badge badge-score" title="名次分">${e.scoreRule||'默认'}</span>
+                    ${(e.recordBonus > 0) ? `<span class="badge badge-bonus">+${e.recordBonus}分</span>` : ''}
+                    ${(e.isDoubleScore) ? `<span class="badge badge-double">x2</span>` : ''}
+                    ${(e.type === '趣味项目') ? `<span class="badge badge-fun">不限人数</span>` : ''}
+                </td>
+                <td class="text-right"><button onclick="db.events=db.events.filter(x=>x.id!=${e.id});renderAll()" class="text-red-400 text-xs hover:text-red-600 font-bold">删除</button></td>
+            </tr>`).join('');
+    }
+
+    function updateEventRecord(id, val) { const ev = db.events.find(e => e.id == id); if(ev) ev.record = val; }
+    function addGroup() { const n=document.getElementById('groupName').value; if(n) db.groups.push({id:Date.now(),name:n,prefix:document.getElementById('groupPrefix').value}); document.getElementById('groupName').value=''; renderAll(); }
+    function addTeam() { const n=document.getElementById('teamName').value, gid=document.getElementById('teamGroupSelect').value; if(n&&gid) { db.teams.push({id:Date.now(),groupId:gid,name:n,leader:document.getElementById('teamLeader').value}); document.getElementById('teamName').value=''; renderAll(); } }
+    
+ function renderAll() {
+        renderEventList();
+        
+        // 渲染组别列表 (Step 2)
+        document.getElementById('groupListBody').innerHTML = db.groups.map((g,i)=>`
+            <tr>
+                <td>${i+1}</td>
+                <td>${g.name}</td>
+                <td>${g.prefix||'-'}</td>
+                <td><button class="text-red-500 text-xs" onclick="db.groups=db.groups.filter(x=>x.id!=${g.id});renderAll()">删</button></td>
+            </tr>`).join('');
+        
+        // 渲染队伍列表 (Step 3)
+        document.getElementById('teamListBody').innerHTML = db.teams.map((t,i)=>`
+            <tr>
+                <td>${i+1}</td>
+                <td>${db.groups.find(x=>x.id==t.groupId)?.name}</td>
+                <td>${t.name}</td>
+                <td>${t.leader||'-'}</td>
+                <td><button class="text-red-500 text-xs" onclick="db.teams=db.teams.filter(x=>x.id!=${t.id});renderAll()">删</button></td>
+            </tr>`).join('');
+        
+        const sel = document.getElementById('teamGroupSelect');
+        const currentVal = sel.value; 
+        
+        sel.innerHTML = db.groups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+        
+        if(currentVal && Array.from(sel.options).some(opt => opt.value === currentVal)) {
+            sel.value = currentVal;
+        }
+
+        if(!document.getElementById('step-4').classList.contains('hidden')) { renderTeamTree(); renderAthleteList(); }
+    }
+
+/**
+ * 运动员报名界面：动态渲染可选项目复选框
+ * 集成了性别过滤、组别权限过滤以及竞技/趣味项目分类
+ *
+ */
+function updateEventCheckboxes(gender) {
+    const container = document.getElementById('eventCheckboxes');
+    if (!container) return;
+    
+    container.innerHTML = ''; // 清空原有选项
+    
+    // 1. 获取当前正在报名的运动员所属组别名称
+    // 根据当前管理员选择的视图（班级视图或组别视图）确定组别
+    let currentGroupName = "";
+    if (viewMode === 'team') {
+        const team = db.teams.find(t => t.id == currentId);
+        const group = db.groups.find(g => g.id == (team ? team.groupId : null));
+        currentGroupName = group ? group.name : "";
+    } else if (viewMode === 'group') {
+        const group = db.groups.find(g => g.id == currentId);
+        currentGroupName = group ? group.name : "";
+    }
+
+    // 2. 核心过滤逻辑：判断项目是否对当前学生可见
+    const filterFn = e => {
+        // 性别匹配：支持男、女、混合三种属性
+        const genderMatch = (!gender || e.gender === gender || e.gender === '混合');
+        
+        // 组别限制匹配：
+        // 检查项目的 allowedGroups 字段。如果为空，则全组别可见；
+        // 如果有值，则当前学生的组别必须在允许名单内
+        const allowedStr = e.allowedGroups || e.allowed_groups || ""; 
+        const groupMatch = (allowedStr === "" || allowedStr.split(',').includes(currentGroupName));
+        
+        return genderMatch && groupMatch;
+    };
+
+    // 3. 将项目分为“竞技项目”和“趣味项目”两类
+    const compEvents = db.events.filter(e => filterFn(e) && e.type !== '趣味项目');
+    const funEvents = db.events.filter(e => filterFn(e) && e.type === '趣味项目');
+
+    /**
+     * 内部渲染辅助函数
+     * @param {string} title 栏目标题
+     * @param {Array} events 项目列表
+     * @param {string} colorClass 文字颜色样式
+     * @param {boolean} isComp 是否为竞技项目（涉及限额校验）
+     */
+    const renderSection = (title, events, colorClass, isComp) => {
+        if(events.length === 0) return '';
+        
+        // 竞技项目需要进行限额统计，趣味项目不限
+        const checkClass = isComp ? 'comp-check' : 'fun-check';
+        const changeFn = isComp ? 'onchange="handleAdminCheckLimit()"' : '';
+
+        return `
+            <div class="mb-4">
+                <div class="text-xs font-bold text-gray-500 mb-2">${title}</div>
+                <div class="grid grid-cols-2 gap-2">
+                    ${events.map(e => {
+                        const isRelay = (String(e.isRelay) === 'true' || String(e.is_relay) === '1');
+                        return `
+                        <label class="flex items-center space-x-2 text-sm cursor-pointer hover:bg-gray-50 p-1 rounded">
+                            <input type="checkbox" name="chk_event" value="${e.name}" 
+                                   class="${checkClass} text-blue-600" 
+                                   data-is-relay="${isRelay}"
+                                   ${changeFn}>
+                            <span class="${colorClass} ${isRelay ? 'font-bold' : ''}">
+                                ${e.name}${isRelay ? ' <small class="text-green-600">[团体]</small>' : ''}
+                            </span>
+                        </label>`;
+                    }).join('')}
+                </div>
+            </div>`;
+    };
+
+    // 4. 更新 DOM 内容
+    container.innerHTML = 
+        renderSection('🏃 竞技项目', compEvents, 'text-gray-700', true) + 
+        renderSection('✨ 趣味项目', funEvents, 'text-orange-600 font-bold', false);
+
+    // 如果没有可选项目，显示提示
+    if (!container.innerHTML) {
+        container.innerHTML = '<div class="text-center py-4 text-gray-400 text-xs">该性别/组别暂无可报项目</div>';
+    } else {
+        // 渲染完成后，立即执行一次限额检查，以防切换性别时状态错误
+        handleAdminCheckLimit();
+    }
+}
+    function handleAdminCheckLimit() {
+        const allComp = document.querySelectorAll('.comp-check');
+        let count = 0; const max = 2;
+        allComp.forEach(cb => { if (cb.checked && cb.dataset.isRelay !== 'true') count++; });
+        allComp.forEach(cb => {
+            const isRelay = (cb.dataset.isRelay === 'true');
+            if (isRelay) { cb.disabled = false; cb.parentElement.classList.remove('checkbox-disabled'); return; }
+            if (count >= max && !cb.checked) { cb.disabled = true; cb.parentElement.classList.add('checkbox-disabled'); } 
+            else { cb.disabled = false; cb.parentElement.classList.remove('checkbox-disabled'); }
+        });
+    }
+    
+    function renderTeamTree() {
+        const tree = document.getElementById('teamTree'); tree.innerHTML = '';
+        db.groups.forEach(g => {
+            const d = document.createElement('div'); d.className=`tree-group ${viewMode==='group'&&currentId==g.id?'active-group':''}`;
+            d.innerHTML=`<span>${g.name}</span>`; d.onclick=()=>selectView('group',g.id,g.name); tree.appendChild(d);
+            db.teams.filter(t=>t.groupId==g.id).forEach(t=>{
+                const n=document.createElement('div'); n.className=`tree-team ${viewMode==='team'&&currentId==t.id?'active':''}`;
+                n.innerText=t.name; n.onclick=(e)=>{e.stopPropagation();selectView('team',t.id,t.name);}; tree.appendChild(n);
+            });
+        });
+    }
+
+    function selectView(m,id,n) { viewMode=m; currentId=id; document.getElementById('currentViewTitle').innerText=n; document.getElementById('currentViewTitle').classList.remove('hidden'); currentGender = document.getElementById('athGender').value;
+    updateEventCheckboxes(document.getElementById('athGender').value);renderTeamTree();renderAthleteList(); }
+    
+    function renderAthleteList() {
+        const tbody=document.getElementById('athleteListBody'); let list=[];
+        if(viewMode==='team') list=db.athletes.filter(a=>a.teamId==currentId);
+        else if(viewMode==='group') { const tids=db.teams.filter(t=>t.groupId==currentId).map(t=>t.id); list=db.athletes.filter(a=>tids.includes(a.teamId)); list.sort((a,b)=>a.teamId-b.teamId); }
+        if(!list.length) { tbody.innerHTML='<tr><td colspan="8" class="text-center py-10 text-gray-400">无数据</td></tr>'; return; }
+        tbody.innerHTML=list.map((a,i)=>`<tr><td class="text-xs text-gray-500 text-left pl-2">${db.groups.find(g=>g.id==db.teams.find(t=>t.id==a.teamId)?.groupId)?.name}</td><td class="font-mono text-gray-400">${i+1}</td><td class="text-left pl-2"><span class="font-bold">${a.name}</span> <span class="text-xs text-gray-400">(${db.teams.find(t=>t.id==a.teamId)?.name})</span></td><td class="text-center text-xs">${a.gender}</td><td class="font-mono">${a.bib||''}</td><td class="text-blue-600 text-xs break-all">${a.events.join(', ')}</td><td class="text-center"><button onclick="deleteAthlete('${a.name}', ${a.teamId})" class="text-red-400 text-xs">删除</button></td></tr>`).join('');
+    }
+
+    function addAthlete() {
+        if(viewMode!=='team') return alert("请先选班级");
+        const n=document.getElementById('athName').value;
+        if(!n) return alert("请输入姓名");
+        const checkedEvents = Array.from(document.querySelectorAll('input[name="chk_event"]:checked')).map(el => el.value);
+        if(checkedEvents.length === 0) return alert("请至少选择一个项目");
+        const payload = { name: n, team_id: currentId, group_id: db.teams.find(t=>t.id==currentId).groupId, gender: document.getElementById('athGender').value, bib: document.getElementById('athBib').value, events: checkedEvents };
+        fetch('/api/add_athlete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+        .then(r => r.json()).then(d => { if(d.status === 'success') { document.getElementById('athName').value = ''; document.getElementById('athName').focus(); fetchLatestData(); document.querySelectorAll('input[name="chk_event"]').forEach(el => { el.checked = false; el.disabled = false; el.parentElement.classList.remove('checkbox-disabled'); }); } else { alert("❌ " + d.msg); } });
+    }
+    
+    function deleteAthlete(name, teamId) {
+        if(!confirm("确定删除该学生的所有报名信息吗？")) return;
+        fetch('/api/delete_athlete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name: name, team_id: teamId }) })
+        .then(r=>r.json()).then(d=>{ fetchLatestData(); });
+    }
+    
+    function autoGenerateBibs() {
+        if(viewMode==='none') return alert("选组或班级");
+        let list = (viewMode==='group') ? db.athletes.filter(a=>db.teams.find(t=>t.id==a.teamId)?.groupId==currentId) : db.athletes.filter(a=>a.teamId==currentId);
+        const prefix = (viewMode==='group') ? db.groups.find(g=>g.id==currentId)?.prefix : db.groups.find(g=>g.id==db.teams.find(t=>t.id==currentId).groupId)?.prefix;
+        if(viewMode==='group') list.sort((a,b)=>a.teamId-b.teamId || a.name.localeCompare(b.name));
+        list.forEach((a,i)=>a.bib = (prefix||'')+(i+1).toString().padStart(3,'0'));
+        renderAthleteList(); alert("生成完毕");
+    }
+    
+    function exportSystem() { window.location.href='/api/export_system'; }
+    function triggerImport() { if(confirm("覆盖当前数据？")) document.getElementById('importFile').click(); }
+    function importSystem(input) {
+        if(!input.files[0]) return;
+        const fd=new FormData(); fd.append('file',input.files[0]);
+        fetch('/api/import_system',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{alert(d.msg);location.reload();});
+    }
+
+    function refreshSchOptions() {
+        const opts=db.events.map(e=>`<option value="${e.name}">${e.name}</option>`).join('');
+        document.getElementById('schSelEvent').innerHTML=opts; document.getElementById('schSelSpecEvent').innerHTML=opts;
+        document.getElementById('schSelGroup').innerHTML=`<option value="">选组别</option>`+db.groups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+    }
+    function toggleSchOptions() {
+        const s=document.querySelector('input[name="schScope"]:checked').value;
+        document.getElementById('schSelEvent').disabled=(s!=='event');
+        const sp=(s==='specific'); document.getElementById('schSelGroup').disabled=!sp; document.getElementById('schSelSpecEvent').disabled=!sp; document.getElementById('schSelGender').disabled=!sp;
+    }
+
+    function getEventSettings(event) {
+        const name = event.name;
+        const isField = event.type === '田赛' || name.includes('跳') || name.includes('投') || name.includes('球');
+        const isHeight = name.includes('跳高') || name.includes('撑竿跳');
+        const isDistance = isField && !isHeight;
+        const isLong = name.includes('800') || name.includes('1000') || name.includes('1500') || name.includes('3000') || name.includes('5000') || name.includes('长跑');
+        const isSprint = !isField && !isLong; 
+        const isFun = event.type === '趣味项目';
+        const limitSprint = parseInt(document.getElementById('cfgLanes').value) || 8;
+        const limitLong = parseInt(document.getElementById('cfgLongRunMax').value) || 20;
+        const limitField = parseInt(document.getElementById('cfgFieldMax').value) || 99;
+        if (isFun) return { type: 'fun', limit: parseInt(document.getElementById('cfgFieldMax').value) || 99};
+        if (isField) return { type: isHeight ? 'height' : 'distance', limit: limitField };
+        if (isLong) return { type: 'long', limit: limitLong };
+        return { type: 'sprint', limit: limitSprint };
+    }
+
+    function generateSchedule() {
+        if(!db.athletes.length) return alert("无数据");
+        const laneOrder = (document.getElementById('cfgLaneOrder').value||"4,5,3,6,2,7,1,8").split(/[,，]/).map(n=>parseInt(n));
+        let tasks=[]; 
+        const scope=document.querySelector('input[name="schScope"]:checked').value;
+        if(scope==='all') db.groups.forEach(g=>['男','女'].forEach(gen=>db.events.forEach(e=>tasks.push({gid:g.id,gname:g.name,gen:gen,evt:e}))));
+        else if(scope==='event') { const e=db.events.find(x=>x.name===document.getElementById('schSelEvent').value); if(e) db.groups.forEach(g=>['男','女'].forEach(gen=>tasks.push({gid:g.id,gname:g.name,gen:gen,evt:e}))); }
+        else if(scope==='specific') { const g=db.groups.find(x=>x.id==document.getElementById('schSelGroup').value), e=db.events.find(x=>x.name===document.getElementById('schSelSpecEvent').value), gen=document.getElementById('schSelGender').value; if(g&&e) tasks.push({gid:g.id,gname:g.name,gen:gen,evt:e}); }
+        if (scope === 'all') { db.schedule = []; } else { db.schedule = db.schedule.filter(existingItem => { const match = tasks.some(t => t.gname === existingItem.groupName && t.evt.name === existingItem.eventName && t.gen === existingItem.gender); return !match; }); }
+        let count=0;
+        tasks.forEach(task => {
+            let entries = db.athletes.filter(a => { const t=db.teams.find(x=>x.id==a.teamId); return t && t.groupId==task.gid && a.gender===task.gen && a.events.includes(task.evt.name); });
+            if(!entries.length) return;
+            count += entries.length;
+            const settings = getEventSettings(task.evt);
+            const maxPerHeat = settings.limit;
+            const isSprint = settings.type === 'sprint';
+            const totalHeats = Math.ceil(entries.length / maxPerHeat);
+            const heats = Array.from({length: totalHeats}, ()=>[]);
+            entries.sort((a,b)=>a.teamId-b.teamId);
+            entries.forEach((a,i) => heats[i%totalHeats].push(a));
+            heats.forEach((heatAthletes, hIdx) => {
+                if (isSprint) heatAthletes.sort(()=>Math.random()-0.5); 
+                heatAthletes.forEach((a, aIdx) => {
+                    let lane = (isSprint) ? (laneOrder[aIdx] || aIdx+1) : aIdx+1;
+                    db.schedule.push({ id: Date.now()+Math.random(), groupName: task.gname, eventName: task.evt.name, gender: task.gen, heat: hIdx+1, lane: lane, bib: a.bib, name: a.name, teamName: db.teams.find(t=>t.id==a.teamId)?.name, type: settings.type, totalLanes: isSprint ? maxPerHeat : 0 });
+                });
+            });
+        });
+        renderScheduleResult();
+        if (count > 0) {
+        // 使用静默保存，不弹窗打扰
+        fetch('/api/save_schedule_to_db', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(db.schedule) 
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.status === 'success') {
+                const statusSpan = document.getElementById('scheduleStatus');
+                if(statusSpan) statusSpan.innerText += " (已自动保存)";
+            } else {
+                alert("⚠️ 自动保存失败，请手动点击‘发布编排结果’按钮");
+            }
+        });
+       alert(`编排完成，共处理 ${count} 人次！\n系统已自动为您保存。`);
+    } else {
+        alert("没有找到符合条件的报名数据");
+    }
+}
+// 核心修复：使用确切的 ID (cfgLanes 和 cfgLaneOrder) 进行联动
+document.getElementById('cfgLanes')?.addEventListener('input', function(e) {
+    const laneCount = parseInt(e.target.value);
+    const orderInput = document.getElementById('cfgLaneOrder');
+    
+    if (!orderInput) return;
+
+    // 联动逻辑：根据输入的道数自动填充对应的标准道次顺序
+    const presets = {
+        8: "4,5,3,6,2,7,1,8",
+        6: "3,4,2,5,1,6",
+        4: "2,3,1,4"
+    };
+
+    if (presets[laneCount]) {
+        orderInput.value = presets[laneCount];
+    }
+});
+// ============================================================
+    // 📋 最终版 renderScheduleResult 
+    // ============================================================
+    function renderScheduleResult() {
+        const div = document.getElementById('scheduleOutput');
+        if(!db.schedule.length) { 
+            div.innerHTML='<div class="text-center text-gray-400 mt-10">暂无数据</div>'; 
+            document.getElementById('scheduleStatus').innerText='0'; 
+            return; 
+        }
+        document.getElementById('scheduleStatus').innerText = db.schedule.length + ' 人次';
+        div.innerHTML = '';
+        
+        const grouped = {};
+        db.schedule.forEach(i => { const k=`${i.groupName}#${i.eventName}#${i.gender}#${i.heat}`; if(!grouped[k]) grouped[k]=[]; grouped[k].push(i); });
+        
+        const heatCounts = {};
+        db.schedule.forEach(s => {
+            const key = `${s.groupName}#${s.eventName}#${s.gender}`;
+            const h = parseInt(s.heat);
+            if (!heatCounts[key] || h > heatCounts[key]) heatCounts[key] = h;
+        });
+
+        Object.keys(grouped).sort().forEach(k => {
+            try {
+                const [gName, eName, gen, heat] = k.split('#');
+                const items = grouped[k];
+                const type = items[0].type || 'sprint';
+                //if (type === 'fun') return;
+                
+                const totalHeats = heatCounts[`${gName}#${eName}#${gen}`] || 1;
+                
+  
+                const evtCfg = db.events.find(e => e.name === eName);
+                
+                const roundType = (evtCfg && evtCfg.hasPrelim) ? "预赛" : "决赛";
+
+                // 标题判断
+                let title = '径赛检录表';
+                if (type === 'height') title = '田赛高度成绩记录表';
+                if (type === 'distance') title = '田赛远度成绩记录表';
+                if (type === 'long') title = '中长跑项目检录表';
+                if (type === 'fun') title = '趣味项目检录表';
+               
+                let html = `
+                <div class="rc-card break-inside-avoid">
+                    <h2 class="rc-title">${title}</h2>
+                    <div class="rc-header" style="justify-content: space-between; padding: 0 10px;">
+                        <span>组别：${gName} (${gen})</span>
+                        <span>项目：${eName}</span>
+                        <span class="font-bold text-800">( ${roundType} )</span>
+                        <span>共 ${totalHeats} 组 &nbsp;&nbsp; 第 ${heat} 组</span>
+                    </div>
+                    <div class="rc-table-wrapper">`;
+
+              
+                if (type === 'height') {
+                    // 田赛-高度 (跳高)
+                    html += `<table class="rc-table height-table"><thead><tr><th style="width:40px">序号</th><th style="width:50px">号码</th><th style="width:70px">姓名</th><th style="width:70px">单位</th><th colspan="12">高 度 (米)</th><th style="width:50px">最后<br>高度</th><th style="width:40px">名次</th><th>备注</th></tr></thead><tbody>`;
+                    items.sort((a,b) => (parseInt(a.lane)||0) - (parseInt(b.lane)||0));
+                    items.forEach((r, idx) => { html += `<tr><td>${idx + 1}</td><td class="font-mono text-sm">${r.bib||''}</td><td class="font-bold">${r.name}</td><td class="text-xs">${r.teamName}</td>${'<td class="height-grid"></td>'.repeat(12)}<td></td><td></td><td></td></tr>`; });
+                    html += `</tbody></table>
+                    <div class="rc-footer">
+                        <span>总裁判长：_____</span> <span>田赛裁判长：_____</span> <span>裁判长：_____</span> <span>记录员：_____</span>
+                    </div>`;
+                
+                } else if (type === 'distance') {
+                    // 田赛-远度 (跳远、铅球)
+                    html += `<table class="rc-table dist-table"><thead><tr><th rowspan="2" style="width:40px">序号</th><th rowspan="2" style="width:50px">号码</th><th rowspan="2" style="width:70px">姓名</th><th rowspan="2" style="width:70px">单位</th><th colspan="3">前三次成绩</th><th rowspan="2" style="width:50px">前三<br>最优</th><th rowspan="2" style="width:40px">名次</th><th colspan="3">后三次成绩</th><th rowspan="2" style="width:50px">六次<br>最优</th><th rowspan="2" style="width:40px">名次</th><th rowspan="2">备注</th></tr><tr><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th></tr></thead><tbody>`;
+                    items.sort((a,b) => (parseInt(a.lane)||0) - (parseInt(b.lane)||0));
+                    items.forEach((r, idx) => { html += `<tr><td>${idx + 1}</td><td class="font-mono text-sm">${r.bib||''}</td><td class="font-bold">${r.name}</td><td class="text-xs">${r.teamName}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`; });
+                    html += `</tbody></table>
+                    <div class="rc-footer">
+                        <span>总裁判长：_____</span> <span>田赛裁判长：_____</span> <span>裁判长：_____</span> <span>记录员：_____</span>
+                    </div>`;
+                
+                } else if (type === 'long'|| type === 'fun') {
+                    // 中长跑 (800米以上)
+                    html += `<table class="rc-table long-table"><thead><tr><th style="width:50px">序号</th><th style="width:60px">号码</th><th style="width:100px">姓名</th><th style="width:100px">单位</th><th>成绩</th><th>名次</th><th>备注</th></tr></thead><tbody>`;
+                    items.sort((a,b) => (parseInt(a.lane)||0) - (parseInt(b.lane)||0));
+                    items.forEach((r, idx) => { html += `<tr><td>${idx + 1}</td><td class="font-mono font-bold">${r.bib||''}</td><td class="font-bold">${r.name}</td><td>${r.teamName}</td><td></td><td></td><td></td></tr>`; });
+                    // 补空行
+                    for(let j=items.length; j<15; j++) { html += `<tr><td>${j+1}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`; }
+                    html += `</tbody></table>
+                    <div class="rc-footer">
+                         <span>检录长：_____</span> <span>检录员：_____</span>
+                    </div>`;
+
+                } else {
+                    // --- 普通径赛 (100米, 200米, 400米, 接力等) ---
+                    const savedLanes = parseInt(items[0].totalLanes) || 0;
+                    const lanesInGroup = items.map(i => parseInt(i.lane) || 0);
+                    const maxLaneInGroup = Math.max(0, ...lanesInGroup);
+                    const columns = Math.max(savedLanes, maxLaneInGroup, savedLanes ? 0 : 8, 1);
+                    
+                    html += `<table class="rc-table track-table"><tbody>`;
+                    // 表头列：横向展示
+                    const rows = [{t:"道次",f:"lane"}, {t:"号码",f:"bib"}, {t:"姓名",f:"name"}, {t:"单位",f:"teamName"}, {t:"成绩",f:""}, {t:"名次",f:""}];
+                    
+                    const laneMap = {};
+                    items.forEach(a => { if(a.lane) laneMap[a.lane] = a; });
+                    
+                    rows.forEach(r => { 
+                        html += `<tr><td class="rc-label track-label" style="font-weight:bold; width:80px;">${r.t}</td>`; 
+                        for(let i=1; i<=columns; i++) { 
+                            let val = (r.t==="道次") ? i : (laneMap[i]?.[r.f] || ""); 
+                            // 样式优化
+                            let style = "";
+                            if(r.t==="姓名") style="font-weight:bold; font-size:14pt;";
+                            if(r.t==="号码") style="font-family:Times New Roman; font-weight:bold;";
+                            html += `<td style="${style}">${val}</td>`; 
+                        } 
+                        html += `</tr>`; 
+                    });
+                    html += `</tbody></table>
+                    
+                    <div class="rc-footer" style="margin-top:20px;">
+                        <span>检录长：_____________</span> 
+                        <span>检录员：_____________</span> 
+                    </div>`;
+                }
+                
+                html += `</div></div>`; div.innerHTML += html;
+            } catch(err) { console.error("渲染错误", err); }
+        });
+    }
+
+    function syncScheduleToCloud() {
+        if (!db.schedule || db.schedule.length === 0) return alert("请先点击【🏃 开始编排】生成数据！");
+        if (!confirm("确定要发布当前的编排结果吗？\n\n发布后，裁判员将在手机端看到分组和道次信息。\n注意：这会覆盖之前的编排记录。")) return;
+        const btn = document.querySelector('button[onclick="syncScheduleToCloud()"]');
+        const oldText = btn.innerText; btn.innerText = "正在发布..."; btn.disabled = true;
+        fetch('/api/save_schedule_to_db', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(db.schedule) })
+        .then(r => r.json()).then(res => { btn.innerText = oldText; btn.disabled = false; if (res.status === 'success') alert("✅ 发布成功！"); else alert("❌ 发布失败: " + res.msg); })
+        .catch(err => { btn.innerText = oldText; btn.disabled = false; alert("网络错误"); });
+    }
+
+  // --- 修复版 renderResultSheet
+    
+    let autoRefreshTimer = null;
+
+    function toggleAutoRefresh(checkbox) {
+    if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+    }
+
+    if(checkbox.checked) {
+        fetchLatestData(); // 立即刷新一次
+        renderResultSheet(); // 刷新当前表格
+        autoRefreshTimer = setInterval(() => {
+            console.log("Auto refreshing...");
+            renderResultSheet();
+        }, 5000); 
+    }
+}
+
+    let isSaving = false;
+
+
+// admin.html 中的 generateFinals 函数
+function generateFinals() {
+    const groupName = document.getElementById('resGroupSelect').value; // 组别：如 D组
+    const eventName = document.getElementById('resEventSelect').value; // 项目：如 100米
+    const gender = document.getElementById('resGenderSelect')?.value || ""; // 性别：如 女子
+    const topN = parseInt(document.getElementById('finalsTopN').value) || 8;
+    const div = document.getElementById('resultOutput');
+    
+    if(!groupName || !eventName) return alert("请先选择组别和项目");
+
+    div.innerHTML = '<div class="text-center p-10 text-blue-500">正在筛选本组别预赛成绩...</div>';
+
+    // ✨ 修改点 1：调用新接口，传递组别、性别、项目
+    fetch('/api/generate_finals_list', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ 
+            group_name: groupName, 
+            gender: gender,
+            event: eventName, 
+            top_n: topN 
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if(data.status === "error") return alert(data.msg);
+        
+        const finalists = data.athletes;
+        if(finalists.length === 0) {
+            div.innerHTML = `<div class="p-10 text-center text-gray-500">未找到 ${groupName}${gender}${eventName} 的预赛成绩</div>`;
+            return;
+        }
+
+     // ============================================================
+            // 🏃 生成决赛检录表 (横向道次 + 智能排道)
+            // ============================================================
+            let laneOrder;
+            let orderDesc = "";
+            // 智能道次逻辑
+            if (topN === 6) { laneOrder = [3, 4, 2, 5, 1, 6]; orderDesc = "3-4-2-5-1-6"; } 
+            else if (topN === 8) { laneOrder = [4, 5, 3, 6, 2, 7, 1, 8]; orderDesc = "4-5-3-6-2-7-1-8"; } 
+            else { laneOrder = Array.from({length: topN}, (_, i) => i + 1); orderDesc = "1-2-3..."; }
+
+            const finalData = finalists.map((p, idx) => ({ 
+                ...p, 
+                finalLane: laneOrder[idx] || (idx + 1), 
+                qualifyRank: idx + 1,                   
+                qualifyScore: formatTrackTime(p.score)                   
+            }));
+            
+            // 暂存数据供发布
+            window.pendingFinalsName = data.final_event_name; // 例如：女子100米决赛
+            window.pendingGroupName = groupName;            // 例如：D组
+            window.pendingFinalsData = finalists;
+            window.pendingGender = data.gender;
+            const laneMap = {}; finalData.forEach(p => { laneMap[p.finalLane] = p; });
+            const rowsConfig = [
+                { t: "道次", k: "finalLane", type: "index" },
+                { t: "号码", k: "bib" },
+                { t: "姓名", k: "name" },
+                { t: "单位", k: "team_name" },
+                { t: "预赛成绩", k: "qualifyScore" },
+                { t: "预赛名次", k: "qualifyRank" },
+                { t: "备注", k: "" }
+            ];
+            const displayLanes = topN; 
+
+            let tableHtml = `<table class="rc-table track-table"><tbody>`;
+            rowsConfig.forEach(row => {
+                tableHtml += `<tr><td class="rc-label track-label" style="width:90px; font-weight:bold;">${row.t}</td>`;
+                for(let i=1; i<=displayLanes; i++) {
+                    const p = laneMap[i];
+                    let content = '';
+                    if (row.type === 'index') content = i; 
+                    else if (p) content = p[row.k] || '';
+                    
+                    let style = "";
+                    if(row.t==="姓名") style="font-weight:bold; font-size:13pt;"; 
+                    if(row.t==="预赛成绩" || row.t==="号码") style="font-family:Times New Roman; font-weight:bold;";
+                    tableHtml += `<td style="${style}">${content}</td>`;
+                }
+                tableHtml += `</tr>`;
+            });
+            tableHtml += `</tbody></table>`;
+
+            // 发布按钮
+            const publishBtn = `
+                <div class="text-center mb-4 no-print">
+                    <button id="btnPublishFinals" onclick="publishFinals()" class="bg-green-600 text-white px-6 py-2 rounded shadow-lg hover:bg-green-700 font-bold flex items-center justify-center gap-2 mx-auto transition transform hover:scale-105">
+                        ☁️ 发布决赛名单给裁判
+                    </button>
+                    <p class="text-xs text-gray-400 mt-1">点击后，裁判员即可在手机端看到【${window.pendingFinalsName}】并录入成绩</p>
+                </div>
+            `;
+
+            div.innerHTML = `
+            <div class="rc-card break-inside-avoid">
+                <h2 class="rc-title">决赛分组检录表</h2>
+                ${publishBtn}
+                <div class="rc-header">
+                    <span>项目：${eventName} (决赛)</span>
+                    <span>共 1 组 &nbsp; 取前 ${topN} 名</span>
+                    <span>生成时间：${new Date().toLocaleTimeString()}</span>
+                </div>
+                ${tableHtml}
+                <div class="rc-footer">
+                    <span>检录长：_____</span> <span>裁判长：_____</span> <span>计时员：_____</span>
+                </div>
+                <div class="text-center text-gray-400 text-xs mt-2">* 注：道次已按预赛成绩自动优化 (${orderDesc})</div>
+            </div>`;
+        });
+    }
+// ============================================================
+    // 📄 最终版 generateResultAnnouncement 
+    // ============================================================
+  
+  window.generateResultAnnouncement = function() {
+        const eventName = document.getElementById('resEventSelect').value;
+        const groupName = document.getElementById('resGroupSelect') ? document.getElementById('resGroupSelect').value : '';
+        const eventTitle = document.getElementById('cfgTitle').value || "运动会";
+        const topN = parseInt(document.getElementById('finalsTopN').value) || 8; 
+        const div = document.getElementById('resultOutput');
+        
+        if(!eventName) return alert("请先选择项目");
+
+        const evtCfg = db.events.find(e => e.name === eventName);
+        const roundStatus = (evtCfg && evtCfg.hasPrelim) ? "预赛" : "决赛";
+        
+        let pointRules = [9, 7, 6, 5, 4, 3, 2, 1]; // 默认规则
+        let isDouble = false;
+        if (evtCfg) {
+            if (evtCfg.scoreRule) pointRules = evtCfg.scoreRule.replace(/，/g, ',').split(',').map(Number);
+            isDouble = evtCfg.isDoubleScore;
+        }
+
+        fetch('/api/get_event_start_list', { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({ event_name: eventName, group_name: groupName }) 
+        })
+        .then(r=>r.json()).then(data => {
+            const validAthletes = data.filter(i => i.score && !isNaN(parseFloat(i.score)));
+            
+            if(validAthletes.length === 0) {
+                div.innerHTML = `<div class="text-center text-gray-400 mt-10"><p class="text-xl mb-2">该项目暂无成绩</p></div>`; 
+                return;
+            }
+
+            const isField = eventName.includes('跳') || eventName.includes('投') || eventName.includes('球');
+            const sortAsc = !isField; 
+
+            validAthletes.sort((a,b) => {
+                const sa = parseTimeVal(a.score);
+                const sb = parseTimeVal(b.score);
+                return sortAsc ? (sa - sb) : (sb - sa);
+            });
+
+            let rowsHtml = '';
+            let currentRank = 1;
+
+            validAthletes.forEach((p, idx) => {
+                // --- 并列名次逻辑 ---
+                if (idx > 0) {
+                    const prevScore = validAthletes[idx-1].score;
+                    const currScore = p.score;
+                    if (parseTimeVal(currScore) !== parseTimeVal(prevScore)) {
+                         currentRank = idx + 1;
+                    }
+                } else {
+                    currentRank = 1;
+                }
+
+                let points = 0;
+                        
+                if (roundStatus !== '预赛') {
+                    if (currentRank <= pointRules.length) {
+                        points = pointRules[currentRank - 1];
+                    }
+                    if (isDouble) points *= 2;
+                }
+               
+                let qMark = '';
+                if (roundStatus === '预赛' && currentRank <= topN) {
+                    qMark = 'q'; 
+                }
+
+                rowsHtml += `
+                <tr>
+                    <td style="font-weight:bold; font-size:12pt;">${currentRank}</td>
+                    <td style="font-family:Times New Roman; font-weight:bold;">${p.bib || ''}</td>
+                    <td style="font-weight:bold; text-align:left; padding-left:20px;">${p.name}</td>
+                    <td>${p.team_name}</td>
+                    <td style="font-family:Times New Roman; font-weight:bold; font-size:12pt;">${formatTrackTime(p.score)}</td>
+                    <td style="font-weight:bold; font-family:Times New Roman;">${qMark}</td>
+                    <td style="font-weight:bold; color:#b45309; font-size:12pt;">${points > 0 ? points : ''}</td>
+                    <td></td>
+                </tr>`;
+            });
+
+            const today = new Date();
+            const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
+
+            const finalHtml = `
+        <div class="rc-card break-inside-avoid">
+            <h1 style="text-align:center; font-size:28pt; font-weight:bold; margin-bottom:10px; font-family:SimSun;">${eventTitle} 成绩公告</h1>
+            
+            <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #000; padding-bottom:5px; margin-bottom:2px; font-size:14pt; font-weight:bold;">
+                <div>${groupName} &nbsp; ${eventName} &nbsp; ${roundStatus}</div>
+                <div style="font-size:12pt; font-weight:normal;">综合成绩</div>
+                <div style="font-size:10pt; font-weight:normal;">${dateStr}</div>
+            </div>
+
+            <table class="rc-table" style="width:100%; text-align:center; border:none; table-layout: auto !important;">
+                <thead>
+                    <tr style="border-bottom:2px solid #000; height:35px; font-size:12pt;">
+                        <th style="width:50px; border:none;">名次</th>
+                        <th style="width:80px; border:none;">号码</th>
+                        <th style="width:150px; text-align:left; padding-left:20px; border:none;">姓 名</th>
+                        <th style="width:120px; border:none;">单 位</th>
+                        <th style="width:100px; border:none;">成 绩</th>
+                        <th style="width:60px; border:none;">录取</th>
+                        <th style="width:60px; border:none;">积分</th>
+                        <th style="width:80px; border:none;">备注</th>
+                    </tr>
+                </thead>
+                <tbody style="font-size:11pt;">
+                    ${rowsHtml}
+                </tbody>
+            </table>
+            
+            <div style="border-top:2px solid #000; margin-top:2px;"></div>
+            <div class="rc-footer" style="margin-top:20px;">
+                <span>裁判长签字：________________</span>
+                <span>记录长签字：________________</span>
+            </div>
+        </div>`;
+
+        div.innerHTML = finalHtml;
+    });
+};
+    // ✅ Word 导出
+    function exportWord() {
+        if (!db.schedule || db.schedule.length === 0) return alert("暂无数据，请先编排");
+        
+const events = {}; db.schedule.forEach(s => { const key = `${s.groupName} ${s.eventName} (${s.gender})`; if (!events[key]) events[key] = []; events[key].push(s); });
+        let html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>竞赛分组名单</title><style>@page { size: A4 landscape; margin: 1.5cm; } body { font-family: 'SimSun', 'Songti SC', serif; color: #000; } .main-title { text-align: center; font-size: 26pt; margin-bottom: 10px; letter-spacing: 2px; font-weight: normal; } .date-line { text-align: center; font-size: 12pt; margin-bottom: 20px; font-family: 'Times New Roman', serif; } .event-block { margin-bottom: 25pt; page-break-inside: avoid; } .event-header { font-size: 15pt; border-bottom: 1px solid black; padding-bottom: 6px; margin-bottom: 10px; text-align: left; font-weight: normal; } .heat-title { font-size: 11pt; margin-top: 10px; margin-bottom: 5px; text-align: left; font-weight: normal; } table { width: 100%; border-collapse: collapse; table-layout: fixed; text-align: center; margin-bottom: 5px; } td { padding: 2px 0; border: none; vertical-align: top; } .row-idx td { border-bottom: 1px solid #000; font-size: 10.5pt; color: #000; height: 24px; vertical-align: bottom; padding-bottom: 4px; } .row-bib td { font-size: 10.5pt; padding-top: 4px; font-family: 'Times New Roman', serif; } .row-name td { font-size: 14pt; padding-top: 4px; padding-bottom: 2px; font-family: 'SimSun', serif; } .row-team td { font-size: 10.5pt; color: #333; padding-bottom: 15px; font-family: 'SimSun', serif; }</style></head><body><div class="main-title">竞赛分组名单</div><div class="date-line">${new Date().getFullYear()}年${new Date().getMonth()+1}月${new Date().getDate()}日</div>`;
+        let idx = 1;
+        Object.keys(events).sort().forEach(evtKey => {
+            const items = events[evtKey]; const eventName = items[0].eventName;
+            const isLongRun = eventName.includes('800') || eventName.includes('1000') || eventName.includes('1500') || eventName.includes('3000') || eventName.includes('5000') || eventName.includes('长跑');
+            const isField = eventName.includes('跳') || eventName.includes('投') || eventName.includes('球') || eventName.includes('掷');
+            const isFun = items[0].type === 'fun'; 
+            const useListMode = isLongRun || isField || isFun;
+            const totalPeople = items.length;
+            const heats = [...new Set(items.map(i => i.heat))].sort((a,b)=>a-b);
+            const headerText = isFun ? `${idx++}. ${evtKey} &nbsp;&nbsp; 共${totalPeople}人` : `${idx++}. ${evtKey} &nbsp;&nbsp; 共${totalPeople}人 &nbsp;&nbsp; 共${heats.length}组`;
+            html += `<div class="event-block"><div class="event-header">${headerText}</div>`;
+            if (useListMode) {
+                const processList = isFun ? [items] : heats.map(h => items.filter(i => i.heat === h));
+                processList.forEach((heatItems, hIndex) => {
+                    if (!isFun) html += `<div class="heat-title">第 ${heats[hIndex]} 组</div>`;
+                    if (isFun) heatItems.sort((a,b) => a.teamName.localeCompare(b.teamName)); else heatItems.sort((a,b) => (parseInt(a.lane)||0) - (parseInt(b.lane)||0));
+                    html += `<table>`; 
+                    const chunkSize = 8;
+                    for (let i = 0; i < heatItems.length; i += chunkSize) {
+                        const chunk = heatItems.slice(i, i + chunkSize);
+                        while (chunk.length < chunkSize) chunk.push(null); 
+                        const hasBib = chunk.some(it => it && it.bib && it.bib.trim() !== '');
+                        html += `<tr class="row-idx">${chunk.map((it, k) => `<td>${it ? (isFun ? (i + k + 1) : (it.lane || (i + k + 1))) : ''}</td>`).join('')}</tr>${hasBib ? `<tr class="row-bib">${chunk.map(it => `<td>${(it && it.bib) ? it.bib : ''}</td>`).join('')}</tr>` : ''}<tr class="row-name">${chunk.map(it => `<td>${it ? it.name : ''}</td>`).join('')}</tr><tr class="row-team">${chunk.map(it => `<td>${it ? it.teamName : ''}</td>`).join('')}</tr>`;
+                    }
+                    html += `</table>`;
+                });
+            } else {
+                heats.forEach(heat => {
+                    const heatItems = items.filter(i => i.heat === heat);
+                    const laneMap = {}; heatItems.forEach(i => { if(i.lane) laneMap[i.lane] = i; });
+                    const maxLane = Math.max(...heatItems.map(i => parseInt(i.lane) || 0)); const cols = Math.max(maxLane, 4); 
+                    const hasBib = heatItems.some(it => it.bib && it.bib.trim() !== '');
+                    html += `<div class="heat-title">第 ${heat} 组</div><table><tr class="row-idx">${Array.from({length: cols}, (_, k) => `<td>${k+1}</td>`).join('')}</tr>${hasBib ? `<tr class="row-bib">${Array.from({length: cols}, (_, k) => `<td>${laneMap[k+1] ? laneMap[k+1].bib : ''}</td>`).join('')}</tr>` : ''}<tr class="row-name">${Array.from({length: cols}, (_, k) => `<td>${laneMap[k+1] ? laneMap[k+1].name : ''}</td>`).join('')}</tr><tr class="row-team">${Array.from({length: cols}, (_, k) => `<td>${laneMap[k+1] ? laneMap[k+1].teamName : ''}</td>`).join('')}</tr></table>`;
+                });
+            }
+            html += `</div>`;
+        });
+        html += `</body></html>`;
+        const blob = new Blob(['\ufeff' + html], { type: 'application/msword' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `竞赛分组名单_${new Date().toLocaleDateString()}.doc`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    }
+// ============================================================
+    // 1. 修复版 fetchLatestData 
+    // ============================================================
+   window.fetchLatestData = function() {
+    fetch('/api/get_data').then(r=>r.json()).then(data => {
+        db.groups = data.groups;
+        db.teams = data.teams;
+        db.athletes = data.athletes;
+        
+        // 👈 重点修复：同步数据库中的编排表
+        if (data.schedule) {
+            db.schedule = data.schedule;
+            
+            // 如果当前正好在第5步（编排页），立即刷新视图
+            if (currentStepId === 5) {
+                renderScheduleResult();
+            }
+        } else {
+            db.schedule = [];
+        }
+            
+            if (data.events.length > 0) {
+            db.events = data.events.map(e => ({
+                ...e,
+                allowedGroups: e.allowedGroups || e.allowed_groups || '',
+                scoreRule: e.scoreRule || e.score_rule || '9,7,6,5,4,3,2,1', 
+                record: e.record || '',
+                recordBonus: e.recordBonus || e.record_bonus || 0,
+                isDoubleScore: (String(e.isDoubleScore) === 'true' || String(e.is_double_score) === '1'),
+                needLane: (String(e.needLane) === 'true' || String(e.need_lane) === '1'),
+                hasPrelim: (String(e.hasPrelim) === 'true' || String(e.has_prelim) === '1'),
+                isRelay: (String(e.isRelay) === 'true' || String(e.is_relay) === '1')
+            }));
+        }
+
+        if (data.config) {
+            const c = data.config;
+            if(c.title) document.getElementById('cfgTitle').value = c.title;
+            ['MaxPerPerson','MaxPerEvent','MaxTotal','MaxMale','MaxFemale'].forEach(k => {
+                if(c['max'+k] || c['cfg'+k]) document.getElementById('cfg'+k).value = c['max'+k] || c['cfg'+k];
+            });
+        }
+
+        if(window.renderAll) window.renderAll();
+
+            // Step 6 下拉框保护逻辑 (保持不变)
+            const resGroupSel = document.getElementById('resGroupSelect');
+            const resGenderSel = document.getElementById('resGenderSelect');
+            const resEventSel = document.getElementById('resEventSelect');
+
+            if (resGroupSel) {
+                const oldGroup = resGroupSel.value; 
+                
+                resGroupSel.innerHTML = '<option value="">-- 1. 选组别 --</option>';
+                db.groups.forEach(g => {
+                    const opt = document.createElement('option');
+                    opt.value = g.name; opt.innerText = g.name;
+                    if(g.name === oldGroup) opt.selected = true; 
+                    resGroupSel.appendChild(opt);
+                });
+
+                if(!oldGroup) {
+                    if(resGenderSel) { resGenderSel.innerHTML = '<option value="">-- 2. 选性别 --</option>'; resGenderSel.disabled = true; }
+                    if(resEventSel) { resEventSel.innerHTML = '<option value="">-- 3. 选项目 --</option>'; resEventSel.disabled = true; }
+                }
+            }
+        }).catch(e=>console.error("数据同步错误:", e));
+    };
+
+   // ============================================================
+    // 🚀 修正后的 renderResultSheet 
+    // ============================================================
+    window.renderResultSheet = function() {
+        const eventName = document.getElementById('resEventSelect').value;
+        const groupName = document.getElementById('resGroupSelect') ? document.getElementById('resGroupSelect').value : null;
+        const editToggle = document.getElementById('enableEditScore');
+        const isEditMode = editToggle ? editToggle.checked : false;
+        const div = document.getElementById('resultOutput');
+
+        if (isEditMode && document.activeElement && document.activeElement.tagName === 'INPUT' && div.contains(document.activeElement)) {
+            return; 
+        }
+
+        if(!eventName) return;
+
+        const evtCfg = db.events.find(e => e.name === eventName);
+        const roundStatus = (evtCfg && evtCfg.hasPrelim) ? "预赛" : "决赛";
+
+        fetch('/api/get_event_start_list?_t=' + Date.now(), {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ event_name: eventName, group_name: groupName })
+        }).then(r=>r.json()).then(data => {
+            if(data.length === 0) { 
+                div.innerHTML = `<div class="text-center text-gray-400 mt-10"><p class="text-xl mb-2">未找到数据</p></div>`; 
+                return; 
+            }
+            
+            const heats = {};
+            data.forEach(item => {
+                const h = item.heat || '1';
+                if(!heats[h]) heats[h] = [];
+                heats[h].push(item);
+            });
+
+            const totalHeats = Object.keys(heats).length;
+            const isField = eventName.includes('跳') || eventName.includes('投') || eventName.includes('球');
+            const sortAsc = !isField; 
+
+            let finalHTML = '';
+            Object.keys(heats).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(heatNum => {
+                const items = heats[heatNum];
+                const scoredItems = items.filter(i => i.score && i.score.trim() !== '');
+                scoredItems.sort((a,b) => {
+                    const sa = parseTimeVal(a.score);
+                    const sb = parseTimeVal(b.score);
+                    return sortAsc ? (sa - sb) : (sb - sa);
+                });
+                const rankMap = {};
+                scoredItems.forEach((item, idx) => rankMap[item.id] = idx + 1);
+
+                const maxLane = Math.max(...items.map(i => parseInt(i.lane) || 0));
+                const cols = Math.max(maxLane, 8); 
+                const laneMap = {};
+                items.forEach(p => { if(p.lane) laneMap[p.lane] = p; });
+                
+                let tableHtml = `<table class="res-table"><tbody>`;
+                const rowsConfig = [
+                    { label: '道次', key: 'lane', type: 'index' },
+                    { label: '号码', key: 'bib', style: 'font-family:Times New Roman; font-weight:bold;' },
+                    { label: '姓名', key: 'name', style: 'font-weight:bold; font-size:14pt;' },
+                    { label: '单位', key: 'team_name', style: 'font-size:14pt;' },
+                    { label: '成绩', key: 'score', type: 'score_cell' }, 
+                    { label: '名次', key: 'rank', style: 'font-weight:bold; font-size:14pt;' },
+                    { label: '积分', key: 'points', type: 'point_cell' }
+                ];
+
+ // --- 🔴 替换开始：修复成绩和积分显示逻辑 ---
+                rowsConfig.forEach(cfg => {
+                    tableHtml += `<tr><td class="res-label-col">${cfg.label}</td>`;
+                    for(let i=1; i<=cols; i++) {
+                        const p = laneMap[i];
+                        let content = '';
+                        if (cfg.type === 'index') content = i;
+                        else if (p) {
+                            // ✅ 1. 成绩列：只处理成绩 (score)
+                            if (cfg.type === 'score_cell') {
+                                const val = p.score || '';
+                                if (isEditMode) {
+                                    // 编辑模式：显示输入框，修改的是【成绩】
+                                    // 核心修复：onblur 调用 updateAdminScore，并且 ID 使用 p.id
+                                    content = `<input type="text" value="${val}" class="text-center font-bold bg-yellow-50 border-b-2 border-yellow-300 w-24" style="font-family:Times New Roman; font-size:12pt;" onblur="updateAdminScore(${p.id}, this)">`;
+                                } else {
+                                    // 浏览模式：显示格式化后的成绩
+                                    content = `<span style="font-family:Times New Roman; font-weight:bold; font-size:13pt;">${formatTrackTime(val)}</span>`;
+                                }
+                            } 
+                            // ✅ 2. 积分列：只处理积分 (points)
+                            else if (cfg.type === 'point_cell') {
+                                const val = p.points || 0; // 这里必须取 p.points
+                                if (isEditMode) {
+                                    // 编辑模式：显示输入框，修改的是【积分】
+                                    content = `<input type="number" value="${val}" class="text-center font-bold bg-gray-50 border-b-2 border-gray-300 w-16 text-gray-500" onblur="updateAdminPoint(${p.id}, this)">`;
+                                } else {
+                                    // 浏览模式：显示积分数字
+                                    // 只有大于0才显示，视觉更清爽
+                                    content = `<span style="color:#b45309; font-weight:bold; font-size:12pt;">${val > 0 ? val : ''}</span>`;
+                                }
+                            } 
+                            // 3. 其他列 (名次、姓名等)
+                            else if(cfg.key === 'rank') {
+                                content = rankMap[p.id] || '';
+                            } else {
+                                content = p[cfg.key] || '';
+                            }
+                        }
+                        tableHtml += `<td>${content}</td>`;
+                    }
+                    tableHtml += `</tr>`;
+                });
+                // --- 🔴 替换结束 ---
+                tableHtml += `</tbody></table>`;
+
+                finalHTML += `<div class="res-card">
+                    <h2 class="res-title">竞赛成绩表</h2>
+                    <div class="res-info-row"><span>项目：${eventName}</span><span>( ${roundStatus} )</span><span>第 ${heatNum} 组</span></div>
+                    ${tableHtml}
+                    <div class="res-footer"><span>主裁判：___________</span><span>裁判：___________</span></div>
+                </div>`;
+            });
+            div.innerHTML = finalHTML;
+        }).catch(err => {
+            console.error(err);
+            div.innerHTML = `<div class="text-center text-red-500 mt-10">数据加载错误</div>`;
+        });
+    };
+// ============================================================
+    // Step 7: 团体总分排名逻辑
+    // ============================================================
+    function initRankPage() {
+        // 填充组别下拉框
+        const sel = document.getElementById('rankGroupSelect');
+        sel.innerHTML = '<option value="">-- 请选择组别 --</option>';
+        db.groups.forEach(g => {
+            sel.innerHTML += `<option value="${g.name}">${g.name}</option>`;
+        });
+    }
+
+    function calculateTeamRanking() {
+        const gName = document.getElementById('rankGroupSelect').value;
+        if (!gName) return alert("请先选择一个组别！");
+
+        const div = document.getElementById('rankOutput');
+        div.innerHTML = '<div class="text-center text-gray-500 mt-10">正在精密计算中...</div>';
+
+        fetch('/api/calculate_team_ranking', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ group_name: gName })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.length === 0) {
+                div.innerHTML = `<div class="text-center text-gray-400 mt-10">该组别暂无成绩数据</div>`;
+                return;
+            }
+
+            // 生成漂亮的榜单
+            const today = new Date();
+            const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
+
+            let rows = '';
+            data.forEach((t, idx) => {
+                // 前三名加图标
+                let rankIcon = idx + 1;
+                let rowClass = "";
+                if (idx === 0) { rankIcon = '🥇'; rowClass="bg-yellow-50"; }
+                if (idx === 1) { rankIcon = '🥈'; }
+                if (idx === 2) { rankIcon = '🥉'; }
+
+                rows += `
+                <tr class="${rowClass} border-b border-gray-200 hover:bg-gray-50">
+                    <td class="font-bold text-xl py-3">${rankIcon}</td>
+                    <td class="font-bold text-lg text-left pl-10">${t.name}</td>
+                    <td class="font-bold text-yellow-600">${t.gold}</td>
+                    <td class="font-bold text-gray-500">${t.silver}</td>
+                    <td class="font-bold text-orange-600">${t.bronze}</td>
+                    <td class="font-bold text-2xl text-blue-700 font-mono">${t.score}</td>
+                </tr>`;
+            });
+
+            div.innerHTML = `
+            <div class="rc-card break-inside-avoid">
+                <h1 style="text-align:center; font-size:32pt; font-weight:bold; margin-bottom:10px; font-family:SimSun;">团体总分排名表</h1>
+                
+                <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #000; padding-bottom:5px; margin-bottom:10px; font-size:14pt; font-weight:bold;">
+                    <div>组别：${gName}</div>
+                    <div>${dateStr}</div>
+                </div>
+
+                <table class="w-full text-center border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-700 border-b-2 border-gray-400 h-10">
+                            <th class="w-20">排名</th>
+                            <th class="text-left pl-10">代表队</th>
+                            <th class="w-16">🥇金</th>
+                            <th class="w-16">🥈银</th>
+                            <th class="w-16">🥉铜</th>
+                            <th class="w-32">总积分</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+                
+                <div class="rc-footer" style="margin-top:30px;">
+                    <span>总裁判长签字：________________</span>
+                    <span>日期：________________</span>
+                </div>
+            </div>`;
+        });
+    }
+// ============================================================
+    // 📑 生成详细积分矩阵表 (仿 Excel 样式)
+    // ============================================================
+    function calculateDetailedScoreTable() {
+        const gName = document.getElementById('rankGroupSelect').value;
+        const eventTitle = document.getElementById('cfgTitle').value || "运动会"; // ✨ 获取Step 0设置的名称
+        if (!gName) return alert("请先选择一个组别！");
+
+        const div = document.getElementById('rankOutput');
+        div.innerHTML = '<div class="text-center text-gray-500 mt-10">正在生成积分矩阵...</div>';
+
+        fetch('/api/calculate_detailed_matrix?_t=' + Date.now(), {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ group_name: gName })
+        })
+        .then(r => r.json())
+        .then(data => {
+            const cols = data.columns; // ['100米', '200米', '跳高'...]
+            const rows = data.rows;    // [{team:'高一1', total:50, details:{...}}, ...]
+
+            if (rows.length === 0) {
+                div.innerHTML = `<div class="text-center text-gray-400 mt-10">暂无数据</div>`;
+                return;
+            }
+
+            // 1. 生成表头 HTML
+            let headerRow1 = `<th rowspan="2" style="width:100px;">班级</th>`;
+            let headerRow2 = ``;
+
+            cols.forEach(col => {
+                headerRow1 += `<th colspan="2">${col}</th>`;
+                headerRow2 += `<th style="width:40px; font-weight:normal; font-size:10pt;">男</th><th style="width:40px; font-weight:normal; font-size:10pt;">女</th>`;
+            });
+
+            headerRow1 += `<th rowspan="2" style="width:60px;">总分</th><th rowspan="2" style="width:50px;">名次</th>`;
+
+            // 2. 生成数据行 HTML
+            let bodyHtml = '';
+            rows.forEach((row, idx) => {
+                let cells = `<td style="font-weight:bold;">${row.team}</td>`;
+                
+                // 遍历每一个项目列
+                cols.forEach(col => {
+                    const detail = row.details[col] || { '男': 0, '女': 0 };
+                    // 如果得分为0，显示为空，视觉上更清爽
+                    const scoreM = detail['男'] > 0 ? detail['男'] : '';
+                    const scoreF = detail['女'] > 0 ? detail['女'] : '';
+                    
+                    cells += `<td style="color:#666;">${scoreM}</td><td style="color:#666;">${scoreF}</td>`;
+                });
+
+                // 总分和名次
+                cells += `<td style="font-weight:bold; color:#b45309;">${row.total}</td><td style="font-weight:bold;">${idx + 1}</td>`;
+                
+                bodyHtml += `<tr>${cells}</tr>`;
+            });
+
+            // 3. 组装完整页面
+            const today = new Date();
+            const year = today.getFullYear();
+            
+            const tableHtml = `
+            <div class="rc-card break-inside-avoid" style="width: 100%; overflow-x: auto;">
+                <h1 style="text-align:center; font-size:24pt; font-weight:bold; margin-bottom:20px; font-family:SimSun;">${year} 年${eventTitle}团体总分明细表</h1>
+                
+                <div style="text-align:left; font-weight:bold; margin-bottom:5px; font-size:12pt;">
+                    组别：${gName}
+                </div>
+
+                <table class="w-full text-center border-collapse" style="font-size:11px; border:1px solid #000;">
+                    <thead>
+                        <tr style="background-color:#f3f4f6; height:30px; border-bottom:1px solid #000;">
+                            ${headerRow1}
+                        </tr>
+                        <tr style="background-color:#f3f4f6; height:25px; border-bottom:1px solid #000;">
+                            ${headerRow2}
+                        </tr>
+                    </thead>
+                    <style>
+                        /* 局部样式：强制细边框 */
+                        .detail-table td, .detail-table th { border: 1px solid #666; padding: 4px 2px; }
+                        tbody tr:hover { background-color: #fefce8; }
+                    </style>
+                    <tbody class="detail-table">
+                        ${bodyHtml}
+                    </tbody>
+                </table>
+                
+                <div class="rc-footer" style="margin-top:20px;">
+                    <span>总裁判长：________________</span>
+                    <span>记录长：________________</span>
+                </div>
+                
+                <div style="text-align:center; margin-top:10px; color:#999; font-size:10px;" class="no-print">
+                    * 提示：如果表格过宽，请在打印预览中选择“横向”布局
+                </div>
+            </div>`;
+
+            div.innerHTML = tableHtml;
+        });
+    }
+// ============================================================
+    // 🖨️ 专用打印函数：强制横向打印
+    // ============================================================
+    window.printLandscape = function() {
+    const style = document.createElement('style');
+    style.id = 'landscape-print-style';
+    style.innerHTML = `
+        @media print { 
+            @page { size: landscape; margin: 10mm; } 
+            body { -webkit-print-color-adjust: exact; }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    window.onafterprint = function() {
+        const injectedStyle = document.getElementById('landscape-print-style');
+        if (injectedStyle) document.head.removeChild(injectedStyle);
+        window.onafterprint = null; // 清除事件
+    };
+
+    window.print();
+};
+       
+// ==========================================
+// Step 8: 账号密码管理
+// ==========================================
+window.loadTeamPasswords = function(action) {
+    fetch('/api/manage_team_passwords', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ action: action })
+    })
+    .then(r => r.json())
+    .then(data => {
+        currentPassData = data; 
+        const div = document.getElementById('passwordList');
+        div.innerHTML = ''; // 清空旧内容
+        
+        if (data.length === 0) {
+            div.innerHTML = '<p class="text-gray-400 col-span-full text-center py-10">暂无数据，请点击上方生成按钮</p>';
+            return;
+        }
+
+        let html = '';
+        let lastGroup = '';
+        
+        data.forEach(item => {
+            // ⭐ 组别标题逻辑
+            if (item.group !== lastGroup) {
+                html += `
+                <div class="col-span-full bg-blue-50 p-2 mt-4 rounded border-l-4 border-blue-600 font-bold text-blue-800 no-print">
+                    组别：${item.group}
+                </div>`;
+                lastGroup = item.group;
+            }
+
+            // 密码条卡片
+            html += `
+            <div class="bg-white border-2 border-dashed border-gray-400 p-4 rounded flex flex-col items-center justify-center break-inside-avoid relative h-32 shadow-sm">
+                <h3 class="font-bold text-lg mb-1">${item.team}</h3>
+                <div class="text-2xl font-mono font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded tracking-widest">${item.password}</div>
+                <p class="text-[10px] text-gray-400 mt-2">登录账号: ${item.team}</p>
+                <div class="absolute top-2 right-2 text-gray-200 text-xs no-print">✂️</div>
+            </div>`;
+        });
+        div.innerHTML = html;
+    });
+}
+window.exportPasswordsToExcel = function() {
+    if (currentPassData.length === 0) return alert("请先生成密码数据！");
+    let csvContent = "\ufeff组别,代表队名称,登录密码\n";
+    currentPassData.forEach(item => {
+        csvContent += `"${item.group}","${item.team}","${item.password}"\n`;
+    });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `账号密码表(按组别)_${new Date().toLocaleDateString()}.csv`;
+    link.click();
+};
+window.publishFinals = function() {
+    if (!window.pendingFinalsData || window.pendingFinalsData.length === 0) return alert("暂无决赛数据！");
+    if (!confirm(`确定发布【${window.pendingFinalsName}】吗？`)) return;
+
+    const btn = document.getElementById('btnPublishFinals');
+    btn.innerText = "☁️ 正在发布..."; btn.disabled = true;
+
+    fetch('/api/publish_finals', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ final_event_name: window.pendingFinalsName,
+            group_name: window.pendingGroupName,
+            gender: window.pendingGender, // ✨ 新增：传给后端
+            athletes: window.pendingFinalsData })
+    }).then(r => r.json()).then(res => {
+        btn.disabled = false;
+        btn.innerText = "☁️ 发布决赛名单";
+        if(res.status === 'success') {
+            alert("✅ 发布成功！");
+            
+            // ⭐ 优化点：防止重复添加 option
+            const sel = document.getElementById('resEventSelect');
+            const exists = Array.from(sel.options).some(opt => opt.value === window.pendingFinalsName);
+            if (!exists) {
+                sel.innerHTML += `<option value="${window.pendingFinalsName}">${window.pendingFinalsName}</option>`;
+            }
+            
+            sel.value = window.pendingFinalsName;
+            renderResultSheet(); 
+        } else alert("❌ 失败: " + res.msg);
+    });
+};
+function uploadTeamsCSV(input) {
+    if (!input.files || !input.files[0]) return;
+    
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+    
+    // UI 反馈
+    const btn = input.previousElementSibling;
+    const oldText = btn.innerText;
+    btn.innerText = "⏳ 处理中...";
+    btn.disabled = true;
+
+    fetch('/api/import_teams', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') {
+            alert(res.msg);
+            fetchLatestData(); // 刷新本地数据
+        } else {
+            alert("❌ 导入失败: " + res.msg);
+        }
+    })
+    .catch(err => alert("网络错误"))
+    .finally(() => {
+        btn.innerText = oldText;
+        btn.disabled = false;
+        input.value = ''; // 清空选择
+    });
+}
+// ==========================================
+    // CSV 导入功能
+    // ==========================================
+    function uploadCSV(input) {
+        if (!input.files || !input.files[0]) return;
+        
+        const formData = new FormData();
+        formData.append('file', input.files[0]);
+        
+        // 显示加载状态
+        const btn = document.querySelector('button[onclick*="csvUpload"]');
+        const oldText = btn.innerText;
+        btn.innerText = "⏳ 正在导入...";
+        btn.disabled = true;
+
+        fetch('/api/import_registrations', {
+            method: 'POST',
+            body: formData
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.status === 'success') {
+                alert("✅ " + res.msg);
+                fetchLatestData(); // 刷新表格
+            } else {
+                alert("❌ " + res.msg);
+            }
+        })
+        .catch(err => alert("网络错误"))
+        .finally(() => {
+            // 恢复按钮与清空文件框（以便下次能重复选同一个文件）
+            btn.innerText = oldText;
+            btn.disabled = false;
+            input.value = '';
+        });
+    }
+function generateSafeId() {
+    return Date.now() + Math.floor(Math.random() * 1000000);
+}
+// 1. 生成二维码
+function renderQRCodes() {
+    // 1. 获取 Flask 传过来的真实 IP。如果获取不到，再退而求其次使用当前域名
+    const serverIp = "{{ local_ip }}"; 
+    const port = window.location.port || "5000";
+    
+    // 2. 构造基础 URL (强制使用 http 和 IP)
+    const host = (serverIp && serverIp !== "127.0.0.1") 
+                 ? `http://${serverIp}:${port}` 
+                 : window.location.origin;
+
+    const portals = [
+        { name: '领队报名', url: host + '/login', color: 'bg-blue-600' },
+        { name: '裁判录入', url: host + '/referee/login', color: 'bg-green-600' },
+        { name: '成绩查询', url: host + '/query', color: 'bg-purple-600' }
+    ];
+    
+    const container = document.getElementById('qrContainer');
+    container.innerHTML = portals.map(p => `
+        <div class="p-2 bg-white border rounded shadow-sm">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(p.url)}" class="mx-auto mb-2">
+            <div class="${p.color} text-white text-[10px] py-1 rounded font-bold">${p.name}</div>
+            <div class="text-[8px] text-gray-400 mt-1 break-all select-all">${p.url}</div>
+        </div>
+    `).join('');
+}
+
+// 2. 加载并渲染统计数据
+function loadStatistics() {
+    fetch('/api/get_statistics').then(r => r.json()).then(data => {
+        // 1. 渲染组别/性别人数统计表格
+        const groupBody = document.getElementById('statsGroupBody');
+        let groupHtml = data.group_gender.map(r => `
+            <tr class="border-b">
+                <td class="p-2 font-bold">${r.group_name}</td>
+                <td class="p-2 text-center">${r.gender}</td>
+                <td class="p-2 text-right font-mono text-blue-600">${r.count} 人</td>
+            </tr>
+        `).join('');
+
+        // ✨ 新增：在表格底部追加双重合计行
+        groupHtml += `
+            <tr class="bg-blue-50 border-t-2 border-blue-200">
+                <td class="p-2 font-bold text-blue-800" colspan="2">👥 全场总报名人数 (学生总数)</td>
+                <td class="p-2 text-right font-mono font-bold text-blue-900">${data.total_athletes} 人</td>
+            </tr>
+            <tr class="bg-orange-50 border-t border-orange-200">
+                <td class="p-2 font-bold text-orange-800" colspan="2">🏃 全场总参加人次 (报名总项次)</td>
+                <td class="p-2 text-right font-mono font-bold text-orange-900">${data.total_participations} 人次</td>
+            </tr>
+        `;
+        groupBody.innerHTML = groupHtml;
+
+        // 渲染项目统计
+        const eventCont = document.getElementById('statsEventContainer');
+        eventCont.innerHTML = data.events.map(e => `
+            <div class="bg-gray-50 border p-3 rounded text-center">
+                <div class="text-xs text-gray-500 mb-1 truncate">${e.event_name}</div>
+                <div class="text-xl font-bold text-purple-700">${e.count}</div>
+            </div>
+        `).join('');
+    });
+}
+// 1. 触发后端重算所有积分
+function recalculateAllPoints() {
+    if(!confirm("确定要根据当前所有成绩重新计算积分吗？\n\n注意：这会覆盖之前手工修改的积分！建议计算完后再进行个别微调。")) return;
+    
+    const btn = event.target;
+    const oldText = btn.innerText;
+    btn.innerText = "正在计算..."; btn.disabled = true;
+
+    fetch('/api/recalculate_all_points', { method: 'POST' })
+    .then(r => r.json())
+    .then(res => {
+        alert(res.msg);
+        btn.innerText = oldText; btn.disabled = false;
+        // 算完后自动刷新一下排名表
+        if(document.getElementById('rankGroupSelect').value) {
+            calculateTeamRanking();
+        }
+    });
+}
+
+// 2. 手工修改单个积分 (修复400米问题)
+function updateAdminPoint(id, inputEl) {
+    const val = inputEl.value;
+    inputEl.style.backgroundColor = '#fef3c7'; // 黄色正在保存
+
+    fetch('/api/update_point', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id, points: val })
+    })
+    .then(r => r.json())
+   .then(res => {
+    if(res.status === 'success'){
+        inputEl.style.backgroundColor = '#dcfce7';
+        setTimeout(() => inputEl.style.backgroundColor = '', 1000);
+        
+        // 🔥 新增：如果后台返回了格式化后的新值，立即更新输入框显示
+        if (res.new_score) {
+            inputEl.value = res.new_score;
+        }
+    } else {
+        alert(res.msg);
+        inputEl.style.backgroundColor = '#fee2e2';
+    }
+    });
+}
+function updateAdminScore(id, inputEl) {
+    if(inputEl.dataset.saving === "true") return; // 防止重复提交
+    const val = inputEl.value.trim();
+    
+    // 视觉反馈：变黄 (正在保存)
+    inputEl.dataset.saving = "true";
+    inputEl.disabled = true; 
+    inputEl.style.backgroundColor = '#fef3c7'; 
+
+    fetch('/api/submit_score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id, score: val }) 
+    })
+    .then(r => r.json())
+    .then(res => {
+        inputEl.dataset.saving = "false";
+        inputEl.disabled = false;
+
+        if (res.status === 'success') {
+            // 保存成功：变绿
+            inputEl.style.backgroundColor = '#dcfce7'; 
+            
+            // 🔥🔥 关键修复：如果后台返回了新格式 (如 1.01 -> 1:01.00)，立即填回去！🔥🔥
+            if (res.new_score) {
+                inputEl.value = res.new_score;
+            }
+
+            // 0.8秒后恢复透明背景
+            setTimeout(() => {
+                inputEl.style.backgroundColor = 'transparent';
+            }, 800);
+        } else {
+            alert('保存失败: ' + res.msg);
+            inputEl.style.backgroundColor = '#fee2e2'; // 红色报错
+            inputEl.focus();
+        }
+    })
+    .catch(err => {
+        inputEl.dataset.saving = "false";
+        inputEl.disabled = false;
+        alert('网络错误');
+        inputEl.style.backgroundColor = '#fee2e2';
+    });
+}
+   </script>
+</body>
+</html>

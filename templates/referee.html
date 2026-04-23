@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>裁判员成绩录入</title>
+    <script src="/static/js/tailwind.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f3f4f6; }
+        .input-score { transition: all 0.2s; font-family: 'Courier New', Courier, monospace; font-weight: bold; font-size: 1.2rem; }
+        .input-score:focus { transform: scale(1.05); border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2); z-index: 10; position: relative; }
+        .saving { background-color: #fef3c7 !important; } /* 黄色：保存中 */
+        .saved { background-color: #dcfce7 !important; } /* 绿色：成功 */
+        .error { background-color: #fee2e2 !important; } /* 红色：失败 */
+    </style>
+</head>
+<body class="p-2 md:p-6">
+
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
+        <div class="bg-blue-600 p-4 text-white flex justify-between items-center">
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                ⏱️ 成绩录入
+            </h1>
+            <button onclick="location.reload()" class="bg-blue-700 hover:bg-blue-800 px-3 py-1 rounded text-sm border border-blue-500">刷新</button>
+        </div>
+
+        <div class="p-4 bg-gray-50 border-b border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-3">
+    <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1">1. 选择组别</label>
+        <select id="selGroup" class="w-full border-gray-300 border rounded-md p-2 shadow-sm focus:border-blue-500" onchange="onGroupChange()">
+            <option value="">-- 加载中 --</option>
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1">2. 选择性别</label>
+        <select id="selGender" class="w-full border-gray-300 border rounded-md p-2 shadow-sm focus:border-blue-500" disabled onchange="onGenderChange()">
+            <option value="">-- 先选组别 --</option>
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1">3. 选择项目</label>
+        <select id="selEvent" class="w-full border-gray-300 border rounded-md p-2 shadow-sm focus:border-blue-500" disabled onchange="loadAthletes()">
+            <option value="">-- 再选性别 --</option>
+        </select>
+    </div>
+    <div class="flex items-end justify-between">
+        <div id="statusTip" class="text-xs text-gray-500 py-2">准备就绪</div>
+        <button onclick="clearLocalCache()" class="text-[10px] text-red-400 hover:underline">清除本地缓存</button>
+    </div>
+</div>
+
+        <div class="overflow-x-auto min-h-[400px]">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-100 text-gray-600 uppercase text-xs sticky top-0">
+                    <tr>
+                        <th class="p-3 border-b text-center w-16">道次</th>
+                        <th class="p-3 border-b text-center w-20">号码</th>
+                        <th class="p-3 border-b">姓名</th>
+                        <th class="p-3 border-b text-right w-32">成绩</th>
+                    </tr>
+                </thead>
+                <tbody id="athleteList" class="divide-y divide-gray-100">
+                    <tr><td colspan="4" class="p-10 text-center text-gray-400">请选择组别和项目开始录入</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="p-3 bg-yellow-50 text-yellow-800 text-xs text-center border-t border-yellow-100">
+            💡 提示：输入成绩后<b>点击任意空白处</b>或<b>按回车</b>即可自动保存。<br>
+            径赛格式如：12.5 或 1.12.5 (1分12秒5)
+        </div>
+    </div>
+
+<script>
+    let metaData = {}; // 存放所有数据
+
+    // 页面加载完成后立即执行
+    window.onload = function() {
+        fetchMeta();
+    };
+
+    // 1. 获取组别和项目数据
+    function fetchMeta() {
+        const selGroup = document.getElementById('selGroup');
+        selGroup.innerHTML = '<option>正在连接服务器...</option>';
+
+        fetch('/api/get_referee_meta?_t=' + Date.now())
+            .then(r => {
+                if (!r.ok) throw new Error("HTTP error " + r.status);
+                return r.json();
+            })
+            .then(data => {
+                metaData = data; // 保存数据
+                const groups = Object.keys(data).sort();
+                
+                selGroup.innerHTML = '<option value="">-- 请选择组别 --</option>';
+                if (groups.length === 0) {
+                    selGroup.innerHTML = '<option value="">(暂无比赛数据)</option>';
+                    return;
+                }
+
+                groups.forEach(g => {
+                    const opt = document.createElement('option');
+                    opt.value = g;
+                    opt.innerText = g;
+                    selGroup.appendChild(opt);
+                });
+                
+                showTip("✅ 数据连接成功", "text-green-600");
+            })
+            .catch(err => {
+                console.error(err);
+                selGroup.innerHTML = '<option value="">连接失败</option>';
+                alert("无法连接到服务器。\n请检查：\n1. 后台黑窗口是否开启？\n2. 手机是否连上了同一WiFi？");
+            });
+    }
+
+// 三级联动逻辑
+function onGroupChange() {
+    const gName = document.getElementById('selGroup').value;
+    const selGender = document.getElementById('selGender');
+    const selEvent = document.getElementById('selEvent');
+    
+    selGender.innerHTML = '<option value="">-- 选择性别 --</option>';
+    selEvent.innerHTML = '<option value="">--</option>';
+    selEvent.disabled = true;
+
+    if (!gName || !metaData[gName]) { selGender.disabled = true; return; }
+
+    Object.keys(metaData[gName]).sort().forEach(gen => {
+        selGender.innerHTML += `<option value="${gen}">${gen}</option>`;
+    });
+    selGender.disabled = false;
+}
+
+function onGenderChange() {
+    const gName = document.getElementById('selGroup').value;
+    const gen = document.getElementById('selGender').value;
+    const selEvent = document.getElementById('selEvent');
+    selEvent.innerHTML = '<option value="">-- 选择项目 --</option>';
+    if (!gen || !metaData[gName][gen]) { selEvent.disabled = true; return; }
+
+    metaData[gName][gen].sort().forEach(e => {
+        selEvent.innerHTML += `<option value="${e}">${e}</option>`;
+    });
+    selEvent.disabled = false;
+}
+
+function loadAthletes() {
+    const gName = document.getElementById('selGroup').value;
+    const eName = document.getElementById('selEvent').value;
+    const list = document.getElementById('athleteList');
+    if (!gName || !eName) return;
+
+    list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-500">正在同步数据...</td></tr>';
+
+    fetch('/api/get_event_start_list', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ event_name: eName, group_name: gName })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.length === 0) {
+            list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-400">暂无数据</td></tr>';
+            return;
+        }
+
+        let html = '';
+        let lastHeat = null; 
+
+        data.forEach(p => {
+            // ⭐ 核心逻辑：如果组号变化，插入一个蓝色的分组标题行
+            const currentHeat = p.heat || '1'; 
+            if (currentHeat !== lastHeat) {
+                html += `
+                <tr class="bg-blue-50">
+                    <td colspan="4" class="p-2 pl-4 text-sm font-bold text-blue-700 border-b border-blue-100">
+                        🚩 第 ${currentHeat} 组
+                    </td>
+                </tr>`;
+                lastHeat = currentHeat;
+            }
+
+            html += `
+            <tr class="bg-white border-b border-gray-100">
+                <td class="p-3 text-center font-bold text-gray-500">${p.lane || '-'}</td>
+                <td class="p-3 text-center font-mono text-gray-400 text-sm">${p.bib || ''}</td>
+                <td class="p-3">
+                    <div class="font-bold text-gray-800">${p.name}</div>
+                    <div class="text-xs text-gray-400">${p.team_name}</div>
+                </td>
+                <td class="p-2 text-right">
+                    <input type="text" value="${p.score || ''}" 
+                           class="input-score w-24 border border-gray-300 rounded px-2 py-1 text-center"
+                           onblur="saveScore(${p.reg_id}, this)">
+                </td>
+            </tr>`;
+        });
+        list.innerHTML = html;
+    });
+}
+function localBuffer(regId, val) {
+    if(val.trim() !== "") {
+        localStorage.setItem(`temp_score_${regId}`, val);
+    }
+}
+
+ function saveScore(regId, input) {
+    const val = input.value.trim();
+    if (!val) return;
+
+    input.classList.add('saving');
+    fetch('/api/submit_score', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: regId, score: val })
+    })
+    .then(r => r.json())
+    .then(res => {
+        input.classList.remove('saving');
+        if (res.status === 'success') {
+            input.classList.add('saved');
+            input.classList.remove('bg-yellow-50', 'border-yellow-300');
+            // ⭐ 成功上传后，移除本地暂存
+            localStorage.removeItem(`temp_score_${regId}`);
+            setTimeout(() => input.classList.remove('saved'), 1000);
+        }
+    });
+}
+function clearLocalCache() {
+    if(confirm("确定要清除所有本地未同步的成绩缓存吗？")) {
+        Object.keys(localStorage).forEach(key => {
+            if(key.startsWith('temp_score_')) localStorage.removeItem(key);
+        });
+        location.reload();
+    }
+}
+
+    function showTip(msg, colorClass) {
+        const tip = document.getElementById('statusTip');
+        tip.innerText = msg;
+        tip.className = "text-sm w-full text-right py-2 " + colorClass;
+    }
+</script>
+</body>
+</html>
