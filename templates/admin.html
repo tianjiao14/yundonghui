@@ -707,6 +707,7 @@ function updateResGender() {
         const getVal = (id, def) => document.getElementById(id) ? document.getElementById(id).value : def;
         const config = {
             title: getVal('cfgTitle', ''),
+            publicUrl: getVal('cfgPublicUrl', ''),
             maxPerPerson: parseInt(getVal('cfgMaxPerPerson', 2)),
             maxPerEvent: parseInt(getVal('cfgMaxPerEvent', 3)),
             maxMale: parseInt(getVal('cfgMaxMale', 10)),
@@ -1745,6 +1746,7 @@ const events = {}; db.schedule.forEach(s => { const key = `${s.groupName} ${s.ev
         if (data.config) {
             const c = data.config;
             if(c.title) document.getElementById('cfgTitle').value = c.title;
+            if(c.publicUrl) document.getElementById('cfgPublicUrl').value = c.publicUrl;
             ['MaxPerPerson','MaxPerEvent','MaxTotal','MaxMale','MaxFemale'].forEach(k => {
                 if(c['max'+k] || c['cfg'+k]) document.getElementById('cfg'+k).value = c['max'+k] || c['cfg'+k];
             });
@@ -2284,14 +2286,12 @@ function generateSafeId() {
 }
 // 1. 生成二维码
 function renderQRCodes() {
-    // 1. 获取 Flask 传过来的真实 IP。如果获取不到，再退而求其次使用当前域名
-    const serverIp = "{{ local_ip }}"; 
-    const port = window.location.port || "5000";
+    // 1. 优先级：手动填写的公网地址 > 当前浏览器地址栏地址 (window.location.origin)
+    const overrideUrl = document.getElementById('cfgPublicUrl')?.value.trim();
+    let host = overrideUrl || window.location.origin;
     
-    // 2. 构造基础 URL (强制使用 http 和 IP)
-    const host = (serverIp && serverIp !== "127.0.0.1") 
-                 ? `http://${serverIp}:${port}` 
-                 : window.location.origin;
+    // 自动处理：去除末尾可能多打的斜杠
+    if(host.endsWith('/')) host = host.slice(0, -1);
 
     const portals = [
         { name: '领队报名', url: host + '/team', color: 'bg-blue-600' },
@@ -2300,6 +2300,8 @@ function renderQRCodes() {
     ];
     
     const container = document.getElementById('qrContainer');
+    if (!container) return;
+
     container.innerHTML = portals.map(p => `
         <div class="p-2 bg-white border rounded shadow-sm">
             <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(p.url)}" class="mx-auto mb-2">
@@ -2308,7 +2310,6 @@ function renderQRCodes() {
         </div>
     `).join('');
 }
-
 // 2. 加载并渲染统计数据
 function loadStatistics() {
     fetch('/api/get_statistics').then(r => r.json()).then(data => {
