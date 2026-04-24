@@ -1019,11 +1019,43 @@ function updateEventCheckboxes(gender) {
     updateEventCheckboxes(document.getElementById('athGender').value);renderTeamTree();renderAthleteList(); }
     
     function renderAthleteList() {
-        const tbody=document.getElementById('athleteListBody'); let list=[];
-        if(viewMode==='team') list=db.athletes.filter(a=>a.teamId==currentId);
-        else if(viewMode==='group') { const tids=db.teams.filter(t=>t.groupId==currentId).map(t=>t.id); list=db.athletes.filter(a=>tids.includes(a.teamId)); list.sort((a,b)=>a.teamId-b.teamId); }
-        if(!list.length) { tbody.innerHTML='<tr><td colspan="8" class="text-center py-10 text-gray-400">无数据</td></tr>'; return; }
-        tbody.innerHTML=list.map((a,i)=>`<tr><td class="text-xs text-gray-500 text-left pl-2">${db.groups.find(g=>g.id==db.teams.find(t=>t.id==a.teamId)?.groupId)?.name}</td><td class="font-mono text-gray-400">${i+1}</td><td class="text-left pl-2"><span class="font-bold">${a.name}</span> <span class="text-xs text-gray-400">(${db.teams.find(t=>t.id==a.teamId)?.name})</span></td><td class="text-center text-xs">${a.gender}</td><td class="font-mono">${a.bib||''}</td><td class="text-blue-600 text-xs break-all">${a.events.join(', ')}</td><td class="text-center"><button onclick="deleteAthlete('${a.name}', ${a.teamId})" class="text-red-400 text-xs">删除</button></td></tr>`).join('');
+        const tbody = document.getElementById('athleteListBody');
+        let list = [];
+        if (viewMode === 'team') list = db.athletes.filter(a => a.teamId == currentId);
+        else if (viewMode === 'group') {
+            const tids = db.teams.filter(t => t.groupId == currentId).map(t => t.id);
+            list = db.athletes.filter(a => tids.includes(a.teamId));
+            list.sort((a, b) => a.teamId - b.teamId);
+        }
+        if (!list.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-400">无数据</td></tr>';
+            return;
+        }
+
+        // 🚀 修改点：使用 <a> 标签包裹姓名，并绑定 editAthlete 函数
+        tbody.innerHTML = list.map((a, i) => {
+            const team = db.teams.find(t => t.id == a.teamId);
+            const group = db.groups.find(g => g.id == team?.groupId);
+            return `
+            <tr class="border-b hover:bg-blue-50 transition">
+                <td class="text-xs text-gray-500 text-left pl-2">${group ? group.name : ''}</td>
+                <td class="font-mono text-gray-400">${i + 1}</td>
+                <td class="text-left pl-2">
+                    <a href="javascript:void(0)" 
+                       onclick="editAthlete('${a.name}', '${a.gender}', '${a.bib}', '${a.events.join(',')}')" 
+                       class="font-bold text-blue-600 hover:underline cursor-pointer">
+                       ${a.name}
+                    </a>
+                    <span class="text-xs text-gray-400">(${team ? team.name : ''})</span>
+                </td>
+                <td class="text-center text-xs">${a.gender}</td>
+                <td class="font-mono">${a.bib || ''}</td>
+                <td class="text-blue-600 text-xs break-all">${a.events.join(', ')}</td>
+                <td class="text-center">
+                    <button onclick="deleteAthlete('${a.name}', ${a.teamId})" class="text-red-400 text-xs">删除</button>
+                </td>
+            </tr>`;
+        }).join('');
     }
 
     function addAthlete() {
@@ -1088,57 +1120,113 @@ function updateEventCheckboxes(gender) {
         return { type: 'sprint', limit: limitSprint };
     }
 
+    /**
+     * 智能自动编排核心函数
+     * 修复：增加团体接力项目的班级合并逻辑
+     */
     function generateSchedule() {
         if(!db.athletes.length) return alert("无数据");
         const laneOrder = (document.getElementById('cfgLaneOrder').value||"4,5,3,6,2,7,1,8").split(/[,，]/).map(n=>parseInt(n));
         let tasks=[]; 
         const scope=document.querySelector('input[name="schScope"]:checked').value;
+        
+        // 1. 确定编排任务范围
         if(scope==='all') db.groups.forEach(g=>['男','女'].forEach(gen=>db.events.forEach(e=>tasks.push({gid:g.id,gname:g.name,gen:gen,evt:e}))));
         else if(scope==='event') { const e=db.events.find(x=>x.name===document.getElementById('schSelEvent').value); if(e) db.groups.forEach(g=>['男','女'].forEach(gen=>tasks.push({gid:g.id,gname:g.name,gen:gen,evt:e}))); }
         else if(scope==='specific') { const g=db.groups.find(x=>x.id==document.getElementById('schSelGroup').value), e=db.events.find(x=>x.name===document.getElementById('schSelSpecEvent').value), gen=document.getElementById('schSelGender').value; if(g&&e) tasks.push({gid:g.id,gname:g.name,gen:gen,evt:e}); }
+        
         if (scope === 'all') { db.schedule = []; } else { db.schedule = db.schedule.filter(existingItem => { const match = tasks.some(t => t.gname === existingItem.groupName && t.evt.name === existingItem.eventName && t.gen === existingItem.gender); return !match; }); }
-        let count=0;
+        
+        let totalAssigned = 0; // 记录总分配单元数（道次数）
+
         tasks.forEach(task => {
-            let entries = db.athletes.filter(a => { const t=db.teams.find(x=>x.id==a.teamId); return t && t.groupId==task.gid && a.gender===task.gen && a.events.includes(task.evt.name); });
-            if(!entries.length) return;
-            count += entries.length;
+            // 获取本项目该组别报名的所有学生
+            let rawEntries = db.athletes.filter(a => { 
+                const t = db.teams.find(x => x.id == a.teamId); 
+                return t && t.groupId == task.gid && a.gender === task.gen && a.events.includes(task.evt.name); 
+            });
+            
+            if(!rawEntries.length) return;
+
+            // 🔍 核心修复逻辑：判断是否为接力项目
+            const isRelay = (String(task.evt.isRelay) === 'true' || String(task.evt.is_relay) === '1');
+            
+            let processList = [];
+            if (isRelay) {
+                // A. 团体接力：按班级去重，编排单位从“人”变为“班级”
+                const teamMap = {};
+                rawEntries.forEach(a => {
+                    if (!teamMap[a.teamId]) {
+                        const team = db.teams.find(t => t.id == a.teamId);
+                        teamMap[a.teamId] = {
+                            name: team ? team.name : "未知班级", // 这里的 name 会显示在检录表的“姓名”栏
+                            teamName: team ? team.name : "",
+                            bib: "", // 接力通常不显示个人号码
+                            teamId: a.teamId
+                        };
+                    }
+                });
+                processList = Object.values(teamMap);
+            } else {
+                // B. 个人项目：保持按人头编排
+                processList = rawEntries.map(a => ({
+                    ...a,
+                    teamName: db.teams.find(t => t.id == a.teamId)?.name || ""
+                }));
+            }
+
+            totalAssigned += processList.length;
+
             const settings = getEventSettings(task.evt);
             const maxPerHeat = settings.limit;
             const isSprint = settings.type === 'sprint';
-            const totalHeats = Math.ceil(entries.length / maxPerHeat);
+            const totalHeats = Math.ceil(processList.length / maxPerHeat);
             const heats = Array.from({length: totalHeats}, ()=>[]);
-            entries.sort((a,b)=>a.teamId-b.teamId);
-            entries.forEach((a,i) => heats[i%totalHeats].push(a));
-            heats.forEach((heatAthletes, hIdx) => {
-                if (isSprint) heatAthletes.sort(()=>Math.random()-0.5); 
-                heatAthletes.forEach((a, aIdx) => {
-                    let lane = (isSprint) ? (laneOrder[aIdx] || aIdx+1) : aIdx+1;
-                    db.schedule.push({ id: Date.now()+Math.random(), groupName: task.gname, eventName: task.evt.name, gender: task.gen, heat: hIdx+1, lane: lane, bib: a.bib, name: a.name, teamName: db.teams.find(t=>t.id==a.teamId)?.name, type: settings.type, totalLanes: isSprint ? maxPerHeat : 0 });
+            
+            // 排序并分配组别（蛇形分布或简单分配）
+            processList.sort((a,b) => a.teamId - b.teamId);
+            processList.forEach((item, i) => heats[i % totalHeats].push(item));
+            
+            heats.forEach((heatItems, hIdx) => {
+                if (isSprint) heatItems.sort(() => Math.random() - 0.5); 
+                heatItems.forEach((item, aIdx) => {
+                    let lane = (isSprint) ? (laneOrder[aIdx] || aIdx + 1) : aIdx + 1;
+                    db.schedule.push({ 
+                        id: Date.now() + Math.random(), 
+                        groupName: task.gname, 
+                        eventName: task.evt.name, 
+                        gender: task.gen, 
+                        heat: hIdx + 1, 
+                        lane: lane, 
+                        bib: item.bib, 
+                        name: item.name, 
+                        teamName: item.teamName, 
+                        type: settings.type, 
+                        totalLanes: isSprint ? maxPerHeat : 0 
+                    });
                 });
             });
         });
+        
         renderScheduleResult();
-        if (count > 0) {
-        // 使用静默保存，不弹窗打扰
-        fetch('/api/save_schedule_to_db', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(db.schedule) 
-        })
-        .then(r => r.json())
-        .then(res => {
-            if (res.status === 'success') {
+        
+        if (totalAssigned > 0) {
+            // 自动发布到云端数据库，确保裁判可见
+            fetch('/api/save_schedule_to_db', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify(db.schedule) 
+            })
+            .then(r => r.json())
+            .then(res => {
                 const statusSpan = document.getElementById('scheduleStatus');
                 if(statusSpan) statusSpan.innerText += " (已自动保存)";
-            } else {
-                alert("⚠️ 自动保存失败，请手动点击‘发布编排结果’按钮");
-            }
-        });
-       alert(`编排完成，共处理 ${count} 人次！\n系统已自动为您保存。`);
-    } else {
-        alert("没有找到符合条件的报名数据");
+            });
+            alert(`编排完成，共处理 ${totalAssigned} 个道次（个人或接力队）！\n系统已自动保存。`);
+        } else {
+            alert("没有找到符合条件的报名数据");
+        }
     }
-}
 // 核心修复：使用确切的 ID (cfgLanes 和 cfgLaneOrder) 进行联动
 document.getElementById('cfgLanes')?.addEventListener('input', function(e) {
     const laneCount = parseInt(e.target.value);
@@ -1193,7 +1281,14 @@ document.getElementById('cfgLanes')?.addEventListener('input', function(e) {
                 const evtCfg = db.events.find(e => e.name === eName);
                 
                 const roundType = (evtCfg && evtCfg.hasPrelim) ? "预赛" : "决赛";
-
+                let displayEventName = eName.replace('决赛', '').replace('预赛', '').trim();
+        
+        // 2. 将“女”改为“女子”，“男”改为“男子”
+        if (displayEventName.startsWith('女') && !displayEventName.startsWith('女子')) {
+            displayEventName = displayEventName.replace('女', '女子');
+        } else if (displayEventName.startsWith('男') && !displayEventName.startsWith('男子')) {
+            displayEventName = displayEventName.replace('男', '男子');
+        }
                 // 标题判断
                 let title = '径赛检录表';
                 if (type === 'height') title = '田赛高度成绩记录表';
@@ -1201,16 +1296,16 @@ document.getElementById('cfgLanes')?.addEventListener('input', function(e) {
                 if (type === 'long') title = '中长跑项目检录表';
                 if (type === 'fun') title = '趣味项目检录表';
                
-                let html = `
-                <div class="rc-card break-inside-avoid">
-                    <h2 class="rc-title">${title}</h2>
-                    <div class="rc-header" style="justify-content: space-between; padding: 0 10px;">
-                        <span>组别：${gName} (${gen})</span>
-                        <span>项目：${eName}</span>
-                        <span class="font-bold text-800">( ${roundType} )</span>
-                        <span>共 ${totalHeats} 组 &nbsp;&nbsp; 第 ${heat} 组</span>
-                    </div>
-                    <div class="rc-table-wrapper">`;
+               let html = `
+        <div class="rc-card break-inside-avoid">
+            <h2 class="rc-title">${title}</h2>
+            <div class="rc-header" style="justify-content: space-between; padding: 0 10px;">
+                <span>组别：${gName} (${gen === '女' ? '女子' : (gen === '男' ? '男子' : gen)})</span>
+                <span>项目：${displayEventName}</span>
+                <span class="font-bold text-800">( ${roundType} )</span>
+                <span>共 ${totalHeats} 组 &nbsp;&nbsp; 第 ${heat} 组</span>
+            </div>
+            <div class="rc-table-wrapper">`;
 
               
                 if (type === 'height') {
@@ -1444,6 +1539,14 @@ function generateFinals() {
 
         const evtCfg = db.events.find(e => e.name === eventName);
         const roundStatus = (evtCfg && evtCfg.hasPrelim) ? "预赛" : "决赛";
+        let displayEventName = eventName.replace('决赛', '').replace('预赛', '').trim();
+    
+    // 2. 将“女”标准化为“女子”，“男”标准化为“男子”
+    if (displayEventName.startsWith('女') && !displayEventName.startsWith('女子')) {
+        displayEventName = displayEventName.replace('女', '女子');
+    } else if (displayEventName.startsWith('男') && !displayEventName.startsWith('男子')) {
+        displayEventName = displayEventName.replace('男', '男子');
+    }
         
         let pointRules = [9, 7, 6, 5, 4, 3, 2, 1]; // 默认规则
         let isDouble = false;
@@ -1520,14 +1623,15 @@ function generateFinals() {
             const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
 
             const finalHtml = `
-        <div class="rc-card break-inside-avoid">
-            <h1 style="text-align:center; font-size:28pt; font-weight:bold; margin-bottom:10px; font-family:SimSun;">${eventTitle} 成绩公告</h1>
-            
-            <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #000; padding-bottom:5px; margin-bottom:2px; font-size:14pt; font-weight:bold;">
-                <div>${groupName} &nbsp; ${eventName} &nbsp; ${roundStatus}</div>
-                <div style="font-size:12pt; font-weight:normal;">综合成绩</div>
-                <div style="font-size:10pt; font-weight:normal;">${dateStr}</div>
-            </div>
+    <div class="rc-card break-inside-avoid">
+        <h1 style="text-align:center; font-size:28pt; font-weight:bold; margin-bottom:10px; font-family:SimSun;">${eventTitle} 成绩公告</h1>
+        
+        <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #000; padding-bottom:5px; margin-bottom:2px; font-size:14pt; font-weight:bold;">
+            <div>${groupName} &nbsp; ${displayEventName} &nbsp; ${roundStatus}</div>
+            <div style="font-size:12pt; font-weight:normal;">综合成绩</div>
+            <div style="font-size:10pt; font-weight:normal;">${dateStr}</div>
+        </div>
+      
 
             <table class="rc-table" style="width:100%; text-align:center; border:none; table-layout: auto !important;">
                 <thead>
@@ -1688,8 +1792,15 @@ const events = {}; db.schedule.forEach(s => { const key = `${s.groupName} ${s.ev
 
         if(!eventName) return;
 
-        const evtCfg = db.events.find(e => e.name === eventName);
-        const roundStatus = (evtCfg && evtCfg.hasPrelim) ? "预赛" : "决赛";
+        let displayEventName = eventName.replace('决赛', '').replace('预赛', '').trim();
+    if (displayEventName.startsWith('女') && !displayEventName.startsWith('女子')) {
+        displayEventName = displayEventName.replace('女', '女子');
+    } else if (displayEventName.startsWith('男') && !displayEventName.startsWith('男子')) {
+        displayEventName = displayEventName.replace('男', '男子');
+    }
+
+    const evtCfg = db.events.find(e => e.name === eventName);
+    const roundStatus = (evtCfg && evtCfg.hasPrelim) ? "预赛" : "决赛";
 
         fetch('/api/get_event_start_list?_t=' + Date.now(), {
             method: 'POST', 
@@ -1787,18 +1898,19 @@ const events = {}; db.schedule.forEach(s => { const key = `${s.groupName} ${s.ev
                 tableHtml += `</tbody></table>`;
 
                 finalHTML += `<div class="res-card">
-                    <h2 class="res-title">竞赛成绩表</h2>
-                    <div class="res-info-row"><span>项目：${eventName}</span><span>( ${roundStatus} )</span><span>第 ${heatNum} 组</span></div>
-                    ${tableHtml}
-                    <div class="res-footer"><span>主裁判：___________</span><span>裁判：___________</span></div>
-                </div>`;
-            });
-            div.innerHTML = finalHTML;
-        }).catch(err => {
-            console.error(err);
-            div.innerHTML = `<div class="text-center text-red-500 mt-10">数据加载错误</div>`;
+                <h2 class="res-title">竞赛成绩表</h2>
+                <div class="res-info-row">
+                    <span>项目：${displayEventName}</span>
+                    <span>( ${roundStatus} )</span>
+                    <span>第 ${heatNum} 组</span>
+                </div>
+                ${tableHtml}
+                <div class="res-footer"><span>主裁判：___________</span><span>裁判：___________</span></div>
+            </div>`;
         });
-    };
+        div.innerHTML = finalHTML;
+    });
+};
 // ============================================================
     // Step 7: 团体总分排名逻辑
     // ============================================================
@@ -2182,7 +2294,7 @@ function renderQRCodes() {
                  : window.location.origin;
 
     const portals = [
-        { name: '领队报名', url: host + '/login', color: 'bg-blue-600' },
+        { name: '领队报名', url: host + '/team', color: 'bg-blue-600' },
         { name: '裁判录入', url: host + '/referee/login', color: 'bg-green-600' },
         { name: '成绩查询', url: host + '/query', color: 'bg-purple-600' }
     ];
@@ -2323,6 +2435,41 @@ function updateAdminScore(id, inputEl) {
         alert('网络错误');
         inputEl.style.backgroundColor = '#fee2e2';
     });
+}
+
+function editAthlete(name, gender, bib, eventsStr) {
+    // 1. 回填姓名和号码 (使用你页面真实的 ID: athName, athBib)
+    document.getElementById('athName').value = name;
+    document.getElementById('athBib').value = (bib === 'null' || !bib) ? '' : bib;
+    
+    // 2. 选中性别下拉框并触发项目刷新
+    const genderSelect = document.getElementById('athGender');
+    genderSelect.value = gender;
+    updateEventCheckboxes(gender); // 触发项目列表渲染
+
+    // 3. 勾选项目 (延迟 150ms 确保项目列表加载完成)
+    setTimeout(() => {
+        const events = eventsStr.split(',');
+        // 先清除所有已选
+        document.querySelectorAll('input[name="chk_event"]').forEach(el => el.checked = false);
+        
+        // 匹配并勾选
+        events.forEach(evtName => {
+            const checkboxes = document.querySelectorAll('input[name="chk_event"]');
+            checkboxes.forEach(cb => {
+                if (cb.value === evtName) {
+                    cb.checked = true;
+                }
+            });
+        });
+        
+        // 刷新限额统计
+        if (typeof handleAdminCheckLimit === 'function') handleAdminCheckLimit();
+    }, 150);
+
+    // 4. 视觉反馈
+    document.getElementById('athName').focus();
+    document.querySelector('button[onclick="addAthlete()"]').innerText = '💾 保存修改';
 }
    </script>
 </body>

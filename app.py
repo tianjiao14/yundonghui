@@ -40,100 +40,102 @@ def recalculate_all_points():
         # 1. 基础初始化：清空所有人的积分
         c.execute("UPDATE registrations SET points = 0")
         
+        # 获取所有有成绩的组别和性别组合
         groups_genders = c.execute("SELECT DISTINCT group_name, gender FROM registrations WHERE group_name != ''").fetchall()
+        # 获取所有项目配置
         all_cfgs = {row['name']: dict(row) for row in c.execute("SELECT * FROM cfg_events").fetchall()}
 
         for gg in groups_genders:
             g_name, gender = gg['group_name'], gg['gender']
             
+            # 查找该组别下所有有成绩的项目
             rows = c.execute("SELECT DISTINCT event_name FROM registrations WHERE group_name = ? AND gender = ? AND score != ''", (g_name, gender)).fetchall()
             distinct_events = [r['event_name'] for r in rows]
             if not distinct_events: continue
 
-            # 按核心项目分组
+            # --- A. 按核心项目分组 ---
             event_map = {}
             for evt in distinct_events:
-                core = re.sub(r"\(.*?\)|（.*?）|决赛|预赛|及格赛|男子|女子|混合|男|女|初一|初二|初三|高一|高二|高三|第一组|第二组|第三组|第四组|第\d+组|\d+组|Group\s*\d+|\d+$", "", evt).strip()
+                # 只剔除 组别、预决赛、男女等修饰词，保留核心名称如 100米, 4*100
+                core = re.sub(r"\(.*?\)|（.*?）|决赛|预赛|及格赛|男子|女子|混合|男|女|第一组|第二组|第三组|第四组|第\d+组", "", evt).strip()
                 if core not in event_map: event_map[core] = []
                 event_map[core].append(evt)
 
             for core_name, sub_events in event_map.items():
-                # --- A. 识别类型与纪录配置 ---
+                # --- B. 匹配项目配置 ---
                 cfg = all_cfgs.get(core_name)
                 if not cfg:
                     for k, v in all_cfgs.items():
-                        if k in core_name: cfg = v; break
+                        if k in core_name or core_name in k:
+                            cfg = v; break
                 
-                # 强化田赛识别
+                # 判断项目特性
                 is_field = False
                 field_keywords = ['跳', '投', '掷', '铅球', '实心球', '标枪', '铁饼', '球', '引体', '仰卧']
                 if cfg and (cfg.get('type') == '田赛' or '田' in str(cfg.get('type'))): is_field = True
                 elif any(kwd in core_name for kwd in field_keywords): is_field = True
                 
-                # --- B. 获取破纪录规则 (核心修复点) ---
-                event_record = cfg.get('record') if cfg else None
-                # 显式转为整数，防止文本相加报错
-                try:
-                    record_bonus = int(cfg.get('record_bonus') or 0) if cfg else 0
-                except:
-                    record_bonus = 0
+                # 获取破纪录加分设置
+                record_bonus = 0
+                try: 
+                    record_bonus = int(cfg.get('record_bonus') or cfg.get('recordBonus') or 0) if cfg else 0
+                except: record_bonus = 0
                 
-                # 转换纪录值为秒数/数值用于比对
+                event_record = cfg.get('record') if cfg else None
                 rec_val = parse_time_to_seconds(event_record) if (event_record and str(event_record).strip()) else None
 
-                # --- C. 选定计算项目 ---
+                # --- C. 选定计算项目并去重 ---
                 target_events = [e for e in sub_events if '决赛' in e] or sub_events
                 placeholders = ','.join(['?'] * len(target_events))
-                sql = f"SELECT id, name, team_name, score FROM registrations WHERE group_name=? AND gender=? AND event_name IN ({placeholders}) AND score != ''"
+                sql = f"SELECT id, name, team_name, event_name, score FROM registrations WHERE group_name=? AND gender=? AND event_name IN ({placeholders}) AND score != ''"
                 data_rows = c.execute(sql, [g_name, gender] + target_events).fetchall()
                 if not data_rows: continue
                 
-                # 去重取最优
-                unique_athletes = {}
+                # 🏆 团体/接力去重逻辑
+                unique_entries = {} 
                 for item in [dict(r) for r in data_rows]:
-                    key = f"{item['team_name']}_{item['name']}"
+                    is_relay_event = re.search(r'4[xX*]|接力', item['event_name']) is not None
+                    key = f"TEAM_{item['team_name']}" if is_relay_event else f"ATH_{item['team_name']}_{item['name']}"
+                    
                     item['_val'] = parse_time_to_seconds(item['score']) 
-                    if key not in unique_athletes: unique_athletes[key] = item
+                    if key not in unique_entries: unique_entries[key] = item
                     else:
-                        old_val = unique_athletes[key]['_val']
+                        old_val = unique_entries[key]['_val']
                         is_better = (item['_val'] > old_val) if is_field else (item['_val'] < old_val)
-                        if abs(item['_val'] - old_val) < 0.0001:
-                             if item['id'] > unique_athletes[key]['id']: unique_athletes[key] = item
-                        elif is_better: unique_athletes[key] = item
-                
-                final_list = list(unique_athletes.values())
+                        if is_better: unique_entries[key] = item
+
+                final_list = list(unique_entries.values())
                 final_list.sort(key=lambda x: x['_val'], reverse=is_field)
                 
-                # --- D. 赋分与破纪录加分 ---
+                # --- D. 赋分与双倍核算 ---
                 score_rule = cfg.get('score_rule', "9,7,6,5,4,3,2,1") if cfg else "9,7,6,5,4,3,2,1"
                 rules = [int(x) for x in score_rule.replace('，',',').split(',') if x.strip().isdigit()]
-                is_double = (str(cfg.get('is_double_score')).lower() in ['1', 'true']) if cfg else False
+                is_double = to_bool_str(cfg.get('is_double_score')) == '1' if cfg else False
 
+                # 🚀 核心修复：并列名次计分逻辑
+                current_rank = 1
                 for i, item in enumerate(final_list):
+                    # 如果当前成绩与前一个不同，名次更新为“当前人数+1”；如果相同，名次不变
+                    if i > 0:
+                        if item['_val'] != final_list[i-1]['_val']:
+                            current_rank = i + 1
+                    
                     p = 0
-                    if i < len(rules):
-                        p = rules[i]
+                    if current_rank <= len(rules):
+                        p = rules[current_rank - 1]
                         if is_double: p *= 2
                     
-                    # 🔥 破纪录加分判断：确保数值有效且不为0
+                    # 破纪录判断
                     if rec_val is not None and rec_val > 0 and item['_val'] > 0:
-                        is_broken = False
-                        if is_field:
-                            # 田赛：成绩 > 纪录 = 破纪录
-                            if item['_val'] > rec_val: is_broken = True
-                        else:
-                            # 径赛：成绩 < 纪录 = 破纪录
-                            if item['_val'] < rec_val: is_broken = True
-                        
-                        if is_broken:
-                            p += record_bonus # 累加分值
+                        is_broken = (item['_val'] > rec_val) if is_field else (item['_val'] < rec_val)
+                        if is_broken: p += record_bonus
 
                     if p > 0:
                         c.execute("UPDATE registrations SET points = ? WHERE id = ?", (p, item['id']))
                 count += 1
         
         conn.commit()
-        return jsonify({'status': 'success', 'msg': f'计算完毕！已处理 {count} 个项目。已包含破纪录加分核算。'})
+        return jsonify({'status': 'success', 'msg': f'计算完毕！已处理 {count} 个项目。并列名次已正确计分。'})
     except Exception as e:
         import traceback; traceback.print_exc()
         conn.rollback()
@@ -165,7 +167,7 @@ def calculate_team_ranking():
             SUM(CASE WHEN points >= 9 THEN 1 ELSE 0 END) as gold,
             SUM(CASE WHEN points = 7 THEN 1 ELSE 0 END) as silver,
             SUM(CASE WHEN points = 6 THEN 1 ELSE 0 END) as bronze
-        FROM registrations 
+        FROM registrations
         WHERE group_name = ? AND points > 0
         GROUP BY team_name 
         ORDER BY score DESC, gold DESC, silver DESC
@@ -185,10 +187,10 @@ def calculate_detailed_matrix():
     c = conn.cursor()
     try:
         sql = """
-            SELECT team_name, event_name, gender, SUM(points) as pts
-            FROM registrations
-            WHERE group_name = ? AND points > 0
-            GROUP BY team_name, event_name, gender
+        SELECT team_name, event_name, gender, SUM(points) as pts
+        FROM registrations
+        WHERE group_name = ? AND points > 0
+        GROUP BY team_name, event_name, gender
         """
         raw_data = c.execute(sql, (g_name,)).fetchall()
         
@@ -201,8 +203,8 @@ def calculate_detailed_matrix():
             gender = r['gender']
             p = r['pts']
          
-            core_evt = re.sub(r"\(.*?\)|（.*?）|决赛|预赛|及格赛|男子|女子|混合|男|女|初一|初二|初三|高一|高二|高三|第一组|第二组|第三组|第四组|第\d+组|\d+组|Group\s*\d+|\d+$", "", full_evt).strip()
-            
+            # 提取核心项目名（如 男子100米决赛 -> 100米）
+            core_evt = re.sub(r"\(.*?\)|（.*?）|决赛|预赛|及格赛|男子|女子|混合|男|女|第一组|第二组|第三组|第四组|第\d+组", "", full_evt).strip()
             all_core_events.add(core_evt)
             
             if t not in matrix: matrix[t] = {'team': t, 'total': 0, 'details': {}}
@@ -279,18 +281,22 @@ def login_required(role_needed):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if 'user_role' not in session:
-                if role_needed == 'admin': return redirect('/admin/login')
-                elif role_needed == 'referee': return redirect('/referee/login')
-                else: return redirect('/login') 
+                if role_needed == 'admin': 
+                    return redirect('/admin/login') # 必须与下方路由一致
+                elif role_needed == 'referee': 
+                    return redirect('/referee/login')
+                else: 
+                    return redirect('/team') # 领队去 /team
             
             current_role = session['user_role']
-            if role_needed == 'admin' and current_role != 'admin': return redirect('/admin/login')
-            if role_needed == 'referee' and current_role not in ['admin', 'referee']: return redirect('/referee/login')
+            if role_needed == 'admin' and current_role != 'admin': 
+                return redirect('/admin/login')
+            if role_needed == 'referee' and current_role not in ['admin', 'referee']: 
+                return redirect('/referee/login')
 
             return f(*args, **kwargs)
         return decorated_function
     return decorator
-
 # ============================================================
 # 🌐 页面路由
 # ============================================================
@@ -300,10 +306,20 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-@app.route('/login')
-def team_login(): return render_template('team_login.html')
+@app.route('/team')
+def team_login(): 
+    return render_template('team_login.html')
 
 @app.route('/')
+@app.route('/admin')
+@login_required('admin')
+def admin():
+
+    local_ip = get_host_ip()
+  
+    return render_template('admin.html', local_ip=local_ip)
+
+@app.route('/index')
 @login_required('team')  
 def index():
     conn = get_db_connection()
@@ -336,17 +352,10 @@ def index():
                          events_json=json.dumps(events), 
                          user_role=user_role, 
                          team_name=session.get('team_name'))
-
 @app.route('/admin/login')
-def admin_login(): return render_template('admin_login.html')
+def admin_login(): 
+    return render_template('admin_login.html')
 
-@app.route('/admin')
-@login_required('admin')
-def admin():
-
-    local_ip = get_host_ip()
-  
-    return render_template('admin.html', local_ip=local_ip)
 
 @app.route('/referee/login')
 def referee_login(): return render_template('referee_login.html')
@@ -408,7 +417,7 @@ def logout():
     elif role == 'referee':
         return redirect('/referee/login')
     else:  # 领队角色或未识别角色，跳转到相对路径的登录页
-        return redirect('/login')
+        return redirect('/team')
 # ============================================================
 # ⚙️ 业务功能 API
 # ============================================================
@@ -738,21 +747,40 @@ def add_athlete():
         
         team_id = data.get('team_id')
         name = data.get('name', '').strip()
+        c.execute("DELETE FROM registrations WHERE team_id=? AND name=?", (team_id, name))
         selected_events = data.get('events', [])
         current_team_count = c.execute("SELECT COUNT(DISTINCT name) FROM registrations WHERE team_id=?", (team_id,)).fetchone()[0]
         exists = c.execute("SELECT 1 FROM registrations WHERE team_id=? AND name=?", (team_id, name)).fetchone()
         
         if not exists and current_team_count >= MAX_TOTAL:
             return jsonify({"status": "error", "msg": f"班级报名已达上限（{MAX_TOTAL}人）"})
+       # --- 核心修复：多维度动态限额逻辑 ---
         for evt in selected_events:
-
-            evt_info = c.execute("SELECT type FROM cfg_events WHERE name=?", (evt,)).fetchone()
+            # 获取项目类型、是否接力、以及项目性别
+            evt_info = c.execute("SELECT type, is_relay, gender, limit_count FROM cfg_events WHERE name=?", (evt,)).fetchone()
+            
+            # 1. 趣味项目：不限额
             if evt_info and (evt_info['type'] == '趣味' or '趣味' in str(evt_info['type'])):
                 continue
-                
+            
+            # 2. 确定限额逻辑
+            is_relay = to_bool_str(evt_info['is_relay']) == '1' if evt_info else False
+            gender_attr = evt_info['gender'] if evt_info else ""
+            
+            if gender_attr == '混合' and is_relay:
+                # 🏆 混合接力：适配 5男5女 或 4x100混合等，设为 10 人
+                current_limit = 10 
+            elif is_relay:
+                # 普通接力：4 人
+                current_limit = 4 
+            else:
+                # 普通个人项目：使用全局设置（默认3）
+                current_limit = MAX_PER_EVENT 
+            
             count_in_evt = c.execute("SELECT COUNT(*) FROM registrations WHERE team_id=? AND event_name=?", (team_id, evt)).fetchone()[0]
-            if count_in_evt >= MAX_PER_EVENT:
-                return jsonify({"status": "error", "msg": f"项目【{evt}】名额（每班限报{MAX_PER_EVENT}人）已被抢占"})
+            
+            if count_in_evt >= current_limit:
+                return jsonify({"status": "error", "msg": f"项目【{evt}】名额（每班限报{current_limit}人）已被抢占"})
         g_info = c.execute("SELECT name FROM cfg_groups WHERE id=?", (data['group_id'],)).fetchone()
         t_info = c.execute("SELECT name FROM cfg_teams WHERE id=?", (team_id,)).fetchone()
         submit_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -847,33 +875,52 @@ def get_referee_meta():
 @app.route('/api/get_event_start_list', methods=['POST'])
 def get_event_start_list():
     data = request.json
-    conn = get_db_connection() # 必须使用带 WAL 模式的连接
+    conn = get_db_connection()
     c = conn.cursor()
 
-    sql = """
-        SELECT 
-            s.*, 
-            r.score, 
-            r.id as reg_id 
-        FROM start_list s
-        LEFT JOIN registrations r ON 
-            s.name = r.name AND 
-            s.team_name = r.team_name AND 
-            s.event_name = r.event_name
-        WHERE s.event_name = ?
-    """
-    p = [data.get('event_name')]
+    event_name = data.get('event_name')
+    # 🔍 核心修复：判断是否为接力项目
+    is_relay = '4x' in event_name or '接力' in event_name
+
+    if is_relay:
+        # 🏃 接力项目：不再按“姓名”匹配，而是按“班级+项目”匹配
+        # 使用 MIN(r.id) 确保一个班级只对应一个 reg_id，方便录入
+        sql = """
+            SELECT 
+                s.*, 
+                MAX(r.score) as score, 
+                MIN(r.id) as reg_id 
+            FROM start_list s
+            LEFT JOIN registrations r ON 
+                s.team_name = r.team_name AND 
+                s.event_name = r.event_name
+            WHERE s.event_name = ?
+        """
+    else:
+        # 👤 个人项目：保持原有的姓名精确匹配
+        sql = """
+            SELECT 
+                s.*, 
+                r.score, 
+                r.id as reg_id 
+            FROM start_list s
+            LEFT JOIN registrations r ON 
+                s.name = r.name AND 
+                s.team_name = r.team_name AND 
+                s.event_name = r.event_name
+            WHERE s.event_name = ?
+        """
     
+    p = [event_name]
     if data.get('group_name'):
         sql += " AND s.group_name = ?"
         p.append(data['group_name'])
         
-    sql += " ORDER BY CAST(s.heat AS INTEGER) ASC, CAST(s.lane AS INTEGER) ASC"
+    sql += " GROUP BY s.id ORDER BY CAST(s.heat AS INTEGER) ASC, CAST(s.lane AS INTEGER) ASC"
     
     try:
         rows = c.execute(sql, p).fetchall()
-        result = [dict(r) for r in rows]
-        return jsonify(result)
+        return jsonify([dict(r) for r in rows])
     finally:
         conn.close()
 
@@ -884,26 +931,30 @@ def submit_score():
     c = conn.cursor()
     try:
         c.execute("BEGIN IMMEDIATE")
-        
         raw_val = str(data.get('score', '')).strip()
-        event_name = data.get('event_name', '') # 前端必须传 event_name，如果没有传，需要从ID查
+        reg_id = data.get('id')
         
-        # 如果前端没传 event_name (比如是在表格里直接修改)，我们需要先查一下这个项目叫什么
-        if not event_name and 'id' in data:
-            row = c.execute("SELECT event_name, group_name, gender, name, team_name FROM registrations WHERE id=?", (data['id'],)).fetchone()
+        # 🚀 修复点：确保 event_name 和 team_name 都能从数据库补全
+        event_name = data.get('event_name', '')
+        team_name = data.get('team_name', '')
+        name = data.get('name', '')
+        if reg_id:
+            row = c.execute("SELECT event_name, team_name FROM registrations WHERE id=?", (reg_id,)).fetchone()
             if row:
                 event_name = row['event_name']
-        
+                team_name = row['team_name']
+        else:
+            team_name = data.get('team_name', '')
+
         formatted_score = raw_val # 默认保留原样
 
         if raw_val:
-
+            # --- 2. 项目类型识别 (保留你原有的 1050-1070 行逻辑) ---
             is_field = False
             field_keywords = ['跳', '投', '掷', '铅球', '实心球', '标枪', '铁饼', '球', '引体', '仰卧']
             
-            # 查配置表
+            # 查配置表确定类型
             cfg = c.execute("SELECT type FROM cfg_events WHERE name=?", (event_name,)).fetchone()
-            # 如果名字查不到，去掉修饰词再查
             if not cfg:
                 core = re.sub(r"\(.*?\)|（.*?）|决赛|预赛|男子|女子|男|女", "", event_name).strip()
                 cfg = c.execute("SELECT type FROM cfg_events WHERE name=?", (core,)).fetchone()
@@ -913,19 +964,18 @@ def submit_score():
             elif any(kwd in event_name for kwd in field_keywords):
                 is_field = True
             
-            # 识别中长跑 (含400米)
+            # 识别中长跑 (含400米和接力)
             is_middle_long = any(x in event_name for x in ['400', '800', '1000', '1500', '3000', '5000', '4x', '4×'])
 
-            # --- 2. 格式化处理 (逻辑与 recalculate_all_points 保持完全一致) ---
+            # --- 3. 格式化处理 (保留你原有的 1075-1100 行核心逻辑) ---
             if is_field:
                 # 【田赛】: 3.45 -> 3.45 (冒号变点)
                 formatted_score = raw_val.replace(':', '.').replace('：', '.')
                 if formatted_score.count('.') > 1:
                      parts = formatted_score.split('.')
                      formatted_score = f"{parts[0]}.{parts[1]}"
-            
             else:
-
+                # 【径赛】: 处理冒号、双点号及中长跑缩写
                 if ':' in raw_val or '：' in raw_val:
                     formatted_score = raw_val.replace('：', ':')
                 elif raw_val.count('.') == 2:
@@ -934,47 +984,40 @@ def submit_score():
                 elif is_middle_long:
                     try:
                         val_float = float(raw_val)
-                        if val_float < 12:
+                        if val_float < 12: # 模式: 1.05 -> 1:05.00
                             if '.' in raw_val:
-                   
                                 parts = raw_val.split('.')
-                                minute = parts[0]
-                                second = parts[1]
-                
+                                minute, second = parts[0], parts[1]
                                 if len(second) == 1: second += "0"
                                 formatted_score = f"{minute}:{second}.00"
-                            else:
-                                # 模式: 1 -> 1:00.00
+                            else: # 模式: 1 -> 1:00.00
                                 formatted_score = f"{raw_val}:00.00"
-                        else:
-                            # 大于12，认为是秒 (53.02 -> 53.02)
+                        else: # 大于12认为是秒数，保持原样
                             formatted_score = raw_val
-                    except:
-                        pass # 解析失败保持原样
+                    except: pass 
                 else:
-                    # 短跑 (100, 200) -> 保持秒数
                     formatted_score = raw_val
 
-        # --- 3. 执行更新 ---
-        if 'id' in data:
-            c.execute("UPDATE registrations SET score = ? WHERE id = ?", (formatted_score, data['id']))
+        # --- 4. 执行更新 (✨ 核心修改点：集成团体/接力同步逻辑) ---
+        # 判断是否为接力或团体项目
+        is_relay = re.search(r'4[xX*]|接力', event_name) is not None
+        
+        if is_relay:
+            c.execute("UPDATE registrations SET score = ? WHERE team_name = ? AND event_name = ?", (formatted_score, team_name, event_name))
         else:
-            c.execute("""
-                UPDATE registrations 
-                SET score = ? 
-                WHERE name = ? AND event_name = ? AND team_name = ?
-            """, (formatted_score, data['name'], data['event_name'], data['team_name']))
+            if reg_id:
+                c.execute("UPDATE registrations SET score = ? WHERE id = ?", (formatted_score, reg_id))
+            else:
+                c.execute("UPDATE registrations SET score = ? WHERE name = ? AND event_name = ? AND team_name = ?", (formatted_score, name, event_name, team_name))
             
         conn.commit()
-        
         return jsonify({"status": "success", "msg": "已保存", "new_score": formatted_score})
     except Exception as e:
-        import traceback; traceback.print_exc() # 打印报错方便调试
+        import traceback; traceback.print_exc()
         conn.rollback()
         return jsonify({"status": "error", "msg": str(e)})
     finally:
         conn.close()
-
 @app.route('/api/publish_finals', methods=['POST'])
 def publish_finals():
     data = request.json
@@ -1233,8 +1276,21 @@ def import_registrations():
                 
                 # 3. 检查单项限额 (非趣味项目)
                 if not is_fun:
+                    # 查找该项目的属性
+                    evt_meta = c.execute("SELECT is_relay, gender FROM cfg_events WHERE name=?", (sub_evt,)).fetchone()
+                    is_relay = to_bool_str(evt_meta['is_relay']) == '1' if evt_meta else False
+                    is_mixed = (evt_meta['gender'] == '混合') if evt_meta else False
+                    
+                    if is_mixed and is_relay:
+                        current_limit = 10
+                    elif is_relay:
+                        current_limit = 4
+                    else:
+                        current_limit = MAX_PER_EVENT
+                    
                     curr_evt_count = c.execute("SELECT COUNT(*) FROM registrations WHERE team_id=? AND event_name=?", (tid, sub_evt)).fetchone()[0]
-                    if curr_evt_count >= MAX_PER_EVENT: continue
+                    if curr_evt_count >= current_limit: 
+                        continue
                 
                 # 4. 检查班级总人数限额
                 is_new_athlete = not c.execute("SELECT 1 FROM registrations WHERE team_id=? AND name=?", (tid, name)).fetchone()
