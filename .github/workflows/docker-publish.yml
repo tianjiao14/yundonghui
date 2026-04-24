@@ -7,15 +7,21 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # 🏆 核心修复：显式增加以下权限声明
     permissions:
       contents: read
-      packages: write    # 允许写入包（GHCR）
-      id-token: write    # 某些构建场景需要
+      packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      # 1. 🏆 关键步骤：设置 QEMU 以支持跨架构构建
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      # 2. 🏆 关键步骤：设置 Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
       - name: Log in to the Container registry
         uses: docker/login-action@v2
@@ -29,5 +35,6 @@ jobs:
         with:
           context: .
           push: true
-          # 确保这里的镜像名是小写的，GHCR 不支持大写
+          # 3. 🚀 关键：同时构建两个平台的镜像
+          platforms: linux/amd64,linux/arm64
           tags: ghcr.io/${{ github.repository_owner }}/yundonghui:latest
