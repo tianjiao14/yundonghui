@@ -1529,137 +1529,123 @@ function generateFinals() {
     // 📄 最终版 generateResultAnnouncement 
     // ============================================================
   
-  window.generateResultAnnouncement = function() {
-        const eventName = document.getElementById('resEventSelect').value;
-        const groupName = document.getElementById('resGroupSelect') ? document.getElementById('resGroupSelect').value : '';
-        const eventTitle = document.getElementById('cfgTitle').value || "运动会";
-        const topN = parseInt(document.getElementById('finalsTopN').value) || 8; 
-        const div = document.getElementById('resultOutput');
-        
-        if(!eventName) return alert("请先选择项目");
-
-        const evtCfg = db.events.find(e => e.name === eventName);
-        const roundStatus = (evtCfg && evtCfg.hasPrelim) ? "预赛" : "决赛";
-        let displayEventName = eventName.replace('决赛', '').replace('预赛', '').trim();
+ window.generateResultAnnouncement = function() {
+    // 🚀 修复 1：统一变量名，使用 rawEventName
+    const rawEventName = document.getElementById('resEventSelect').value;
+    const groupName = document.getElementById('resGroupSelect') ? document.getElementById('resGroupSelect').value : '';
+    const eventTitle = document.getElementById('cfgTitle').value || "运动会";
+    const topN = parseInt(document.getElementById('finalsTopN').value) || 8; 
+    const div = document.getElementById('resultOutput');
     
-    // 2. 将“女”标准化为“女子”，“男”标准化为“男子”
-    if (displayEventName.startsWith('女') && !displayEventName.startsWith('女子')) {
-        displayEventName = displayEventName.replace('女', '女子');
-    } else if (displayEventName.startsWith('男') && !displayEventName.startsWith('男子')) {
-        displayEventName = displayEventName.replace('男', '男子');
+    if(!rawEventName) return alert("请先选择项目");
+
+    // 名称规范化
+    let coreMatchName = rawEventName.replace('决赛', '').replace('预赛', '').trim();
+    if (coreMatchName.startsWith('女') && !coreMatchName.startsWith('女子')) coreMatchName = coreMatchName.replace('女', '女子');
+    if (coreMatchName.startsWith('男') && !coreMatchName.startsWith('男子')) coreMatchName = coreMatchName.replace('男', '男子');
+
+    const evtCfg = db.events.find(e => e.name === coreMatchName || e.name === rawEventName);
+    const roundStatus = (evtCfg && evtCfg.hasPrelim) ? "预赛" : "决赛";
+    
+    let pointRules = [9, 7, 6, 5, 4, 3, 2, 1];
+    let isDouble = false;
+    if (evtCfg) {
+        if (evtCfg.scoreRule) pointRules = evtCfg.scoreRule.replace(/，/g, ',').split(',').map(Number);
+        isDouble = (String(evtCfg.isDoubleScore) === 'true' || String(evtCfg.is_double_score) === '1');
     }
+
+    // 🚀 修复 2：将 event_name 对应到正确的变量 rawEventName
+    fetch('/api/get_event_start_list', { 
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'}, 
+        body: JSON.stringify({ event_name: rawEventName, group_name: groupName }) 
+    })
+    .then(r => r.json()).then(data => {
+        const validAthletes = data.filter(i => i.score && !isNaN(parseFloat(parseTimeVal(i.score))));
         
-        let pointRules = [9, 7, 6, 5, 4, 3, 2, 1]; // 默认规则
-        let isDouble = false;
-        if (evtCfg) {
-            if (evtCfg.scoreRule) pointRules = evtCfg.scoreRule.replace(/，/g, ',').split(',').map(Number);
-            isDouble = evtCfg.isDoubleScore;
+        if(validAthletes.length === 0) {
+            div.innerHTML = `<div class="text-center text-gray-400 mt-10"><p class="text-xl mb-2">该项目暂无成绩</p></div>`; 
+            return;
         }
 
-        fetch('/api/get_event_start_list', { 
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({ event_name: eventName, group_name: groupName }) 
-        })
-        .then(r=>r.json()).then(data => {
-            const validAthletes = data.filter(i => i.score && !isNaN(parseFloat(i.score)));
+        const isField = rawEventName.includes('跳') || rawEventName.includes('投') || rawEventName.includes('球') || rawEventName.includes('掷');
+        validAthletes.sort((a,b) => !isField ? (parseTimeVal(a.score) - parseTimeVal(b.score)) : (parseTimeVal(b.score) - parseTimeVal(a.score)));
+
+        let rowsHtml = '';
+        let currentRank = 1;
+
+        validAthletes.forEach((p, idx) => {
+            if (idx > 0 && parseTimeVal(p.score) !== parseTimeVal(validAthletes[idx-1].score)) currentRank = idx + 1;
+
+            let points = (currentRank <= pointRules.length) ? pointRules[currentRank - 1] : 0;
+            if (isDouble) points *= 2;
+
+            let remark = '';
+            const bonus = parseInt(evtCfg ? (evtCfg.recordBonus || evtCfg.record_bonus || 0) : 0);
+            const recordStr = evtCfg ? evtCfg.record : '';
             
-            if(validAthletes.length === 0) {
-                div.innerHTML = `<div class="text-center text-gray-400 mt-10"><p class="text-xl mb-2">该项目暂无成绩</p></div>`; 
-                return;
+            if (recordStr && bonus > 0) {
+                const recVal = parseTimeVal(recordStr);
+                const scoreVal = parseTimeVal(p.score);
+                if (recVal > 0 && scoreVal > 0) {
+                    const isBroken = isField ? (scoreVal > recVal) : (scoreVal < recVal);
+                    if (isBroken) {
+                        points += bonus;
+                        remark = `<span style="color:red; font-weight:bold;">破纪录 +${bonus}分</span>`;
+                    }
+                }
             }
 
-            const isField = eventName.includes('跳') || eventName.includes('投') || eventName.includes('球');
-            const sortAsc = !isField; 
+            rowsHtml += `
+            <tr>
+                <td style="font-weight:bold; font-size:12pt; border:1px solid #000;">${currentRank}</td>
+                <td style="font-family:Times New Roman; font-weight:bold; border:1px solid #000;">${p.bib || ''}</td>
+                <td style="font-weight:bold; text-align:left; padding-left:20px; border:1px solid #000;">${p.name}</td>
+                <td style="border:1px solid #000;">${p.team_name}</td>
+                <td style="font-family:Times New Roman; font-weight:bold; font-size:12pt; border:1px solid #000;">${formatTrackTime(p.score)}</td>
+                <td style="font-weight:bold; font-family:Times New Roman; border:1px solid #000;">${(roundStatus === '预赛' && currentRank <= topN) ? 'q' : ''}</td>
+                <td style="font-weight:bold; color:#b45309; font-size:12pt; border:1px solid #000;">${points > 0 ? points : ''}</td>
+                <td style="font-size:10pt; border:1px solid #000;">${remark}</td>
+            </tr>`;
+        });
 
-            validAthletes.sort((a,b) => {
-                const sa = parseTimeVal(a.score);
-                const sb = parseTimeVal(b.score);
-                return sortAsc ? (sa - sb) : (sb - sa);
-            });
+        // 🚀 修复 3：补全丢失的 HTML 模板和 DOM 注入逻辑
+        const today = new Date();
+        const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
 
-            let rowsHtml = '';
-            let currentRank = 1;
-
-            validAthletes.forEach((p, idx) => {
-                // --- 并列名次逻辑 ---
-                if (idx > 0) {
-                    const prevScore = validAthletes[idx-1].score;
-                    const currScore = p.score;
-                    if (parseTimeVal(currScore) !== parseTimeVal(prevScore)) {
-                         currentRank = idx + 1;
-                    }
-                } else {
-                    currentRank = 1;
-                }
-
-                let points = 0;
-                        
-                if (roundStatus !== '预赛') {
-                    if (currentRank <= pointRules.length) {
-                        points = pointRules[currentRank - 1];
-                    }
-                    if (isDouble) points *= 2;
-                }
-               
-                let qMark = '';
-                if (roundStatus === '预赛' && currentRank <= topN) {
-                    qMark = 'q'; 
-                }
-
-                rowsHtml += `
-                <tr>
-                    <td style="font-weight:bold; font-size:12pt;">${currentRank}</td>
-                    <td style="font-family:Times New Roman; font-weight:bold;">${p.bib || ''}</td>
-                    <td style="font-weight:bold; text-align:left; padding-left:20px;">${p.name}</td>
-                    <td>${p.team_name}</td>
-                    <td style="font-family:Times New Roman; font-weight:bold; font-size:12pt;">${formatTrackTime(p.score)}</td>
-                    <td style="font-weight:bold; font-family:Times New Roman;">${qMark}</td>
-                    <td style="font-weight:bold; color:#b45309; font-size:12pt;">${points > 0 ? points : ''}</td>
-                    <td></td>
-                </tr>`;
-            });
-
-            const today = new Date();
-            const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
-
-            const finalHtml = `
-    <div class="rc-card break-inside-avoid">
-        <h1 style="text-align:center; font-size:28pt; font-weight:bold; margin-bottom:10px; font-family:SimSun;">${eventTitle} 成绩公告</h1>
-        
-        <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #000; padding-bottom:5px; margin-bottom:2px; font-size:14pt; font-weight:bold;">
-            <div>${groupName} &nbsp; ${displayEventName} &nbsp; ${roundStatus}</div>
-            <div style="font-size:12pt; font-weight:normal;">综合成绩</div>
-            <div style="font-size:10pt; font-weight:normal;">${dateStr}</div>
-        </div>
-      
-
-            <table class="rc-table" style="width:100%; text-align:center; border:none; table-layout: auto !important;">
+        const finalHtml = `
+        <div class="rc-card break-inside-avoid">
+            <h1 style="text-align:center; font-size:28pt; font-weight:bold; margin-bottom:10px;">${eventTitle} 成绩公告</h1>
+            <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #000; padding-bottom:5px; margin-bottom:2px; font-size:14pt; font-weight:bold;">
+                <div>${groupName} &nbsp; ${coreMatchName} &nbsp; ${roundStatus}</div>
+                <div style="font-size:12pt; font-weight:normal;">综合成绩</div>
+                <div style="font-size:10pt; font-weight:normal;">${dateStr}</div>
+            </div>
+            <table class="rc-table" style="width:100%; text-align:center; border-collapse:collapse; margin-top:5px;">
                 <thead>
-                    <tr style="border-bottom:2px solid #000; height:35px; font-size:12pt;">
-                        <th style="width:50px; border:none;">名次</th>
-                        <th style="width:80px; border:none;">号码</th>
-                        <th style="width:150px; text-align:left; padding-left:20px; border:none;">姓 名</th>
-                        <th style="width:120px; border:none;">单 位</th>
-                        <th style="width:100px; border:none;">成 绩</th>
-                        <th style="width:60px; border:none;">录取</th>
-                        <th style="width:60px; border:none;">积分</th>
-                        <th style="width:80px; border:none;">备注</th>
+                    <tr style="height:35px; font-size:12pt; background:#f3f4f6;">
+                        <th style="border:1px solid #000;">名次</th>
+                        <th style="border:1px solid #000;">号码</th>
+                        <th style="border:1px solid #000; text-align:left; padding-left:20px;">姓 名</th>
+                        <th style="border:1px solid #000;">单 位</th>
+                        <th style="border:1px solid #000;">成 绩</th>
+                        <th style="border:1px solid #000;">录取</th>
+                        <th style="border:1px solid #000;">积分</th>
+                        <th style="border:1px solid #000;">备注</th>
                     </tr>
                 </thead>
-                <tbody style="font-size:11pt;">
-                    ${rowsHtml}
-                </tbody>
+                <tbody>${rowsHtml}</tbody>
             </table>
-            
-            <div style="border-top:2px solid #000; margin-top:2px;"></div>
-            <div class="rc-footer" style="margin-top:20px;">
+            <div class="rc-footer" style="margin-top:20px; display:flex; justify-content:space-between;">
                 <span>裁判长签字：________________</span>
                 <span>记录长签字：________________</span>
             </div>
         </div>`;
 
         div.innerHTML = finalHtml;
+    }).catch(err => {
+        console.error(err);
+        alert("获取成绩失败，请检查网络或后端服务");
     });
 };
     // ✅ Word 导出

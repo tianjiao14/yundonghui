@@ -37,66 +37,79 @@ def recalculate_all_points():
     c = conn.cursor()
     count = 0
     try:
-        # 1. 基础初始化：清空所有人的积分
+        # 1. 初始化：清空所有积分
         c.execute("UPDATE registrations SET points = 0")
         
-        # 获取所有有成绩的组别和性别组合
         groups_genders = c.execute("SELECT DISTINCT group_name, gender FROM registrations WHERE group_name != ''").fetchall()
-        # 获取所有项目配置
         all_cfgs = {row['name']: dict(row) for row in c.execute("SELECT * FROM cfg_events").fetchall()}
 
         for gg in groups_genders:
             g_name, gender = gg['group_name'], gg['gender']
-            
-            # 查找该组别下所有有成绩的项目
             rows = c.execute("SELECT DISTINCT event_name FROM registrations WHERE group_name = ? AND gender = ? AND score != ''", (g_name, gender)).fetchall()
             distinct_events = [r['event_name'] for r in rows]
             if not distinct_events: continue
 
-            # --- A. 按核心项目分组 ---
             event_map = {}
             for evt in distinct_events:
-                # 只剔除 组别、预决赛、男女等修饰词，保留核心名称如 100米, 4*100
+                # 提取核心名，用于匹配配置（保留初中/高中等前缀以便区分纪录）
                 core = re.sub(r"\(.*?\)|（.*?）|决赛|预赛|及格赛|男子|女子|混合|男|女|第一组|第二组|第三组|第四组|第\d+组", "", evt).strip()
                 if core not in event_map: event_map[core] = []
                 event_map[core].append(evt)
 
             for core_name, sub_events in event_map.items():
-                # --- B. 匹配项目配置 ---
+                # 🚀 修正：智能匹配“男/女”与“男子/女子”
                 cfg = all_cfgs.get(core_name)
                 if not cfg:
-                    for k, v in all_cfgs.items():
-                        if k in core_name or core_name in k:
-                            cfg = v; break
+                    # 尝试补齐“男子/女子”前缀再找
+                    prefix = "女子" if gender == "女" else "男子"
+                    cfg = all_cfgs.get(prefix + core_name)
                 
-                # 判断项目特性
+                if not cfg: # 模糊匹配兜底
+                    for k, v in all_cfgs.items():
+                        if k in core_name or core_name in k: cfg = v; break
+                
+                # B. 🚀 关键逻辑：判定是否为预决赛制
+                # 读取你在 Step 1 勾选的“预决”开关
+                is_prelim_cfg = False
+                if cfg:
+                    has_pre_val = cfg.get('has_prelim') or cfg.get('hasPrelim')
+                    is_prelim_cfg = (to_bool_str(has_pre_val) == '1')
+
+                # C. 确定计算范围
+                if is_prelim_cfg:
+                    # 如果是预决制项目，【只取】包含“决赛”字样的成绩
+                    target_events = [e for e in sub_events if '决赛' in e]
+                else:
+                    # 如果是直接决赛项目（如1500米、跳远），取该核心名下的所有成绩
+                    target_events = sub_events
+                
+                # 如果该项目该组别目前还没有决赛成绩，则跳过，该项积分为 0
+                if not target_events:
+                    continue
+
+                # D. 提取数据（后面逻辑保持您要求的破纪录、并列、双倍等功能）
                 is_field = False
                 field_keywords = ['跳', '投', '掷', '铅球', '实心球', '标枪', '铁饼', '球', '引体', '仰卧']
                 if cfg and (cfg.get('type') == '田赛' or '田' in str(cfg.get('type'))): is_field = True
                 elif any(kwd in core_name for kwd in field_keywords): is_field = True
                 
-                # 获取破纪录加分设置
                 record_bonus = 0
-                try: 
-                    record_bonus = int(cfg.get('record_bonus') or cfg.get('recordBonus') or 0) if cfg else 0
+                try: record_bonus = int(cfg.get('record_bonus') or cfg.get('recordBonus') or 0) if cfg else 0
                 except: record_bonus = 0
                 
                 event_record = cfg.get('record') if cfg else None
                 rec_val = parse_time_to_seconds(event_record) if (event_record and str(event_record).strip()) else None
 
-                # --- C. 选定计算项目并去重 ---
-                target_events = [e for e in sub_events if '决赛' in e] or sub_events
                 placeholders = ','.join(['?'] * len(target_events))
                 sql = f"SELECT id, name, team_name, event_name, score FROM registrations WHERE group_name=? AND gender=? AND event_name IN ({placeholders}) AND score != ''"
                 data_rows = c.execute(sql, [g_name, gender] + target_events).fetchall()
                 if not data_rows: continue
                 
-                # 🏆 团体/接力去重逻辑
+                # 接力/个人去重
                 unique_entries = {} 
                 for item in [dict(r) for r in data_rows]:
                     is_relay_event = re.search(r'4[xX*]|接力', item['event_name']) is not None
                     key = f"TEAM_{item['team_name']}" if is_relay_event else f"ATH_{item['team_name']}_{item['name']}"
-                    
                     item['_val'] = parse_time_to_seconds(item['score']) 
                     if key not in unique_entries: unique_entries[key] = item
                     else:
@@ -107,18 +120,15 @@ def recalculate_all_points():
                 final_list = list(unique_entries.values())
                 final_list.sort(key=lambda x: x['_val'], reverse=is_field)
                 
-                # --- D. 赋分与双倍核算 ---
                 score_rule = cfg.get('score_rule', "9,7,6,5,4,3,2,1") if cfg else "9,7,6,5,4,3,2,1"
                 rules = [int(x) for x in score_rule.replace('，',',').split(',') if x.strip().isdigit()]
-                is_double = to_bool_str(cfg.get('is_double_score')) == '1' if cfg else False
+                is_double = (to_bool_str(cfg.get('is_double_score')) == '1') if cfg else False
 
-                # 🚀 核心修复：并列名次计分逻辑
+                # 并列名次计分
                 current_rank = 1
                 for i, item in enumerate(final_list):
-                    # 如果当前成绩与前一个不同，名次更新为“当前人数+1”；如果相同，名次不变
-                    if i > 0:
-                        if item['_val'] != final_list[i-1]['_val']:
-                            current_rank = i + 1
+                    if i > 0 and item['_val'] != final_list[i-1]['_val']:
+                        current_rank = i + 1
                     
                     p = 0
                     if current_rank <= len(rules):
@@ -135,7 +145,7 @@ def recalculate_all_points():
                 count += 1
         
         conn.commit()
-        return jsonify({'status': 'success', 'msg': f'计算完毕！已处理 {count} 个项目。并列名次已正确计分。'})
+        return jsonify({'status': 'success', 'msg': f'计算完毕！已处理 {count} 个项目。预决赛逻辑已校准。'})
     except Exception as e:
         import traceback; traceback.print_exc()
         conn.rollback()
@@ -1139,7 +1149,8 @@ def generate_finals_list():
         
         athletes.sort(key=lambda x: parse_time(x['score']))
 
-        final_display_name = f"{gender}{clean_core}决赛" 
+        prefix = "女子" if gender == '女' else ("男子" if gender == '男' else gender)
+        final_display_name = f"{prefix}{clean_core}决赛" 
         
         return jsonify({
             "status": "success",
