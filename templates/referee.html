@@ -3,83 +3,411 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>裁判员成绩录入</title>
-    <script src="/static/js/tailwind.min.js"></script>
+    <title>裁判员工作站</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f3f4f6; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-tap-highlight-color: transparent;}
+        /* 控制台特有样式 */
+        .console-bg { background-color: #f3f4f6; }
         .input-score { transition: all 0.2s; font-family: 'Courier New', Courier, monospace; font-weight: bold; font-size: 1.2rem; }
         .input-score:focus { transform: scale(1.05); border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2); z-index: 10; position: relative; }
-        .saving { background-color: #fef3c7 !important; } /* 黄色：保存中 */
-        .saved { background-color: #dcfce7 !important; } /* 绿色：成功 */
-        .error { background-color: #fee2e2 !important; } /* 红色：失败 */
+        .saving { background-color: #fef3c7 !important; } 
+        .saved { background-color: #dcfce7 !important; } 
+        .error { background-color: #fee2e2 !important; } 
     </style>
 </head>
-<body class="p-2 md:p-6">
+<body class="bg-green-800 transition-colors duration-500" id="bodyWrap">
 
-    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
-        <div class="bg-blue-600 p-4 text-white flex justify-between items-center">
-            <h1 class="text-xl font-bold flex items-center gap-2">
-                ⏱️ 成绩录入
-            </h1>
-            <button onclick="location.reload()" class="bg-blue-700 hover:bg-blue-800 px-3 py-1 rounded text-sm border border-blue-500">刷新</button>
+    <div id="loginSection" class="h-screen flex items-center justify-center">
+        <div class="bg-white p-8 rounded-lg shadow-2xl w-96 text-center mx-4">
+            <h1 class="text-2xl font-bold mb-6 text-green-800">⏱️ 裁判员登录</h1>
+            
+            <div class="text-left mb-4">
+                <label class="block text-sm font-bold text-gray-700 mb-1">登录名</label>
+                <input type="text" id="username" value="referee" placeholder="请输入登录名" class="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-green-500 outline-none text-gray-800 font-bold">
+            </div>
+
+            <div class="text-left mb-6">
+                <label class="block text-sm font-bold text-gray-700 mb-1">密码</label>
+                <input type="password" id="pwd" placeholder="请输入裁判密码" class="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-green-500 outline-none text-gray-800">
+            </div>
+            
+            <button onclick="login()" id="btnLogin" class="w-full bg-green-600 text-white py-2 rounded font-bold hover:bg-green-700 transition active:scale-95 flex justify-center items-center gap-2">
+                <span>开始工作</span>
+            </button>
         </div>
+    </div>
 
-        <div class="p-4 bg-gray-50 border-b border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-3">
-    <div>
-        <label class="block text-xs font-bold text-gray-500 mb-1">1. 选择组别</label>
-        <select id="selGroup" class="w-full border-gray-300 border rounded-md p-2 shadow-sm focus:border-blue-500" onchange="onGroupChange()">
-            <option value="">-- 加载中 --</option>
-        </select>
-    </div>
-    <div>
-        <label class="block text-xs font-bold text-gray-500 mb-1">2. 选择性别</label>
-        <select id="selGender" class="w-full border-gray-300 border rounded-md p-2 shadow-sm focus:border-blue-500" disabled onchange="onGenderChange()">
-            <option value="">-- 先选组别 --</option>
-        </select>
-    </div>
-    <div>
-        <label class="block text-xs font-bold text-gray-500 mb-1">3. 选择项目</label>
-        <select id="selEvent" class="w-full border-gray-300 border rounded-md p-2 shadow-sm focus:border-blue-500" disabled onchange="loadAthletes()">
-            <option value="">-- 再选性别 --</option>
-        </select>
-    </div>
-    <div class="flex items-end justify-between">
-        <div id="statusTip" class="text-xs text-gray-500 py-2">准备就绪</div>
-        <button onclick="clearLocalCache()" class="text-[10px] text-red-400 hover:underline">清除本地缓存</button>
-    </div>
-</div>
+    <div id="mainConsoleSection" class="hidden p-2 md:p-6 pb-20 min-h-screen">
+        <div class="max-w-5xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden flex flex-col min-h-[85vh]">
+            <div class="bg-blue-600 p-4 text-white flex justify-between items-center shadow-md z-10 relative">
+                <h1 class="text-xl font-bold flex items-center gap-2" id="headerTitle">
+                    📱 裁判员控制台
+                </h1>
+                <div class="flex items-center gap-2">
+                    <button id="btnBack" onclick="resetRoleSelection()" class="hidden bg-blue-500 hover:bg-blue-400 px-3 py-1.5 rounded text-sm font-bold shadow-sm transition">⬅️ 换身份</button>
+                    <button onclick="refreshCurrentView()" class="bg-blue-800 hover:bg-blue-900 px-3 py-1.5 rounded text-sm font-bold shadow-sm transition">🔄 刷新</button>
+                </div>
+            </div>
 
-        <div class="overflow-x-auto min-h-[400px]">
-            <table class="w-full text-left border-collapse">
-                <thead class="bg-gray-100 text-gray-600 uppercase text-xs sticky top-0">
-                    <tr>
-                        <th class="p-3 border-b text-center w-16">道次</th>
-                        <th class="p-3 border-b text-center w-20">号码</th>
-                        <th class="p-3 border-b">姓名</th>
-                        <th class="p-3 border-b text-right w-32">成绩</th>
-                    </tr>
-                </thead>
-                <tbody id="athleteList" class="divide-y divide-gray-100">
-                    <tr><td colspan="4" class="p-10 text-center text-gray-400">请选择组别和项目开始录入</td></tr>
-                </tbody>
-            </table>
-        </div>
-        
-        <div class="p-3 bg-yellow-50 text-yellow-800 text-xs text-center border-t border-yellow-100">
-            💡 提示：输入成绩后<b>点击任意空白处</b>或<b>按回车</b>即可自动保存。<br>
-            径赛格式如：12.5 或 1.12.5 (1分12秒5)
+            <div id="roleSelection" class="flex-1 flex flex-col justify-center items-center p-6 gap-6 bg-gray-50">
+                <div class="text-center mb-4">
+                    <h2 class="text-2xl font-black text-gray-800 mb-2">请选择您的裁判岗位</h2>
+                    <p class="text-sm text-gray-500">系统将为您切换专属的工作界面</p>
+                </div>
+
+                <button onclick="selectRole('checkin')" class="w-full max-w-sm bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-6 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-2">
+                    <span class="text-4xl">📝</span>
+                    <span class="text-xl font-black tracking-widest">检录裁判入口</span>
+                    <span class="text-xs text-emerald-100 font-medium">按比赛时间顺序进行选手点名</span>
+                </button>
+
+                <button onclick="selectRole('timing')" class="w-full max-w-sm bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-6 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-2">
+                    <span class="text-4xl">⏱️</span>
+                    <span class="text-xl font-black tracking-widest">计时/田赛裁判入口</span>
+                    <span class="text-xs text-blue-100 font-medium">精准录入各组成绩单</span>
+                </button>
+            </div>
+
+            <div id="checkinSection" class="hidden flex-1 flex flex-col bg-gray-100 p-2 md:p-4">
+                <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-lg text-emerald-800 text-xs text-center font-bold mb-3 shadow-sm">
+                    💡 提示：以沙盘时间轴展示。点击单元内的项目卡片可展开检录名单，勾选标记到场情况。
+                </div>
+                <div id="checkinList" class="flex-1 space-y-4 pb-10"></div>
+            </div>
+
+            <div id="timingSection" class="hidden flex-1 flex flex-col">
+                <div class="p-4 bg-gray-50 border-b border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">1. 选择组别</label>
+                        <select id="selGroup" class="w-full border-gray-300 border rounded-md p-2 shadow-sm focus:border-blue-500 font-bold text-gray-700" onchange="onGroupChange()">
+                            <option value="">-- 加载中 --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">2. 选择性别</label>
+                        <select id="selGender" class="w-full border-gray-300 border rounded-md p-2 shadow-sm focus:border-blue-500 font-bold text-gray-700" disabled onchange="onGenderChange()">
+                            <option value="">-- 先选组别 --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">3. 选择项目</label>
+                        <select id="selEvent" class="w-full border-gray-300 border rounded-md p-2 shadow-sm focus:border-blue-500 font-bold text-gray-700" disabled onchange="loadAthletes()">
+                            <option value="">-- 再选性别 --</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end justify-between md:justify-end md:gap-4 pb-1">
+                        <div id="statusTip" class="text-xs font-bold text-blue-600">准备就绪</div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto flex-1">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-gray-100 text-gray-600 uppercase text-xs sticky top-0 shadow-sm z-10">
+                            <tr>
+                                <th class="p-3 border-b text-center w-14">道次</th>
+                                <th class="p-3 border-b text-center w-16">号码</th>
+                                <th class="p-3 border-b">姓名与单位</th>
+                                <th class="p-3 border-b text-right w-32">录入成绩</th>
+                            </tr>
+                        </thead>
+                        <tbody id="athleteList" class="divide-y divide-gray-100">
+                            <tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">请选择组别和项目开始录入</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="p-3 bg-yellow-50 text-yellow-800 text-xs text-center border-t border-yellow-200 font-bold">
+                    💡 提示：输入成绩后 <b>点击空白处</b> 即可自动保存。径赛格式如：12.5 或 1.12.5
+                </div>
+            </div>
         </div>
     </div>
 
 <script>
-    let metaData = {}; // 存放所有数据
+    // ==========================================
+    // 🔐 登录逻辑
+    // ==========================================
+    function login() {
+        const user = document.getElementById('username').value.trim();
+        const pwd = document.getElementById('pwd').value;
+        const btn = document.getElementById('btnLogin');
 
-    // 页面加载完成后立即执行
-    window.onload = function() {
-        fetchMeta();
-    };
+        if (!user) {
+            alert("请输入登录名");
+            return;
+        }
 
-    // 1. 获取组别和项目数据
+        btn.disabled = true;
+        btn.innerHTML = `<span class="animate-spin">⌛</span> 登录中...`;
+
+        fetch('/api/auth', {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ type: 'referee', username: user, password: pwd })
+        })
+        .then(r => r.json())
+        .then(res => {
+            if(res.status === 'success') {
+                // 登录成功：切换UI界面
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('mainConsoleSection').classList.remove('hidden');
+                // 更改背景色适配控制台
+                document.getElementById('bodyWrap').classList.remove('bg-green-800');
+                document.getElementById('bodyWrap').classList.add('console-bg');
+                
+                // 初始化裁判系统数据
+                initConsoleData();
+            } else {
+                alert(res.msg || "登录失败，请检查用户名或密码。");
+                btn.disabled = false;
+                btn.innerHTML = `<span>开始工作</span>`;
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("网络连接失败，请检查服务器状态。");
+            btn.disabled = false;
+            btn.innerHTML = `<span>开始工作</span>`;
+        });
+    }
+
+    // 允许回车键登录
+    document.getElementById('pwd').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') login();
+    });
+    document.getElementById('username').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') document.getElementById('pwd').focus();
+    });
+
+
+    // ==========================================
+    // ⚙️ 控制台全局状态
+    // ==========================================
+    let metaData = {}; 
+    let compStartDate = ""; 
+    let currentRole = null;
+
+    // 登录成功后初始化数据
+    function initConsoleData() {
+        fetch('/api/get_competition_date')
+            .then(r => r.json())
+            .then(d => {
+                if (d.success && d.start_date) compStartDate = d.start_date;
+            })
+            .catch(e => console.log('获取日期失败，将回退为第X天格式'));
+    }
+
+    // ==========================================
+    // 🔀 UI 与身份切换逻辑
+    // ==========================================
+    function selectRole(role) {
+        currentRole = role;
+        document.getElementById('roleSelection').classList.add('hidden');
+        document.getElementById('btnBack').classList.remove('hidden');
+
+        if (role === 'timing') {
+            document.getElementById('headerTitle').innerHTML = '⏱️ 成绩录入终端';
+            document.getElementById('timingSection').classList.remove('hidden');
+            document.getElementById('checkinSection').classList.add('hidden');
+            fetchMeta(); 
+        } else if (role === 'checkin') {
+            document.getElementById('headerTitle').innerHTML = '📝 检录长终端';
+            document.getElementById('checkinSection').classList.remove('hidden');
+            document.getElementById('timingSection').classList.add('hidden');
+            loadCheckinSchedule(); 
+        }
+    }
+
+    function resetRoleSelection() {
+        currentRole = null;
+        document.getElementById('roleSelection').classList.remove('hidden');
+        document.getElementById('btnBack').classList.add('hidden');
+        document.getElementById('timingSection').classList.add('hidden');
+        document.getElementById('checkinSection').classList.add('hidden');
+        document.getElementById('headerTitle').innerHTML = '📱 裁判员控制台';
+    }
+
+    function refreshCurrentView() {
+        if (currentRole === 'timing') {
+            fetchMeta();
+            if (document.getElementById('selEvent').value) {
+                loadAthletes();
+            }
+        } else if (currentRole === 'checkin') {
+            loadCheckinSchedule();
+        } else {
+            console.log("在大厅，无需刷新");
+        }
+    }
+
+    // 工具函数：日期换算
+    function formatRealDate(estTimeStr) {
+        if (!compStartDate || !estTimeStr) return estTimeStr;
+        const match = estTimeStr.match(/第(\d+)天(上午|下午)?\s*(.*)/);
+        if (!match) return estTimeStr;
+        
+        const dayOffset = parseInt(match[1]) - 1;
+        const unit = match[2] || '';
+        const timePart = match[3] || '';
+        
+        let baseDate = new Date(compStartDate);
+        if (isNaN(baseDate.getTime())) return estTimeStr; 
+        
+        baseDate.setDate(baseDate.getDate() + dayOffset);
+        const month = baseDate.getMonth() + 1;
+        const date = baseDate.getDate();
+        
+        return `${month}月${date}日 ${unit} ${timePart}`;
+    }
+
+    // ==========================================
+    // 📝 检录裁判逻辑
+    // ==========================================
+    function loadCheckinSchedule() {
+        const listDiv = document.getElementById('checkinList');
+        listDiv.innerHTML = '<div class="text-center p-10 text-emerald-600 font-bold animate-pulse">正在从系统拉取全场赛程...</div>';
+
+        fetch('/api/get_data')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.schedule || data.schedule.length === 0) {
+                listDiv.innerHTML = '<div class="text-center p-10 text-gray-500 font-bold">📂 暂无检录数据，请提醒管理员在后台先进行【智能编排】</div>';
+                return;
+            }
+
+            const units = {}; 
+            data.schedule.forEach(item => {
+                const timeStr = item.estTime || '';
+                const match = timeStr.match(/第(\d+)天(上午|下午)?/);
+                const dayNum = match ? parseInt(match[1]) : 1;
+                const ampm = match ? match[2] : '上午';
+                const unitKey = `${dayNum}_${ampm}`; 
+
+                if (!units[unitKey]) {
+                    units[unitKey] = { day: dayNum, ampm: ampm, track: {}, field: {} };
+                }
+
+                const heatKey = `${item.timeIndex}_${item.groupName}_${item.eventName}_${item.gender}_${item.heat}`;
+                const category = item.isField ? 'field' : 'track';
+
+                if (!units[unitKey][category][heatKey]) {
+                    units[unitKey][category][heatKey] = {
+                        timeStr: timeStr, timeIdx: item.timeIndex, groupName: item.groupName, 
+                        eventName: item.eventName, gender: item.gender, heat: item.heat, 
+                        isField: item.isField, athletes: []
+                    };
+                }
+                units[unitKey][category][heatKey].athletes.push(item);
+            });
+
+            const renderHeatCard = (group, elementId) => {
+                group.athletes.sort((a,b) => parseInt(a.lane||0) - parseInt(b.lane||0));
+                const realTime = formatRealDate(group.timeStr);
+                const typeColor = group.isField ? 'orange' : 'blue';
+
+                return `
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-3">
+                    <div class="bg-white border-b border-gray-100 p-3 flex justify-between items-center cursor-pointer hover:bg-${typeColor}-50 transition active:bg-${typeColor}-100 select-none" onclick="document.getElementById('${elementId}').classList.toggle('hidden')">
+                        <div>
+                            <div class="text-[11px] font-black text-${typeColor}-600 mb-1 flex items-center gap-1">
+                                <span>🕒</span> ${realTime}
+                            </div>
+                            <div class="font-black text-gray-800 text-sm">
+                                ${group.groupName} ${group.gender}组 · ${group.eventName}
+                            </div>
+                        </div>
+                        <div class="text-xs font-bold text-${typeColor}-700 bg-${typeColor}-100 px-2 py-1 rounded-lg shadow-inner">
+                            第 ${group.heat} 组 ▼
+                        </div>
+                    </div>
+                    
+                    <div id="${elementId}" class="hidden">
+                        <table class="w-full text-center text-sm border-collapse">
+                            <thead class="bg-gray-50 text-gray-500 text-[11px] border-b">
+                                <tr>
+                                    <th class="py-2.5 px-1 w-10 border-r">道次</th>
+                                    <th class="py-2.5 px-1 w-12 border-r">号码</th>
+                                    <th class="py-2.5 px-2 text-left">姓名与单位</th>
+                                    <th class="py-2.5 px-1 w-14 text-center">✅检录</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${group.athletes.map(p => `
+                                <tr class="border-b border-gray-50 hover:bg-gray-50 active:bg-blue-50 transition">
+                                    <td class="py-2.5 font-black text-gray-400 border-r">${p.lane || '-'}</td>
+                                    <td class="py-2.5 font-mono font-black text-${typeColor}-600 border-r text-[12px]">${p.bib || '---'}</td>
+                                    <td class="py-2.5 text-left px-2">
+                                        <div class="font-black text-gray-800 text-[13px]">${p.name}</div>
+                                        <div class="text-[10px] text-gray-500 mt-0.5 truncate max-w-[110px]">${p.teamName}</div>
+                                    </td>
+                                    <td class="py-2.5 text-center">
+                                        <input type="checkbox" class="w-6 h-6 text-emerald-600 rounded cursor-pointer border-gray-300 shadow-inner">
+                                    </td>
+                                </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+            };
+
+            let html = '';
+            Object.keys(units).sort((a,b) => {
+                const ua = units[a], ub = units[b];
+                if(ua.day !== ub.day) return ua.day - ub.day;
+                return ua.ampm === '上午' ? -1 : 1;
+            }).forEach((uKey, uIdx) => {
+                const unit = units[uKey];
+                
+                let dateTitle = `第${unit.day}天 ${unit.ampm}`;
+                if (compStartDate) {
+                    let d = new Date(compStartDate);
+                    if (!isNaN(d.getTime())) {
+                        d.setDate(d.getDate() + (unit.day - 1));
+                        dateTitle = `${d.getMonth()+1}月${d.getDate()}日 ${unit.ampm}`;
+                    }
+                }
+
+                html += `
+                <div class="mb-6 bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
+                    <h3 class="text-base font-black text-emerald-900 bg-emerald-100 p-3 border-b-2 border-emerald-400 flex items-center gap-2">
+                        📅 ${dateTitle} 比赛单元
+                    </h3>
+                    
+                    <div class="flex flex-col md:flex-row bg-gray-50 p-3 gap-4">
+                        <div class="flex-1">
+                            <div class="font-black text-blue-800 border-b-2 border-blue-200 pb-1.5 mb-3 flex items-center gap-1.5">
+                                <span>🏃</span> 径赛检录区
+                            </div>
+                            <div class="space-y-3">
+                                ${Object.keys(unit.track).length === 0 ? '<div class="text-xs text-gray-400 font-bold p-2 text-center">本单元无径赛项目</div>' : ''}
+                                ${Object.keys(unit.track).sort((a,b) => unit.track[a].timeIdx - unit.track[b].timeIdx).map((k, i) => renderHeatCard(unit.track[k], `track_${uIdx}_${i}`)).join('')}
+                            </div>
+                        </div>
+
+                        <div class="flex-1">
+                            <div class="font-black text-orange-800 border-b-2 border-orange-200 pb-1.5 mb-3 flex items-center gap-1.5 mt-2 md:mt-0">
+                                <span>🎯</span> 田赛检录区
+                            </div>
+                            <div class="space-y-3">
+                                ${Object.keys(unit.field).length === 0 ? '<div class="text-xs text-gray-400 font-bold p-2 text-center">本单元无田赛项目</div>' : ''}
+                                ${Object.keys(unit.field).sort((a,b) => unit.field[a].timeIdx - unit.field[b].timeIdx).map((k, i) => renderHeatCard(unit.field[k], `field_${uIdx}_${i}`)).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            listDiv.innerHTML = html;
+        }).catch(err => {
+            console.error(err);
+            listDiv.innerHTML = '<div class="text-center p-10 text-red-500 font-bold">拉取数据失败，请检查网络并重试</div>';
+        });
+    }
+
+    // ==========================================
+    // ⏱️ 计时成绩录入逻辑
+    // ==========================================
     function fetchMeta() {
         const selGroup = document.getElementById('selGroup');
         selGroup.innerHTML = '<option>正在连接服务器...</option>';
@@ -90,157 +418,129 @@
                 return r.json();
             })
             .then(data => {
-                metaData = data; // 保存数据
+                metaData = data; 
                 const groups = Object.keys(data).sort();
-                
                 selGroup.innerHTML = '<option value="">-- 请选择组别 --</option>';
                 if (groups.length === 0) {
-                    selGroup.innerHTML = '<option value="">(暂无比赛数据)</option>';
-                    return;
+                    selGroup.innerHTML = '<option value="">(暂无比赛数据)</option>'; return;
                 }
-
                 groups.forEach(g => {
-                    const opt = document.createElement('option');
-                    opt.value = g;
-                    opt.innerText = g;
-                    selGroup.appendChild(opt);
+                    const opt = document.createElement('option'); opt.value = g; opt.innerText = g; selGroup.appendChild(opt);
                 });
-                
-                showTip("✅ 数据连接成功", "text-green-600");
+                showTip("✅ 连接成功", "text-green-600");
             })
             .catch(err => {
                 console.error(err);
                 selGroup.innerHTML = '<option value="">连接失败</option>';
-                alert("无法连接到服务器。\n请检查：\n1. 后台黑窗口是否开启？\n2. 手机是否连上了同一WiFi？");
+                alert("无法连接到服务器。请检查网络。");
             });
     }
 
-// 三级联动逻辑
-function onGroupChange() {
-    const gName = document.getElementById('selGroup').value;
-    const selGender = document.getElementById('selGender');
-    const selEvent = document.getElementById('selEvent');
-    
-    selGender.innerHTML = '<option value="">-- 选择性别 --</option>';
-    selEvent.innerHTML = '<option value="">--</option>';
-    selEvent.disabled = true;
+    function onGroupChange() {
+        const gName = document.getElementById('selGroup').value;
+        const selGender = document.getElementById('selGender');
+        const selEvent = document.getElementById('selEvent');
+        selGender.innerHTML = '<option value="">-- 选择性别 --</option>';
+        selEvent.innerHTML = '<option value="">--</option>';
+        selEvent.disabled = true;
 
-    if (!gName || !metaData[gName]) { selGender.disabled = true; return; }
+        if (!gName || !metaData[gName]) { selGender.disabled = true; return; }
 
-    Object.keys(metaData[gName]).sort().forEach(gen => {
-        selGender.innerHTML += `<option value="${gen}">${gen}</option>`;
-    });
-    selGender.disabled = false;
-}
+        Object.keys(metaData[gName]).sort().forEach(gen => { selGender.innerHTML += `<option value="${gen}">${gen}</option>`; });
+        selGender.disabled = false;
+    }
 
-function onGenderChange() {
-    const gName = document.getElementById('selGroup').value;
-    const gen = document.getElementById('selGender').value;
-    const selEvent = document.getElementById('selEvent');
-    selEvent.innerHTML = '<option value="">-- 选择项目 --</option>';
-    if (!gen || !metaData[gName][gen]) { selEvent.disabled = true; return; }
+    function onGenderChange() {
+        const gName = document.getElementById('selGroup').value;
+        const gen = document.getElementById('selGender').value;
+        const selEvent = document.getElementById('selEvent');
+        selEvent.innerHTML = '<option value="">-- 选择项目 --</option>';
+        if (!gen || !metaData[gName][gen]) { selEvent.disabled = true; return; }
 
-    metaData[gName][gen].sort().forEach(e => {
-        selEvent.innerHTML += `<option value="${e}">${e}</option>`;
-    });
-    selEvent.disabled = false;
-}
+        metaData[gName][gen].sort().forEach(e => { selEvent.innerHTML += `<option value="${e}">${e}</option>`; });
+        selEvent.disabled = false;
+    }
 
-function loadAthletes() {
-    const gName = document.getElementById('selGroup').value;
-    const eName = document.getElementById('selEvent').value;
-    const list = document.getElementById('athleteList');
-    if (!gName || !eName) return;
+    function loadAthletes() {
+        const gName = document.getElementById('selGroup').value;
+        const gen = document.getElementById('selGender').value; 
+        const eName = document.getElementById('selEvent').value;
+        const list = document.getElementById('athleteList');
+        if (!gName || !eName || !gen) return; 
 
-    list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-500">正在同步数据...</td></tr>';
+        list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-500 font-bold">正在获取数据...</td></tr>';
 
-    fetch('/api/get_event_start_list', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ event_name: eName, group_name: gName })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.length === 0) {
-            list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-400">暂无数据</td></tr>';
-            return;
-        }
+        fetch('/api/get_event_start_list', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ event_name: eName, group_name: gName, gender: gen })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.length === 0) { list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">暂无数据</td></tr>'; return; }
+            
+            const filteredData = data.filter(p => p.gender === gen);
+            if (filteredData.length === 0) { list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">暂无该性别下的名单</td></tr>'; return; }
 
-        let html = '';
-        let lastHeat = null; 
+            let html = ''; let lastHeat = null; 
 
-        data.forEach(p => {
-            // ⭐ 核心逻辑：如果组号变化，插入一个蓝色的分组标题行
-            const currentHeat = p.heat || '1'; 
-            if (currentHeat !== lastHeat) {
+            filteredData.forEach(p => {
+                const currentHeat = p.heat || '1'; 
+                if (currentHeat !== lastHeat) {
+                    html += `
+                    <tr class="bg-blue-50">
+                        <td colspan="4" class="p-2 pl-4 text-sm font-bold text-blue-800 border-y border-blue-200">
+                            🚩 第 ${currentHeat} 组
+                        </td>
+                    </tr>`;
+                    lastHeat = currentHeat;
+                }
+
                 html += `
-                <tr class="bg-blue-50">
-                    <td colspan="4" class="p-2 pl-4 text-sm font-bold text-blue-700 border-b border-blue-100">
-                        🚩 第 ${currentHeat} 组
+                <tr class="bg-white border-b border-gray-100">
+                    <td class="p-2.5 text-center font-bold text-gray-400 border-r">${p.lane || '-'}</td>
+                    <td class="p-2.5 text-center font-mono font-bold text-blue-600 text-sm border-r">${p.bib || '---'}</td>
+                    <td class="p-2.5">
+                        <div class="font-black text-gray-800 text-[13px]">${p.name}</div>
+                        <div class="text-[10px] text-gray-400 mt-0.5 truncate max-w-[120px]">${p.team_name}</div>
+                    </td>
+                    <td class="p-2 text-right">
+                        <input type="text" inputmode="decimal"value="${p.score || ''}" 
+                               class="input-score w-24 border border-blue-200 bg-blue-50 rounded-lg px-2 py-1.5 text-center shadow-inner text-blue-900 outline-none focus:bg-white"
+                               onblur="saveScore(${p.reg_id}, this)">
                     </td>
                 </tr>`;
-                lastHeat = currentHeat;
+            });
+            list.innerHTML = html;
+        });
+    }
+
+    function saveScore(regId, input) {
+        const val = input.value.trim();
+        if (!val) return;
+
+        input.classList.add('saving');
+        fetch('/api/submit_score', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: regId, score: val })
+        })
+        .then(r => r.json())
+        .then(res => {
+            input.classList.remove('saving');
+            if (res.status === 'success') {
+                input.classList.add('saved');
+                input.classList.remove('bg-yellow-50', 'border-yellow-300');
+                if (res.new_score) { input.value = res.new_score; } 
+                setTimeout(() => input.classList.remove('saved'), 1000);
+            } else {
+                input.classList.add('error'); alert(res.msg);
+                setTimeout(() => input.classList.remove('error'), 2000);
             }
-
-            html += `
-            <tr class="bg-white border-b border-gray-100">
-                <td class="p-3 text-center font-bold text-gray-500">${p.lane || '-'}</td>
-                <td class="p-3 text-center font-mono text-gray-400 text-sm">${p.bib || ''}</td>
-                <td class="p-3">
-                    <div class="font-bold text-gray-800">${p.name}</div>
-                    <div class="text-xs text-gray-400">${p.team_name}</div>
-                </td>
-                <td class="p-2 text-right">
-                    <input type="text" value="${p.score || ''}" 
-                           class="input-score w-24 border border-gray-300 rounded px-2 py-1 text-center"
-                           onblur="saveScore(${p.reg_id}, this)">
-                </td>
-            </tr>`;
+        }).catch(err => {
+            input.classList.remove('saving'); input.classList.add('error');
         });
-        list.innerHTML = html;
-    });
-}
-function localBuffer(regId, val) {
-    if(val.trim() !== "") {
-        localStorage.setItem(`temp_score_${regId}`, val);
     }
-}
-
- function saveScore(regId, input) {
-    const val = input.value.trim();
-    if (!val) return;
-
-    input.classList.add('saving');
-    fetch('/api/submit_score', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ id: regId, score: val })
-    })
-    .then(r => r.json())
-    .then(res => {
-        input.classList.remove('saving');
-        if (res.status === 'success') {
-            input.classList.add('saved');
-            input.classList.remove('bg-yellow-50', 'border-yellow-300');
-            // ⭐ 成功上传后，移除本地暂存
-            localStorage.removeItem(`temp_score_${regId}`);
-            setTimeout(() => input.classList.remove('saved'), 1000);
-        }
-    });
-}
-function clearLocalCache() {
-    if(confirm("确定要清除所有本地未同步的成绩缓存吗？")) {
-        Object.keys(localStorage).forEach(key => {
-            if(key.startsWith('temp_score_')) localStorage.removeItem(key);
-        });
-        location.reload();
-    }
-}
 
     function showTip(msg, colorClass) {
         const tip = document.getElementById('statusTip');
-        tip.innerText = msg;
-        tip.className = "text-sm w-full text-right py-2 " + colorClass;
+        tip.innerText = msg; tip.className = "text-xs font-bold py-2 " + colorClass;
     }
 </script>
 </body>
