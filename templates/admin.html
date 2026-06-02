@@ -351,7 +351,8 @@
                                 <th style="width: 90px" class="text-center text-purple-700">是否分道</th>
                                 <th style="width: 45px" class="text-center text-teal-700">男</th>
                                 <th style="width: 45px" class="text-center text-teal-700">女</th>
-                                <th style="width: 45px" class="text-center text-teal-700">混</th> 
+                                <th style="width: 45px" class="text-center text-teal-700">混</th>
+                                <th style="width: 70px" class="text-center text-orange-700">场地数</th> 
                                 <th style="width: 130px" class="text-center text-red-700">不占限额(趣味)</th>
                             </tr>
                         </thead>
@@ -791,27 +792,7 @@ window.formatScheduleTime = function(rawTimeStr) {
         switchStep(0); 
     };
 
-    const loginTeamId = "{{ user_team_id }}";
-    function autoSelectTeamByLogin() {
-        const loginTeamName = "{{ team_name }}"; 
-        if (!loginTeamName || loginTeamName === "None") return;
-
-        const selGroup = document.getElementById('selGroup');
-        const selTeam = document.getElementById('selTeam');
-        const myTeam = teamsData.find(t => t.name === loginTeamName);
-
-        if (myTeam) {
-            selGroup.value = myTeam.group_id;
-            onGroupChange(); 
-            selTeam.value = myTeam.id;
-            selGroup.disabled = true;
-            selTeam.disabled = true;
-            selGroup.classList.add('bg-gray-100', 'cursor-not-allowed');
-            selTeam.classList.add('bg-gray-100', 'cursor-not-allowed');
-            loadTeamMembers(myTeam.id);
-        }
-    }
-
+   
  function updateResGender() {
         const gName = document.getElementById('resGroupSelect').value;
         const genSel = document.getElementById('resGenderSelect');
@@ -1185,14 +1166,15 @@ window.calculateEventTimeBudget = function() {
                         formulaDesc: `1组(决赛)×${parseFloat(e.duration) || 5}分`
                     });
                 } else {
-                    let totalTimeBudget = isField ? Math.ceil(totalEntriesCount * 3 * 1.2 + 10) : Math.ceil(totalHeats * (parseFloat(e.duration) || 5));
-                    jobsToCreate.push({
-                        jobKey: `${g.id}_${cleanEventName}_${gender}`,
-                        name: cleanEventName,
-                        time: totalTimeBudget,
-                        formulaDesc: isField ? `${totalEntriesCount}人×3次×1.2+10` : `${totalHeats}组×${parseFloat(e.duration) || 5}分`
-                    });
-                }
+    let vc = parseInt(e.venueCount) || 1;
+    let totalTimeBudget = isField ? Math.ceil((totalEntriesCount / vc) * 3 * 1.2 + 10) : Math.ceil(totalHeats * (parseFloat(e.duration) || 5));
+    jobsToCreate.push({
+        jobKey: `${g.id}_${cleanEventName}_${gender}`,
+        name: cleanEventName,
+        time: totalTimeBudget,
+        formulaDesc: isField ? `${totalEntriesCount}人÷${vc}场地×3次×1.2+10` : `${totalHeats}组×${parseFloat(e.duration) || 5}分`
+    });
+}
 
                jobsToCreate.forEach(jobData => {
                     // 如果沙盘里已经有了这张精准匹配的卡片，就从左侧隐藏
@@ -1243,87 +1225,8 @@ window.calculateEventTimeBudget = function() {
     // 驱动底层生成真的检录表结构
     compileFinalScheduleData();
 };
-function renderJobInUnitZone(jobKey, gname, ename, gender, count, heats, minutes, isField, etype) {
-    // 找出它在哪个单元
-    let targetUnit = null;
-    Object.keys(window.manualScheduleMap).forEach(unit => {
-        if(window.manualScheduleMap[unit].some(item => item.jobKey === jobKey)) targetUnit = unit;
-    });
-    if(!targetUnit) return;
 
-    const zone = document.querySelector(`[data-unit="${targetUnit}"] .job-container`);
-    if(!zone) return;
-
-    const badgeColor = isField ? 'bg-orange-500' : (etype==='趣味项目'?'bg-amber-500':'bg-emerald-600');
-    
-    const div = document.createElement('div');
-    div.className = "flex items-center justify-between text-white text-xs px-2 py-1.5 rounded shadow-xs font-bold relative group " + badgeColor;
-    div.innerHTML = `
-        <div class="truncate pr-4 flex items-center gap-1">
-            <span class="bg-black/20 px-1 rounded text-[10px]">${minutes}分</span>
-            <span class="truncate">${gname}${gender}·${ename} (${count}人/${heats}组)</span>
-        </div>
-        <button onclick="removeJobFromUnit('${targetUnit}', '${jobKey}')" class="text-white hover:text-black font-black text-xs shrink-0 bg-black/10 hover:bg-white/30 rounded w-4 h-4 flex items-center justify-center shadow-xs">
-            ×
-        </button>
-    `;
-    zone.appendChild(div);
-}
-
-// 💥 重构 3：Drag & Drop 拖拽核心事件监听器
-function bindDragAndDropEvents() {
-    let draggedElement = null;
-
-    // 监听左侧看板中卡片的起拖
-    document.addEventListener('dragstart', function(e) {
-        if (e.target.classList.contains('draggable-job')) {
-            draggedElement = e.target;
-            e.target.style.opacity = '0.4';
-            e.dataTransfer.setData('text/plain', e.target.dataset.jobkey);
-        }
-    });
-
-    document.addEventListener('dragend', function(e) {
-        if (e.target.classList.contains('draggable-job')) {
-            e.target.style.opacity = '1';
-        }
-    });
-
-    // 监听右侧盒子进入离开
-    const zones = document.querySelectorAll('.drop-zone');
-    zones.forEach(zone => {
-        zone.addEventListener('dragover', function(e) { e.preventDefault(); this.classList.add('bg-indigo-50/80', 'border-solid', 'border-2', 'border-indigo-500'); });
-        zone.addEventListener('dragenter', function(e) { e.preventDefault(); });
-        zone.addEventListener('dragleave', function(e) { this.classList.remove('bg-indigo-50/80', 'border-solid', 'border-2', 'border-indigo-500'); });
-        
-        zone.addEventListener('drop', function(e) {
-            e.preventDefault();
-            this.classList.remove('bg-indigo-50/80', 'border-solid', 'border-2', 'border-indigo-500');
-            
-            if (!draggedElement) return;
-            const unitKey = this.dataset.unit; // 例如 Day1_AM
-            const jobKey = draggedElement.dataset.jobkey;
-
-            if(!window.manualScheduleMap[unitKey]) window.manualScheduleMap[unitKey] = [];
-            
-            // 写入本地注册表
-            window.manualScheduleMap[unitKey].push({
-                jobKey: jobKey,
-                gname: draggedElement.dataset.gname,
-                ename: draggedElement.dataset.ename,
-                gender: draggedElement.dataset.gender,
-                minutes: parseInt(draggedElement.dataset.minutes)
-            });
-
-            localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
-            draggedElement = null;
-            
-            // 全盘刷新看板，卡片会无缝闪现到右侧
-            calculateEventTimeBudget();
-        });
-    });
-}
-window.removeJobFromUnit = function(unitKey, jobKey) {
+   window.removeJobFromUnit = function(unitKey, jobKey) {
     if(window.manualScheduleMap[unitKey]) {
         window.manualScheduleMap[unitKey] = window.manualScheduleMap[unitKey].filter(item => item.jobKey !== jobKey);
         localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
@@ -1353,119 +1256,6 @@ function recalculateUnitTimelines() {
     });
 }
 
-function compileFinalScheduleData() {
-        db.schedule = []; 
-
-        const amStartMins = parseTimeVal(document.getElementById('cfgAmStart').value || "08:30");
-        const pmStartMins = parseTimeVal(document.getElementById('cfgPmStart').value || "14:30");
-
-        if (!window.manualScheduleMap || Object.keys(window.manualScheduleMap).length === 0) {
-            renderScheduleResult(); return;
-        }
-
-        Object.keys(window.manualScheduleMap).sort().forEach(unitKey => {
-            const match = unitKey.match(/Day(\d+)_(AM|PM)/);
-            if(!match) return;
-            const dayNum = parseInt(match[1]); const unitType = match[2];
-
-            let trackPointer = 0; let fieldPointer = 0; 
-            let baseStartMins = (unitType === "AM") ? amStartMins : pmStartMins;
-
-            const formatMins = (base, offset) => {
-                let total = base + offset;
-                return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.floor(total%60)).padStart(2,'0')}`;
-            };
-
-            window.manualScheduleMap[unitKey].forEach(savedJob => {
-                const group = db.groups.find(g => String(g.id) === String(savedJob.jobKey.split('_')[0]));
-                if(!group) return;
-
-                const cleanEventName = savedJob.ename.replace(" (预赛)", "").replace(" (决赛)", "").trim();
-                const gender = savedJob.gender;
-
-                let rawEntries = db.athletes.filter(a => { 
-                    const t = db.teams.find(x => x.id == a.teamId); 
-                    return t && String(t.groupId) === String(group.id) && a.gender === gender && a.events.includes(cleanEventName); 
-                });
-                if(!rawEntries.length) return; 
-
-                const isRelay = (String(db.events.find(e => e.name === cleanEventName || e.name === savedJob.ename)?.isRelay) === 'true' || cleanEventName.includes('接力'));
-               let processList = isRelay ? Object.values(rawEntries.reduce((acc, a) => {
-    if (!acc[a.teamId]) acc[a.teamId] = { teamName: db.teams.find(t => t.id == a.teamId)?.name || "", bib: "", teamId: a.teamId, isTeam: true, members: [] };
-    acc[a.teamId].members.push(a);
-    return acc;
-}, {})).map(teamData => {
-    // 🎯 智能识别当前排表的项目名（彻底解决变量找不到导致的编排中断问题）
-    let currentEvt = "";
-    for(let e of teamData.members[0].events) {
-        if((e.includes('接力') || e.includes('4x') || e.includes('4*')) && teamData.members.every(m => m.events.includes(e))) {
-            currentEvt = e; 
-            break;
-        }
-    }
-    
-    // 💥 提取接力棒次并拼接
-    let validMembers = teamData.members.filter(m => m.relay_legs && m.relay_legs[currentEvt]);
-    if (validMembers.length > 0) {
-        validMembers.sort((a,b) => parseInt(a.relay_legs[currentEvt]) - parseInt(b.relay_legs[currentEvt]));
-        teamData.name = validMembers.map(m => `${m.relay_legs[currentEvt]}棒:${m.name}`).join('  ');
-    } else {
-        teamData.name = "未排棒 (" + teamData.members.map(m=>m.name).join(', ') + ")";
-    }
-    return teamData;
-}) : rawEntries.map(a => ({ ...a, teamName: db.teams.find(t => t.id == a.teamId)?.name || "", isTeam: false }));
-
-                const eventCfg = db.events.find(e => e.name === savedJob.ename || e.name === cleanEventName);
-                const settings = getEventSettings(eventCfg || {name: cleanEventName});
-                let maxPerHeat = settings.limit || 8;
-                let totalHeats = Math.ceil(processList.length / maxPerHeat) || 1;
-                let isField = eventCfg?.type === '田赛' || cleanEventName.includes('跳') || cleanEventName.includes('投') || cleanEventName.includes('球') || cleanEventName.includes('掷');
-
-                // 💡 处理智能生成的“决赛”的检录名单虚位以待
-                const isFinal = savedJob.ename.includes('决赛') && !savedJob.ename.includes('预赛');
-                if (isFinal && !isField) {
-                    let topN = parseInt(document.getElementById('finalsTopN')?.value) || 8;
-                    totalHeats = 1;
-                    processList = processList.slice(0, topN); // 截断出假位
-                    // 填入高度专业的“待定占位符”
-                    processList.forEach(p => {
-                        p.name = "预赛晋级选手"; p.bib = "---"; p.teamName = "待定";
-                    });
-                }
-
-                let currentPointer = isField ? fieldPointer : trackPointer;
-                let estTimeStr = `第${dayNum}天${unitType === 'AM' ? '上午' : '下午'} ${formatMins(baseStartMins, currentPointer)}`;
-                let timeIndexValue = dayNum * 100000 + (unitType === 'PM' ? 5000 : 0) + currentPointer;
-
-                let heatsArray = Array.from({length: totalHeats}, () => []);
-                processList.sort((a,b) => a.teamId - b.teamId);
-                processList.forEach((item, i) => heatsArray[i % totalHeats].push(item));
-
-                const laneOrder = (document.getElementById('cfgLaneOrder')?.value || "4,5,3,6,2,7,1,8").split(',').map(Number);
-
-                heatsArray.forEach((heatItems, hIdx) => {
-                    if (settings.type === 'sprint') heatItems.sort(() => Math.random() - 0.5);
-                    let currentLaneOrder = laneOrder;
-                    if (settings.type === 'sprint' && maxPerHeat === 6) currentLaneOrder = [3, 4, 2, 5, 1, 6];
-                    if (settings.type === 'sprint' && maxPerHeat === 4) currentLaneOrder = [2, 3, 1, 4];
-
-                    heatItems.forEach((item, aIdx) => {
-                        let assignedLane = settings.type === 'sprint' ? (currentLaneOrder[aIdx] || aIdx + 1) : aIdx + 1;
-                        db.schedule.push({
-                            id: Date.now() + Math.random(), groupName: group.name, eventName: savedJob.ename, gender: gender, heat: hIdx + 1,
-                            lane: assignedLane, bib: item.bib, name: item.name, teamName: item.teamName, type: settings.type,
-                            totalLanes: settings.type === 'sprint' ? maxPerHeat : 0, estTime: estTimeStr, timeIndex: timeIndexValue, isField: isField
-                        });
-                    });
-                });
-
-                let jobMins = parseInt(savedJob.minutes) || 5;
-                if (isField) fieldPointer += jobMins; else trackPointer += jobMins;
-            });
-        });
-
-        renderScheduleResult();
-    }
     function addGroup() { 
         const n = document.getElementById('groupName').value.trim(); 
         const prefix = document.getElementById('groupPrefix').value.trim();
@@ -1626,8 +1416,9 @@ function compileFinalScheduleData() {
 
     function selectView(m,id,n) { 
         viewMode=m; currentId=id; 
-        document.getElementById('currentViewTitle').innerText=n; 
-        document.getElementById('currentViewTitle').classList.remove('hidden'); 
+        const titleEl = document.getElementById('currentViewTitle');
+titleEl.innerText = n;
+titleEl.classList.remove('hidden');
         updateEventCheckboxes(document.getElementById('athGender').value);
         renderTeamTree();
         renderAthleteList(); 
@@ -1807,322 +1598,6 @@ function getEventSettings(event) {
         if (isLong) return { type: 'long', limit: finalLimit };
         return { type: 'sprint', limit: finalLimit };
     }
- function generateSchedule() {
-    const scope = document.querySelector('input[name="schScope"]:checked').value;
-    const laneOrder = (document.getElementById('cfgLaneOrder').value || "4,5,3,6,2,7,1,8").split(',').map(Number);
-    let tasks = [];
-
-    if (scope === 'all') { db.schedule = []; }
-
-    let rawTasks = [];
-    if (scope === 'all') {
-        db.groups.forEach(g => {
-            ['男', '女'].forEach(gen => {
-                db.events.forEach(e => {
-                    rawTasks.push({ gid: g.id, gname: g.name, gen: gen, evt: e });
-                });
-            });
-        });
-    } else if (scope === 'event') {
-        const e = db.events.find(x => x.name === document.getElementById('schSelEvent').value);
-        if (e) db.groups.forEach(g => ['男', '女'].forEach(gen => rawTasks.push({ gid: g.id, gname: g.name, gen: gen, evt: e })));
-    }
-
-    rawTasks.forEach(t => {
-        let clonedEvt = JSON.parse(JSON.stringify(t.evt));
-        const name = clonedEvt.name;
-        const hasPrelim = (String(clonedEvt.hasPrelim) === 'true' || String(clonedEvt.has_prelim) === '1');
-        if (hasPrelim && !name.includes('预赛') && !name.includes('决赛')) {
-            clonedEvt.name = name + " (预赛)";
-        }
-        tasks.push({ gid: t.gid, gname: t.gname, gen: t.gen, evt: clonedEvt });
-    });
-
-    if (scope !== 'all') { 
-        db.schedule = db.schedule.filter(ex => !tasks.some(t => t.gname === ex.groupName && t.evt.name === ex.eventName && t.gen === ex.gender)); 
-    }
-
-    // 1. 识别核心大项类型
-    tasks.forEach(t => {
-        const name = t.evt.name;
-        if (t.evt.type === '趣味项目' || (name.includes('跳') && name.includes('袋鼠')) || (name.includes('接力') && name.includes('迎面'))) {
-            t.majorType = 'fun';
-        } else if (t.evt.type === '田赛' || name.includes('跳') || name.includes('投') || name.includes('球') || name.includes('掷')) {
-            t.majorType = 'field';
-        } else {
-            t.majorType = 'track';
-        }
-        t.coreEventName = name.replace(/^(男子|女子|混合)/, '').replace(/^(高一|高二|高三|七年级|八年级|九年级|C组|A组|B组|D组)/, '').replace(/(预赛|决赛)$/, '').trim();
-    });
-
-    // 2. 💥 核心合理化原则：确立运动会黄金强排顺位权重
-    const getEventSortWeight = (task) => {
-        const name = task.evt.name;
-        // (1) 跨栏高居榜首，绝对优先开场
-        if (name.includes('栏')) return 10;
-        // (2) 100米紧随跨栏其后，实现裁判与终点无缝合流
-        if (name.includes('100米') && !name.includes('栏') && !name.includes('接力')) return 20;
-        // (3) 其他短跑及中跑
-        if (name.includes('200米')) return 30;
-        if (name.includes('400米')) return 40;
-        // (4) 长跑项目
-        if (name.includes('800米') || name.includes('1000米') || name.includes('1500米') || name.includes('3000米')) return 50;
-        // (5) 接力大赛收尾
-        if (name.includes('接力')) return 60;
-        return 100;
-    };
-
-    const groupOrder = scheduleGroupOrder.map(gid => db.groups.find(x => x.id == gid)?.name || '');
-
-    // 执行高规格多维排序
-    tasks.sort((a, b) => {
-        // 优先考虑跨栏 -> 100米 -> 其他的黄金竞赛顺位
-        const weightA = getEventSortWeight(a);
-        const weightB = getEventSortWeight(b);
-        if (weightA !== weightB) return weightA - weightB;
-
-        // 如果权重相同，则看用户在界面上有没有对特定大项输入了微调序号
-        const orderA = a.evt.schOrder !== undefined ? a.evt.schOrder : 999;
-        const orderB = b.evt.schOrder !== undefined ? b.evt.schOrder : 999;
-        if (orderA !== orderB) return orderA - orderB;
-
-        // 项目核心名排序
-        if (a.coreEventName !== b.coreEventName) return a.coreEventName.localeCompare(b.coreEventName, 'zh-CN');
-        // 先女后男连排
-        if (a.gen !== b.gen) return a.gen === '女' ? -1 : 1;
-        // 班级树状微调顺序
-        const idxGrpA = groupOrder.indexOf(a.gname);
-        const idxGrpB = groupOrder.indexOf(b.gname);
-        return (idxGrpA > -1 ? idxGrpA : 99) - (idxGrpB > -1 ? idxGrpB : 99);
-    });
-
-    // 3. 💥 打包独立项目轮次Job，并精确计算时间
-    let projectJobs = [];
-
-    tasks.forEach(task => {
-        const cleanEventName = task.evt.name.replace(" (预赛)", "").replace(" (决赛)", "").trim();
-        let rawEntries = db.athletes.filter(a => { 
-            const t = db.teams.find(x => x.id == a.teamId); 
-            return t && t.groupId == task.gid && a.gender === task.gen && a.events.includes(cleanEventName); 
-        });
-        if(!rawEntries.length) return;
-
-       const isRelay = (String(task.evt.isRelay) === 'true' || String(task.evt.is_relay) === '1' || task.evt.name.includes('接力'));
-        let processList = isRelay ? Object.values(rawEntries.reduce((acc, a) => {
-            if (!acc[a.teamId]) acc[a.teamId] = { teamName: db.teams.find(t => t.id == a.teamId)?.name || "", bib: "", teamId: a.teamId, isTeam: true, members: [] };
-            acc[a.teamId].members.push(a);
-            return acc;
-        }, {})).map(teamData => {
-            let currentEvt = cleanEventName;
-            // 提取接力棒次并拼接
-            let validMembers = teamData.members.filter(m => m.relay_legs && m.relay_legs[currentEvt]);
-            if (validMembers.length > 0) {
-                validMembers.sort((a,b) => parseInt(a.relay_legs[currentEvt]) - parseInt(b.relay_legs[currentEvt]));
-                teamData.name = validMembers.map(m => `${m.relay_legs[currentEvt]}棒:${m.name}`).join(' ');
-            } else {
-                teamData.name = "未排棒 (" + teamData.members.map(m=>m.name).join(', ') + ")";
-            }
-            return teamData;
-        }) : rawEntries.map(a => ({ ...a, teamName: db.teams.find(t => t.id == a.teamId)?.name || "", isTeam: false }));
-
-        const settings = getEventSettings(task.evt);
-        let maxPerHeat = settings.limit;
-
-        let totalHeats = Math.ceil(processList.length / maxPerHeat);
-        let itemHeats = Array.from({length: totalHeats}, () => []);
-        
-        let tempTeamMap = {};
-        processList.forEach(item => {
-            let t = item.teamName || String(item.teamId);
-            if(!tempTeamMap[t]) tempTeamMap[t] = [];
-            tempTeamMap[t].push(item);
-        });
-        Object.values(tempTeamMap)
-            .sort((a, b) => b.length - a.length) // 人数多的班级优先分发
-            .forEach(teamAthletes => {
-                teamAthletes.forEach(athlete => {
-                    let bestHeat = 0; let minSame = Infinity; let minTotal = Infinity;
-                    // 贪心算法：永远将该运动员放入“本班人数最少”且“总人数最少”的组
-                    for(let i=0; i<totalHeats; i++) {
-                        let same = itemHeats[i].filter(x => (x.teamName || String(x.teamId)) === (athlete.teamName || String(athlete.teamId))).length;
-                        let tot = itemHeats[i].length;
-                        if(same < minSame) { minSame = same; minTotal = tot; bestHeat = i; } 
-                        else if (same === minSame && tot < minTotal) { minTotal = tot; bestHeat = i; }
-                    }
-                    itemHeats[bestHeat].push(athlete);
-                });
-            });
-
-        // 计算该项目总时间消耗
-        let totalNeededMinutes = 0;
-        let singleDuration = 5;
-
-        if (task.majorType === 'field') {
-            // ✨ 核心公式应用点：田赛每个组别(Job)总耗时 = 该项目该组别人数 * 3 * 1.3 + 10
-            let athleteCount = processList.length;
-            totalNeededMinutes = athleteCount * 3 * 1.2 + 10;
-            // 摊分到每个小组(Heat)的均等用时
-            singleDuration = totalNeededMinutes / totalHeats;
-        } else {
-            // 径赛与趣味项目维持原设计用时
-            singleDuration = parseFloat(task.evt.duration) || 5;
-            totalNeededMinutes = totalHeats * singleDuration;
-        }
-
-        projectJobs.push({
-            task: task,
-            itemHeats: itemHeats,
-            settings: settings,
-            majorType: task.majorType,
-            totalNeededMinutes: totalNeededMinutes,
-            singleDuration: singleDuration,
-            laneOrder: laneOrder,
-            maxPerHeat: maxPerHeat
-        });
-    });
-
-    // 4. 三线独立时间轴沙盘模拟（严格锁死赛程总天数）
-    const amStart = parseTimeVal(document.getElementById('cfgAmStart').value || "08:30");
-    const amEnd = parseTimeVal(document.getElementById('cfgAmEnd').value || "11:30");
-    const pmStart = parseTimeVal(document.getElementById('cfgPmStart').value || "14:30");
-    const pmEnd = parseTimeVal(document.getElementById('cfgPmEnd').value || "17:30");
-
-    const amLimit = amEnd - amStart;
-    const pmLimit = pmEnd - pmStart;
-    const allowedMaxDays = window.competitionTotalDays || 2; 
-
-    // 初始化流式步进时间轴
-    let timeline = {};
-    for (let d = 1; d <= allowedMaxDays + 1; d++) {
-        timeline[d] = { 
-            track: { AM: 0, PM: 0 }, 
-            field: { AM: 0, PM: 0 }, 
-            fun:   { AM: 0, PM: 0 } 
-        };
-    }
-
-    const formatMins = (startBase, currentOffset) => {
-        let total = startBase + currentOffset;
-        return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.floor(total%60)).padStart(2,'0')}`;
-    };
-
-    // 将打包好的项目完整填入大表单元内
-    projectJobs.forEach(job => {
-        let mType = job.majorType; 
-        let needed = job.totalNeededMinutes;
-
-        let assignedDay = 1;
-        let assignedUnit = "AM";
-        let foundSlot = false;
-
-        // 严格遵循单元完整性：必须能整项连续跑完，装不下直接平移至下个单元
-        for (let d = 1; d <= allowedMaxDays; d++) {
-            let amLeft = amLimit - timeline[d][mType].AM;
-            if (needed <= amLeft) {
-                assignedDay = d; assignedUnit = "AM"; foundSlot = true; break;
-            }
-            let pmLeft = pmLimit - timeline[d][mType].PM;
-            if (needed <= pmLeft) {
-                assignedDay = d; assignedUnit = "PM"; foundSlot = true; break;
-            }
-        }
-
-        // 赛程溢出兜底
-        if (!foundSlot) {
-            assignedDay = allowedMaxDays; assignedUnit = "PM";
-        }
-
-        // 趣味项目时间去强制化处理：随到随推，归拢于每天上午进行
-        if (mType === 'fun') {
-            assignedUnit = "AM"; 
-        }
-
-        let startPointer = timeline[assignedDay][mType][assignedUnit];
-        let baseTimeSeconds = (assignedUnit === "AM") ? amStart : pmStart;
-
-        // 锁定当前单元该项目总时长
-        timeline[assignedDay][mType][assignedUnit] += needed;
-
-        // 展开小组明细，灌入数据库
-        job.itemHeats.forEach((heatItems, hIdx) => {
-            // ✨ 核心修复：根据组数动态计算并递增具体的小组检录时间
-            let heatTimeOffset = startPointer + (mType === 'field' ? 0 : hIdx * job.singleDuration);
-            let heatEstTimeStr = `第${assignedDay}天${assignedUnit === 'AM' ? '上午' : '下午'} ${formatMins(baseTimeSeconds, heatTimeOffset)}`;
-            let heatTimeIndexValue = assignedDay * 100000 + (assignedUnit === 'PM' ? 5000 : 0) + heatTimeOffset;
-            const isSprint = job.settings.type === 'sprint';
-            if (isSprint) {
-                // ✨ 升级版排道算法：组内洗牌发牌，防止同班在同一组时道次相邻
-                let heatTeamMap = {};
-                heatItems.forEach(item => {
-                    let t = item.teamName || String(item.teamId);
-                    if(!heatTeamMap[t]) heatTeamMap[t] = [];
-                    heatTeamMap[t].push(item);
-                });
-                let heatTeams = Object.values(heatTeamMap).sort(() => Math.random() - 0.5);
-                heatTeams.forEach(arr => arr.sort(() => Math.random() - 0.5));
-                let shuffled = [];
-                let maxL = Math.max(...heatTeams.map(a => a.length));
-                // 像发扑克牌一样，把同班同学最大限度隔开
-                for(let i=0; i<maxL; i++) {
-                    heatTeams.forEach(arr => { if(arr[i]) shuffled.push(arr[i]); });
-                }
-                heatItems.length = 0;
-                shuffled.forEach(item => heatItems.push(item));
-            }
-
-            let currentLaneOrder = job.laneOrder;
-            if (isSprint && job.maxPerHeat === 6) currentLaneOrder = [3, 4, 2, 5, 1, 6];
-            if (isSprint && job.maxPerHeat === 4) currentLaneOrder = [2, 3, 1, 4];
-
-            heatItems.forEach((item, aIdx) => {
-                item.assignedLane = isSprint ? (currentLaneOrder[aIdx] || aIdx + 1) : aIdx + 1;
-                
-                db.schedule.push({ 
-                    id: Date.now() + Math.random(), 
-                    groupName: job.task.gname, 
-                    eventName: job.task.evt.name, 
-                    gender: job.task.gen, 
-                    heat: hIdx + 1, 
-                    lane: item.assignedLane, 
-                    bib: item.bib, 
-                    name: item.name, 
-                    teamName: item.teamName, 
-                    type: job.settings.type, 
-                    totalLanes: isSprint ? job.settings.limit : 0,
-                    estTime: heatEstTimeStr, // ✨ 精确到每组的具体递增时间
-                    timeIndex: heatTimeIndexValue, // ✨ 精确排序索引
-                    isField: (mType === 'field')
-                });
-            });
-        });
-    });
-
-    // 5. 将精美排定的检录名单持久化保存到 SQLite
-    renderScheduleResult();
-    
-    if (db.schedule.length > 0) {
-        const btn = document.querySelector('button[onclick="generateSchedule()"]');
-        const oldText = btn.innerText; btn.innerText = "⏳ 正在持久化保存..."; btn.disabled = true;
-
-        fetch('/api/save_schedule_to_db', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(db.schedule) 
-        })
-        .then(r => r.json())
-        .then(res => {
-            btn.innerText = oldText; btn.disabled = false;
-            if(res.status === 'success') {
-                alert(`🏆 智能一键编排已成功`);
-                fetchLatestData(); 
-            }
-        }).catch(() => {
-            btn.innerText = oldText; btn.disabled = false;
-        });
-    } else {
-        alert("未检索到符合当前范围的报名数据");
-    }
-}
 
     document.getElementById('cfgLanes')?.addEventListener('input', function(e) {
         const laneCount = parseInt(e.target.value);
@@ -2340,18 +1815,6 @@ function getEventSettings(event) {
         .then(r => r.json()).then(res => { btn.innerText = oldText; btn.disabled = false; if (res.status === 'success') alert("✅ 发布成功！"); else alert("❌ 发布失败: " + res.msg); })
         .catch(err => { btn.innerText = oldText; btn.disabled = false; alert("网络错误"); });
     }
-
-    let autoRefreshTimer = null;
-    function toggleAutoRefresh(checkbox) {
-        if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
-        if(checkbox.checked) {
-            fetchLatestData(); 
-            renderResultSheet(); 
-            autoRefreshTimer = setInterval(() => { console.log("Auto refreshing..."); renderResultSheet(); }, 5000); 
-        }
-    }
-
-    let isSaving = false;
 
     function generateFinals() {
         const groupName = document.getElementById('resGroupSelect').value; 
@@ -2664,8 +2127,8 @@ function getEventSettings(event) {
                 db.events = data.events.map(e => ({
                     ...e,
                     limit: e.limit_count ? parseInt(e.limit_count) : 8,
+                    venueCount: e.venue_count ? parseInt(e.venue_count) : 1,
                     duration: e.duration ? parseFloat(e.duration) : (e.name.includes('100') ? 3 : (e.name.includes('200') ? 5 : (e.type === '田赛' ? 20 : 5))),
-                    allowedGroups: e.allowedGroups || e.allowed_groups || '',
                     scoreRule: e.scoreRule || e.score_rule || '9,7,6,5,4,3,2,1', 
                     record: e.record || '',
                     recordBonus: e.recordBonus || e.record_bonus || 0,
@@ -2887,50 +2350,6 @@ window.renderResultSheet = function() {
         const sel = document.getElementById('rankGroupSelect');
         sel.innerHTML = '<option value="">-- 请选择组别 --</option>';
         db.groups.forEach(g => { sel.innerHTML += `<option value="${g.name}">${g.name}</option>`; });
-    }
-
-    function calculateTeamRanking() {
-        const gName = document.getElementById('rankGroupSelect').value;
-        if (!gName) return alert("请先选择一个组别！");
-        const div = document.getElementById('rankOutput');
-        div.innerHTML = '<div class="text-center text-gray-500 mt-10">正在精密计算中...</div>';
-
-        fetch('/api/calculate_team_ranking', {
-            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ group_name: gName })
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.length === 0) { div.innerHTML = `<div class="text-center text-gray-400 mt-10">该组别暂无成绩数据</div>`; return; }
-            const today = new Date(); const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
-            let rows = '';
-            data.forEach((t, idx) => {
-                let rankIcon = idx + 1; let rowClass = "";
-                if (idx === 0) { rankIcon = '🥇'; rowClass="bg-yellow-50"; }
-                if (idx === 1) { rankIcon = '🥈'; }
-                if (idx === 2) { rankIcon = '🥉'; }
-                rows += `
-                <tr class="${rowClass} border-b border-gray-200 hover:bg-gray-50">
-                    <td class="font-bold text-xl py-3">${rankIcon}</td> <td class="font-bold text-lg text-left pl-10">${t.name}</td> <td class="font-bold text-yellow-600">${t.gold}</td> <td class="font-bold text-gray-500">${t.silver}</td> <td class="font-bold text-orange-600">${t.bronze}</td> <td class="font-bold text-2xl text-blue-700 font-mono">${t.score}</td>
-                </tr>`;
-            });
-
-            div.innerHTML = `
-            <div class="rc-card break-inside-avoid">
-                <h1 style="text-align:center; font-size:32pt; font-weight:bold; margin-bottom:10px; font-family:SimSun;">团体总分排名表</h1>
-                <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #000; padding-bottom:5px; margin-bottom:10px; font-size:14pt; font-weight:bold;">
-                    <div>组别：${gName}</div> <div>${dateStr}</div>
-                </div>
-                <table class="w-full text-center border-collapse">
-                    <thead>
-                        <tr class="bg-gray-100 text-gray-700 border-b-2 border-gray-400 h-10">
-                            <th class="w-20">排名</th> <th class="text-left pl-10">代表队</th> <th class="w-16">🥇金</th> <th class="w-16">🥈银</th> <th class="w-16">🥉铜</th> <th class="w-32">总积分</th>
-                        </tr>
-                    </thead>
-                    <tbody>${rows}</tbody>
-                </table>
-                <div class="rc-footer" style="margin-top:30px;"> <span>总裁判长签字：________________</span> <span>日期：________________</span> </div>
-            </div>`;
-        });
     }
 
     // 💡 全自动静默核算 + 排名拉取
@@ -3268,10 +2687,11 @@ window.renderResultSheet = function() {
             let isFunChecked = preset.isFun ? 'checked' : ''; if (activeEvt) { isFunChecked = (String(activeEvt.is_fun) === '1' || String(activeEvt.isFun) === 'true') ? 'checked' : ''; }
             let currentGender = activeEvt && activeEvt.gender ? activeEvt.gender : (preset.gender || '双性');
             let isMaleChecked = (currentGender === '男' || currentGender === '双性') ? 'checked' : ''; let isFemaleChecked = (currentGender === '女' || currentGender === '双性') ? 'checked' : ''; let isMixedChecked = (currentGender === '混合') ? 'checked' : '';
+let currentVenueCount = activeEvt && activeEvt.venueCount ? activeEvt.venueCount : (preset.venueCount || 1);
 
-            const tr = document.createElement('tr'); tr.className = "h-9 hover:bg-blue-50/50 transition-colors text-xs";
+const tr = document.createElement('tr'); tr.className = "h-9 hover:bg-blue-50/50 transition-colors text-xs";
             tr.innerHTML = `
-                <td class="text-center font-bold text-gray-400">${index + 1}</td> <td class="font-black text-gray-800 text-sm">${preset.name}</td> <td> <span class="px-2 py-0.5 rounded text-[10px] font-bold ${preset.type.includes('趣味') ? 'bg-amber-100 text-amber-800 border border-amber-300' : (preset.type === '径赛' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-orange-50 text-orange-700 border border-orange-200')}"> ${preset.type} </span> </td> <td class="text-center"> <input type="number" id="dur_${index}" value="${currentDuration}" class="w-14 border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 focus:bg-white outline-none"> </td> <td class="text-center"> <input type="number" id="lim_${index}" value="${currentLimit}" class="w-14 border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 focus:bg-white outline-none"> </td> <td class="text-center"> <select id="pre_${index}" class="border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 outline-none text-[11px]"> <option value="true" ${hasPrelimVal ? 'selected' : ''}>预赛+决赛</option> <option value="false" ${!hasPrelimVal ? 'selected' : ''}>直决(无预赛)</option> </select> </td> <td class="text-center text-blue-700 bg-blue-50/20"> <input type="checkbox" id="chk_${index}" ${isChecked} class="w-4 h-4 rounded text-blue-600 border-gray-300 cursor-pointer"> </td> <td class="text-center text-amber-700"> <input type="checkbox" id="rel_${index}" ${isRelayChecked} class="w-4 h-4 rounded text-amber-600 border-gray-300 cursor-pointer"> </td> <td class="text-center text-purple-700 bg-purple-50/10"> <input type="checkbox" id="lan_${index}" ${needLaneChecked} class="w-4 h-4 rounded text-purple-600 border-gray-300 cursor-pointer"> </td> <td class="text-center border-r border-gray-100"> <input type="checkbox" id="gen_m_${index}" ${isMaleChecked} class="w-3.5 h-3.5 rounded text-teal-600 border-gray-300 cursor-pointer"> </td> <td class="text-center border-r border-gray-100"> <input type="checkbox" id="gen_f_${index}" ${isFemaleChecked} class="w-3.5 h-3.5 rounded text-teal-600 border-gray-300 cursor-pointer"> </td> <td class="text-center border-r border-gray-100"> <input type="checkbox" id="gen_x_${index}" ${isMixedChecked} class="w-3.5 h-3.5 rounded text-teal-600 border-gray-300 cursor-pointer"> </td> <td class="text-center bg-red-50/20 text-red-700"> <input type="checkbox" id="fun_${index}" ${isFunChecked} class="w-4 h-4 rounded text-red-600 border-gray-300 cursor-pointer"> </td>`;
+                <td class="text-center font-bold text-gray-400">${index + 1}</td> <td class="font-black text-gray-800 text-sm">${preset.name}</td> <td> <span class="px-2 py-0.5 rounded text-[10px] font-bold ${preset.type.includes('趣味') ? 'bg-amber-100 text-amber-800 border border-amber-300' : (preset.type === '径赛' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-orange-50 text-orange-700 border border-orange-200')}"> ${preset.type} </span> </td> <td class="text-center"> <input type="number" id="dur_${index}" value="${currentDuration}" class="w-14 border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 focus:bg-white outline-none"> </td> <td class="text-center"> <input type="number" id="lim_${index}" value="${currentLimit}" class="w-14 border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 focus:bg-white outline-none"> </td> <td class="text-center"> <select id="pre_${index}" class="border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 outline-none text-[11px]"> <option value="true" ${hasPrelimVal ? 'selected' : ''}>预赛+决赛</option> <option value="false" ${!hasPrelimVal ? 'selected' : ''}>直决(无预赛)</option> </select> </td> <td class="text-center text-blue-700 bg-blue-50/20"> <input type="checkbox" id="chk_${index}" ${isChecked} class="w-4 h-4 rounded text-blue-600 border-gray-300 cursor-pointer"> </td> <td class="text-center text-amber-700"> <input type="checkbox" id="rel_${index}" ${isRelayChecked} class="w-4 h-4 rounded text-amber-600 border-gray-300 cursor-pointer"> </td> <td class="text-center text-purple-700 bg-purple-50/10"> <input type="checkbox" id="lan_${index}" ${needLaneChecked} class="w-4 h-4 rounded text-purple-600 border-gray-300 cursor-pointer"> </td> <td class="text-center border-r border-gray-100"> <input type="checkbox" id="gen_m_${index}" ${isMaleChecked} class="w-3.5 h-3.5 rounded text-teal-600 border-gray-300 cursor-pointer"> </td> <td class="text-center border-r border-gray-100"> <input type="checkbox" id="gen_f_${index}" ${isFemaleChecked} class="w-3.5 h-3.5 rounded text-teal-600 border-gray-300 cursor-pointer"> </td> <td class="text-center border-r border-gray-100"> <input type="checkbox" id="gen_x_${index}" ${isMixedChecked} class="w-3.5 h-3.5 rounded text-teal-600 border-gray-300 cursor-pointer"> </td><td class="text-center bg-orange-50/20"> <input type="number" id="ven_${index}" value="${currentVenueCount}" min="1" class="w-10 h-5 border border-orange-300 rounded text-center text-orange-700 font-bold outline-none"> </td> <td class="text-center bg-red-50/20 text-red-700"> <input type="checkbox" id="fun_${index}" ${isFunChecked} class="w-4 h-4 rounded text-red-600 border-gray-300 cursor-pointer"> </td>`;
             tbody.appendChild(tr);
         });
     }
@@ -3284,7 +2704,7 @@ window.renderResultSheet = function() {
             if (isChecked) {
                 const m = document.getElementById(`gen_m_${index}`).checked; const f = document.getElementById(`gen_f_${index}`).checked; const x = document.getElementById(`gen_x_${index}`).checked;
                 let calculatedGender = "双性"; if (x) { calculatedGender = "混合"; } else if (m && f) { calculatedGender = "双性"; } else if (m) { calculatedGender = "男"; } else if (f) { calculatedGender = "女"; }
-                selectedEvents.push({ name: preset.name, type: preset.type, gender: calculatedGender, duration: parseInt(document.getElementById(`dur_${index}`).value) || preset.duration, limit: parseInt(document.getElementById(`lim_${index}`).value) || preset.limit, hasPrelim: document.getElementById(`pre_${index}`).value === 'true', isRelay: document.getElementById(`rel_${index}`).checked, needLane: document.getElementById(`lan_${index}`).checked, isFun: document.getElementById(`fun_${index}`).checked, scoreRule: scoreRule, recordBonus: recordBonus });
+               selectedEvents.push({ name: preset.name, type: preset.type, gender: calculatedGender, duration: parseInt(document.getElementById(`dur_${index}`).value) || preset.duration, limit: parseInt(document.getElementById(`lim_${index}`).value) || preset.limit, venueCount: parseInt(document.getElementById(`ven_${index}`).value) || 1, hasPrelim: document.getElementById(`pre_${index}`).value === 'true', isRelay: document.getElementById(`rel_${index}`).checked, needLane: document.getElementById(`lan_${index}`).checked, isFun: document.getElementById(`fun_${index}`).checked, scoreRule: scoreRule, recordBonus: recordBonus });
             }
         });
         fetch('/api/batch_save_events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ events: selectedEvents }) })
@@ -3494,8 +2914,9 @@ window.renderResultSheet = function() {
                             gender: gender, minutes: finalMins, isField: false,fType: fType, isSprint: isSprint, weight: weight + 1, round: 'final'
                         });
                     } else {
-                        let mins = isField ? Math.ceil(totalCount * 3 * 1.2 + 10) : Math.ceil(heats * (parseFloat(e.duration) || 5));
-                        allJobs.push({ 
+    let vc = parseInt(e.venueCount) || 1;
+    let mins = isField ? Math.ceil((totalCount / vc) * 3 * 1.2 + 10) : Math.ceil(heats * (parseFloat(e.duration) || 5));
+    allJobs.push({
                             jobKey: `${g.id}_${cleanEvt}_${gender}`, gname: g.name, ename: cleanEvt, coreEvt: coreEvt,
                             gender: gender, minutes: mins, isField: isField,fType: fType, isSprint: isSprint, weight: weight, round: 'direct'
                         });
@@ -3650,56 +3071,53 @@ localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualSchedule
                     else if (cleanEventName.includes('跳远') || cleanEventName.includes('三级跳')) fType = 'long';
                     else fType = 'throw';
                 }
-                let processList = [];
-                let totalHeats = 1;
-                let maxPerHeat = settings.limit || 8;
+ let processList = [];
+let totalHeats = 1;
+let vc = parseInt(eventCfg?.venueCount) || 1;
+let maxPerHeat = settings.limit || 8;
 
-                // 💡 核心改动：决赛自动读取 maxPerHeat（比如预赛设置的每组6人，决赛就只有6人晋级）
-                const isFinal = savedJob.ename.includes('决赛') && !savedJob.ename.includes('预赛');
-                if (isFinal && !isField) {
-                    let topN = maxPerHeat; // 强制读取赛道容量
-                    totalHeats = 1;
-                    processList = Array.from({length: topN}, (_, idx) => ({
-                        teamId: idx, 
-                        name: "预赛晋级选手", 
-                        bib: "---", 
-                        teamName: "待定"
-                    }));
-                } else {
-                    let rawEntries = db.athletes.filter(a => { 
-                        const t = db.teams.find(x => x.id == a.teamId); 
-                        return t && String(t.groupId) === String(group.id) && a.gender === gender && a.events.includes(cleanEventName); 
-                    });
-                    if(!rawEntries.length) return; 
+// 💡 核心改动：决赛自动读取 maxPerHeat
+const isFinal = savedJob.ename.includes('决赛') && !savedJob.ename.includes('预赛');
+if (isFinal && !isField) {
+    let topN = maxPerHeat; 
+    totalHeats = 1;
+    processList = Array.from({length: topN}, (_, idx) => ({
+        teamId: idx, name: "预赛晋级选手", bib: "---", teamName: "待定"
+    }));
+} else {
+    let rawEntries = db.athletes.filter(a => { 
+        const t = db.teams.find(x => x.id == a.teamId); 
+        return t && String(t.groupId) === String(group.id) && a.gender === gender && a.events.includes(cleanEventName); 
+    });
+    if(!rawEntries.length) return; 
 
-                    const isRelay = (String(eventCfg?.isRelay) === 'true' || cleanEventName.includes('接力'));
-                    processList = isRelay ? Object.values(rawEntries.reduce((acc, a) => {
-    if (!acc[a.teamId]) acc[a.teamId] = { teamName: db.teams.find(t => t.id == a.teamId)?.name || "", bib: "", teamId: a.teamId, isTeam: true, members: [] };
-    acc[a.teamId].members.push(a);
-    return acc;
-}, {})).map(teamData => {
-    // 🎯 智能识别当前排表的项目名（彻底解决变量找不到导致的编排中断问题）
-    let currentEvt = "";
-    for(let e of teamData.members[0].events) {
-        if((e.includes('接力') || e.includes('4x') || e.includes('4*')) && teamData.members.every(m => m.events.includes(e))) {
-            currentEvt = e; 
-            break;
+    const isRelay = (String(eventCfg?.isRelay) === 'true' || cleanEventName.includes('接力'));
+    processList = isRelay ? Object.values(rawEntries.reduce((acc, a) => {
+        if (!acc[a.teamId]) acc[a.teamId] = { teamName: db.teams.find(t => t.id == a.teamId)?.name || "", bib: "", teamId: a.teamId, isTeam: true, members: [] };
+        acc[a.teamId].members.push(a);
+        return acc;
+    }, {})).map(teamData => {
+        let currentEvt = "";
+        for(let e of teamData.members[0].events) {
+            if((e.includes('接力') || e.includes('4x') || e.includes('4*')) && teamData.members.every(m => m.events.includes(e))) { currentEvt = e; break; }
         }
+        let validMembers = teamData.members.filter(m => m.relay_legs && m.relay_legs[currentEvt]);
+        if (validMembers.length > 0) {
+            validMembers.sort((a,b) => parseInt(a.relay_legs[currentEvt]) - parseInt(b.relay_legs[currentEvt]));
+            teamData.name = validMembers.map(m => `${m.relay_legs[currentEvt]}棒:${m.name}`).join('  ');
+        } else {
+            teamData.name = "未排棒 (" + teamData.members.map(m=>m.name).join(', ') + ")";
+        }
+        return teamData;
+    }) : rawEntries.map(a => ({ ...a, teamName: db.teams.find(t => t.id == a.teamId)?.name || "", isTeam: false }));
+
+    // 🌟 核心：如果设置了多个田赛场地，直接修改容量上限，强制把名单切分为 VC 个并行的“组(场地)”
+    if (isField) {
+        maxPerHeat = Math.ceil(processList.length / vc) || 99;
     }
     
-    // 💥 提取接力棒次并拼接
-    let validMembers = teamData.members.filter(m => m.relay_legs && m.relay_legs[currentEvt]);
-    if (validMembers.length > 0) {
-        validMembers.sort((a,b) => parseInt(a.relay_legs[currentEvt]) - parseInt(b.relay_legs[currentEvt]));
-        teamData.name = validMembers.map(m => `${m.relay_legs[currentEvt]}棒:${m.name}`).join('  ');
-    } else {
-        teamData.name = "未排棒 (" + teamData.members.map(m=>m.name).join(', ') + ")";
-    }
-    return teamData;
-}) : rawEntries.map(a => ({ ...a, teamName: db.teams.find(t => t.id == a.teamId)?.name || "", isTeam: false }));
-
-                    totalHeats = Math.ceil(processList.length / maxPerHeat) || 1;
-                }
+    totalHeats = Math.ceil(processList.length / maxPerHeat) || 1;
+}
 
                 // ✨ 并行轨道发车机制：不同场地的田赛时间从自己的专属零点独立计算
                 let currentPointer = 0;

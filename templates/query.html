@@ -6,170 +6,222 @@
     <title>{{ title }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif; background-color: #f8fafc; -webkit-tap-highlight-color: transparent; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+            background-color: #f8fafc; 
+            -webkit-tap-highlight-color: transparent; 
+        }
         
-        /* 经典奥赛蓝主题 */
-        .portal-header { background-color: #004b87; color: white; }
-        .acc-header { background-color: #eaf2f8; color: #1e3a8a; border-bottom: 1px solid #c8d9ea; border-top: 1px solid #c8d9ea; }
-        .acc-header:active { background-color: #dbeafe; }
+        /* 现代 UI 组件库 */
+        .glass-header { 
+            background: rgba(255, 255, 255, 0.9); 
+            backdrop-filter: blur(12px); 
+            -webkit-backdrop-filter: blur(12px); 
+            border-bottom: 1px solid rgba(0,0,0,0.05); 
+        }
         
-        /* 虚线与实线经典表格 */
-        .classic-dashed-table th { border-bottom: 2px solid #d1d5db; }
-        .classic-dashed-table tr { border-bottom: 1px dashed #9ca3af; }
-        .classic-dashed-table tr:nth-child(even) { background-color: #f3f6f9; }
+        .modern-card { 
+            background: #ffffff; 
+            border-radius: 16px; 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0,0,0,0.02); 
+            border: 1px solid #f1f5f9;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
 
-        .team-header-bg { background-color: #6567ad; color: white; }
-        .team-table-title { background-color: #8f8f8f; color: white; }
-        .classic-solid-table th, .classic-solid-table td { border: 1px solid #737373; padding: 6px 4px; }
-        .classic-solid-table tr:nth-child(even) { background-color: #f9fafb; }
+        .acc-header { 
+            width: 100%; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 16px 20px; 
+            font-size: 0.95rem; 
+            font-weight: 700; 
+            color: #1e293b; 
+            background: transparent; 
+            transition: all 0.2s ease; 
+        }
+        .acc-header:active { background: #f8fafc; }
+        
+        /* 现代化表格基础样式 */
+        .modern-table { width: 100%; text-align: center; font-size: 13px; border-collapse: separate; border-spacing: 0; }
+        .modern-table thead { background-color: #f8fafc; }
+        .modern-table th { padding: 10px 8px; color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; }
+        .modern-table td { padding: 12px 8px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+        .modern-table tbody tr { transition: background-color 0.2s; }
+        .modern-table tbody tr:hover { background-color: #f8fafc; }
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* 渐变标题背景 */
+        .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #2563eb 100%); }
     </style>
 </head>
-<body class="max-w-lg mx-auto bg-white min-h-screen border-x border-gray-200 flex flex-col shadow-lg relative">
+<body class="max-w-md mx-auto bg-slate-50 min-h-screen border-x border-gray-100 flex flex-col shadow-2xl relative text-slate-800">
 
     <div id="view-home" class="view-panel flex flex-col flex-1">
-        <header class="portal-header p-3 text-center sticky top-0 z-20">
-            <h1 class="text-[15px] font-bold" id="sysTitle">{{ title }}</h1>
+        <header class="gradient-bg text-white p-4 text-center sticky top-0 z-20 shadow-md">
+            <h1 class="text-[17px] font-extrabold tracking-wide drop-shadow-sm" id="sysTitle">{{ title }}</h1>
         </header>
 
-        <main class="flex-1 flex flex-col no-scrollbar overflow-y-auto pb-6">
-            <div class="accordion-item">
-                <button class="acc-header w-full flex justify-between items-center p-3 text-sm font-bold transition-colors" onclick="toggleAcc('panel-results')">
-                    <span>1. 成绩公告 (各小组及综合成绩)</span>
+        <main class="flex-1 flex flex-col no-scrollbar overflow-y-auto px-4 py-5">
+            
+            <div class="modern-card">
+                <button class="acc-header" onclick="toggleAcc('panel-results')">
+                    <div class="flex items-center gap-2">
+                        <span class="text-blue-500 text-lg">📊</span>
+                        <span>成绩公告 (各小组及综合)</span>
+                    </div>
+                    <span class="text-gray-400 text-sm">▼</span>
                 </button>
-                <div id="panel-results" class="hidden bg-white">
-                    <ul class="divide-y divide-gray-100 text-[13px]" id="resultList"></ul>
+                <div id="panel-results" class="hidden bg-white border-t border-slate-100">
+                    <ul class="divide-y divide-slate-100 text-[14px]" id="resultList"></ul>
                 </div>
             </div>
 
-            <div class="accordion-item">
-                <button class="acc-header w-full flex justify-between items-center p-3 text-sm font-bold transition-colors mt-[-1px]" onclick="toggleAcc('panel-startlist')">
-                    <span>2. 后续参赛名单 (决赛出线)</span>
+            <div class="modern-card">
+                <button class="acc-header" onclick="toggleAcc('panel-startlist')">
+                    <div class="flex items-center gap-2">
+                        <span class="text-purple-500 text-lg">🏃</span>
+                        <span>后续参赛名单 (决赛出线)</span>
+                    </div>
+                    <span class="text-gray-400 text-sm">▼</span>
                 </button>
-                <div id="panel-startlist" class="hidden bg-white">
-                    <ul class="divide-y divide-gray-100 text-[13px]" id="startList"></ul>
+                <div id="panel-startlist" class="hidden bg-white border-t border-slate-100">
+                    <ul class="divide-y divide-slate-100 text-[14px]" id="startList"></ul>
                 </div>
             </div>
 
-            <div class="accordion-item">
-                <button class="acc-header w-full flex justify-between items-center p-3 text-sm font-bold transition-colors mt-[-1px]" onclick="toggleAcc('panel-team-score')">
-                    <span>3. 团体总分排名</span>
+            <div class="modern-card">
+                <button class="acc-header" onclick="toggleAcc('panel-team-score')">
+                    <div class="flex items-center gap-2">
+                        <span class="text-orange-500 text-lg">🏆</span>
+                        <span>团体总分排名</span>
+                    </div>
+                    <span class="text-gray-400 text-sm">▼</span>
                 </button>
-                <div id="panel-team-score" class="hidden bg-white p-2">
-                    <div class="flex justify-between items-center mb-2 px-1 mt-2">
-                        <select id="rankGroupSelect" onchange="loadTeamRank()" class="border border-blue-300 rounded p-1 text-xs text-blue-800 bg-blue-50 outline-none">
+                <div id="panel-team-score" class="hidden bg-white p-3 border-t border-slate-100">
+                    <div class="flex justify-between items-center mb-4 px-1">
+                        <select id="rankGroupSelect" onchange="loadTeamRank()" class="border-none bg-blue-50 text-blue-700 font-bold rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 transition cursor-pointer">
                             <option value="">-- 选择组别 --</option>
                         </select>
-                        <span class="text-[10px] text-gray-400" id="rankTime"></span>
+                        <span class="text-[11px] text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded-full" id="rankTime"></span>
                     </div>
-                    <table class="w-full text-center text-[12px] border-collapse border border-gray-200">
-                        <thead class="bg-[#f0f5fa] text-gray-600 border-b border-gray-300">
-                            <tr>
-                                <th class="p-2 border-r border-gray-200 w-10">No</th>
-                                <th class="p-2 border-r border-gray-200 text-left">单位</th>
-                                <th class="p-2 border-r border-gray-200 text-blue-700">总分</th>
-                                <th class="p-2 border-r border-gray-200">金</th>
-                                <th class="p-2 border-r border-gray-200">银</th>
-                                <th class="p-2 border-r border-gray-200">铜</th>
-                                <th class="p-2 border-r border-gray-200 text-red-600">破纪分</th>
-                                <th class="p-2 border-r border-gray-200 text-blue-700">总分</th>
-                            </tr>
-                        </thead>
-                        <tbody id="rankTableBody" class="divide-y divide-gray-200">
-                            <tr><td colspan="6" class="p-4 text-gray-400">请选择组别查看</td></tr>
-                        </tbody>
-                    </table>
+                    <div class="overflow-x-auto rounded-xl border border-slate-100">
+                        <table class="modern-table">
+                            <thead>
+                                <tr>
+                                    <th class="w-10">No</th>
+                                    <th class="text-left">单位</th>
+                                    <th class="text-blue-600">总分</th>
+                                    <th>金</th>
+                                    <th>银</th>
+                                    <th>铜</th>
+                                    <th class="text-red-500">破纪</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rankTableBody">
+                                <tr><td colspan="7" class="p-6 text-slate-400 text-sm">请选择上方组别查看</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
-            <div class="accordion-item">
-                <button class="acc-header w-full flex justify-between items-center p-3 text-sm font-bold transition-colors mt-[-1px]" onclick="toggleAcc('panel-search')">
-                    <span>4. 查询（运动员报名及成绩）</span>
+            <div class="modern-card">
+                <button class="acc-header" onclick="toggleAcc('panel-search')">
+                    <div class="flex items-center gap-2">
+                        <span class="text-teal-500 text-lg">🔍</span>
+                        <span>查询中心 (运动员/队伍)</span>
+                    </div>
+                    <span class="text-gray-400 text-sm">▼</span>
                 </button>
-                <div id="panel-search" class="hidden bg-[#eaf2f8] p-4 border-b border-gray-200">
+                <div id="panel-search" class="hidden bg-slate-50 p-5 border-t border-slate-100">
                     <div class="flex gap-2">
-                        <select class="border border-gray-300 rounded p-2 text-sm bg-white" id="searchType">
+                        <select class="border-0 ring-1 ring-slate-200 rounded-lg p-2.5 text-sm bg-white font-medium text-slate-600 outline-none focus:ring-2 focus:ring-blue-500" id="searchType">
                             <option value="athlete">运动员</option>
                             <option value="team">代表队</option>
                         </select>
-                        <input type="text" id="searchInput" placeholder="输入姓名/号码/队名" class="flex-1 border border-gray-300 rounded p-2 text-sm outline-none focus:border-blue-500">
-                        <button onclick="executeSearch()" class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded text-sm active:bg-gray-100">查</button>
+                        <input type="text" id="searchInput" placeholder="输入姓名/号码/队名" class="flex-1 border-0 ring-1 ring-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm">
+                        <button onclick="executeSearch()" class="gradient-bg text-white font-bold px-5 py-2.5 rounded-lg text-sm active:scale-95 transition shadow-md">搜 索</button>
                     </div>
-                    <div id="searchResultArea" class="mt-4 bg-white rounded shadow-sm overflow-hidden hidden divide-y"></div>
+                    <div id="searchResultArea" class="mt-4 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden hidden divide-y divide-slate-50"></div>
                 </div>
             </div>
         </main>
 
-        <footer class="portal-header p-3 text-center text-[10px] space-y-1 mt-auto">
-            <div id="sysDate">----年--月--日</div>
-            <div>《田径运动会管理系统》 信息发布</div>
+        <footer class="bg-white/80 backdrop-blur text-slate-400 p-4 text-center text-[11px] font-medium mt-auto border-t border-slate-100">
+            <div id="sysDate" class="mb-1">----年--月--日</div>
+            <div class="text-slate-300">田径运动会管理系统 · 智能分发</div>
         </footer>
     </div>
 
-    <div id="view-event-detail" class="view-panel flex flex-col flex-1 hidden bg-white">
-        <header class="portal-header p-3 text-white sticky top-0 z-10 flex justify-between items-center">
+    <div id="view-event-detail" class="view-panel flex flex-col flex-1 hidden bg-slate-50">
+        <header class="gradient-bg text-white p-4 sticky top-0 z-20 shadow-md flex justify-between items-center">
             <div>
-                <div class="text-[11px] text-blue-100 mb-0.5">竞赛信息</div>
-                <div class="text-[16px] font-bold tracking-wide" id="detEventName">--</div>
+                <div class="text-[10px] text-blue-200/80 mb-0.5 uppercase tracking-widest font-semibold">竞赛信息</div>
+                <div class="text-[18px] font-extrabold tracking-wide drop-shadow-sm" id="detEventName">--</div>
             </div>
-            <button onclick="switchView('view-home')" class="text-xs bg-black/20 hover:bg-black/30 px-2.5 py-1.5 rounded border border-white/20 active:scale-95">返回</button>
+            <button onclick="switchView('view-home')" class="text-xs bg-white/20 hover:bg-white/30 text-white font-medium px-3.5 py-2 rounded-lg backdrop-blur transition active:scale-95">返回首页</button>
         </header>
-        <div class="bg-[#eaf2f8] px-3 py-1.5 flex justify-between items-center text-[13px] font-bold text-[#004b87] border-t border-gray-300 border-b-2 border-[#b5c7d8]">
-            <span id="detHeatLabel">数据同步中...</span>
+        <div class="bg-white px-4 py-2.5 flex justify-between items-center text-[13px] font-bold text-blue-600 shadow-sm z-10">
+            <span id="detHeatLabel" class="flex items-center gap-1">✨ 数据同步中...</span>
         </div>
-        <div class="w-full overflow-y-auto flex-1 no-scrollbar bg-gray-50 pb-8" id="detContentArea"></div>
+        <div class="w-full overflow-y-auto flex-1 no-scrollbar p-3" id="detContentArea"></div>
     </div>
 
-    <div id="view-athlete-detail" class="view-panel flex flex-col flex-1 hidden bg-white">
-        <header class="bg-[#1e3a8a] p-3 text-white sticky top-0 z-10 flex justify-between items-center">
+    <div id="view-athlete-detail" class="view-panel flex flex-col flex-1 hidden bg-slate-50">
+        <header class="bg-gradient-to-r from-blue-700 to-indigo-800 p-4 text-white sticky top-0 z-20 shadow-md flex justify-between items-center">
             <div>
-                <div class="text-[11px] text-blue-200 mb-0.5">运动员成绩册</div>
-                <h1 class="text-[16px] font-bold" id="athDetailName">--</h1>
+                <div class="text-[10px] text-blue-200/80 mb-0.5 uppercase tracking-widest font-semibold">个人成绩册</div>
+                <h1 class="text-[18px] font-extrabold drop-shadow-sm" id="athDetailName">--</h1>
             </div>
-            <button onclick="switchView('view-home')" class="text-xs bg-black/20 hover:bg-black/30 px-2.5 py-1.5 rounded active:scale-95">返回</button>
+            <button onclick="switchView('view-home')" class="text-xs bg-white/20 hover:bg-white/30 text-white font-medium px-3.5 py-2 rounded-lg backdrop-blur transition active:scale-95">返回首页</button>
         </header>
-        <div class="bg-gray-100 p-3 text-[12px] text-gray-600 grid grid-cols-2 gap-2 border-b">
-            <div>代表单位：<span id="athDetailTeam" class="font-bold text-gray-900">--</span></div>
-            <div>参赛号码：<span id="athDetailBib" class="font-mono font-bold text-gray-900">--</span></div>
+        <div class="bg-white p-4 text-[13px] text-slate-600 flex justify-between border-b border-slate-100 shadow-sm z-10">
+            <div>代表单位：<span id="athDetailTeam" class="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">--</span></div>
+            <div>号码：<span id="athDetailBib" class="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">--</span></div>
         </div>
-        <div class="w-full overflow-y-auto flex-1 no-scrollbar">
-            <table class="w-full text-center text-[13px] classic-solid-table border-collapse">
-                <thead class="bg-gray-800 text-white font-bold text-[13px]">
-                    <tr>
-                        <th class="py-2 text-left pl-2">参赛项目</th>
-                        <th class="py-2 w-24">项目成绩</th>
-                        <th class="py-2 w-16">最终名次</th>
-                    </tr>
-                </thead>
-                <tbody id="athTableBody"></tbody>
-            </table>
+        <div class="w-full overflow-y-auto flex-1 no-scrollbar p-4">
+            <div class="modern-card">
+                <table class="modern-table">
+                    <thead>
+                        <tr>
+                            <th class="text-left pl-4">参赛项目</th>
+                            <th class="w-24">成绩</th>
+                            <th class="w-16">名次</th>
+                        </tr>
+                    </thead>
+                    <tbody id="athTableBody"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
-    <div id="view-team-detail" class="view-panel flex flex-col flex-1 hidden bg-white">
-        <header class="team-header-bg p-3 text-white sticky top-0 z-10 flex justify-between items-center">
-            <h1 class="text-[15px] font-bold tracking-wide truncate max-w-[80%]" id="teamDetailTitle">--</h1>
-            <button onclick="switchView('view-home')" class="text-xs bg-black/20 hover:bg-black/30 px-2.5 py-1.5 rounded active:scale-95 shrink-0">返回</button>
+    <div id="view-team-detail" class="view-panel flex flex-col flex-1 hidden bg-slate-50">
+        <header class="bg-gradient-to-r from-indigo-600 to-purple-600 p-4 text-white sticky top-0 z-20 shadow-md flex justify-between items-center">
+            <h1 class="text-[17px] font-extrabold tracking-wide truncate max-w-[75%] drop-shadow-sm" id="teamDetailTitle">--</h1>
+            <button onclick="switchView('view-home')" class="text-xs bg-white/20 hover:bg-white/30 text-white font-medium px-3.5 py-2 rounded-lg backdrop-blur transition active:scale-95 shrink-0">返回首页</button>
         </header>
-        <div class="px-2 py-1.5 text-right text-[12px] font-bold text-black border-b-2 border-gray-400 bg-white">
-            截至：<span id="teamCutoffTime">--</span>
+        <div class="px-4 py-2.5 text-right text-[11px] font-semibold text-slate-500 bg-white border-b border-slate-100 shadow-sm z-10">
+            统计截至：<span id="teamCutoffTime" class="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded ml-1">--</span>
         </div>
-        <div class="w-full overflow-y-auto flex-1 no-scrollbar">
-            <table class="w-full text-center text-[13px] classic-solid-table border-collapse">
-                <thead class="team-table-title font-bold text-[13px]">
-                    <!-- 👇 修改了这里的表头结构 -->
-                    <tr>
-                        <th class="py-2 px-2 text-left pl-2">项目 (性别)</th>
-                        <th class="py-2 px-1 w-16">姓名</th>
-                        <th class="py-2 px-1 w-20 text-right pr-2">成绩</th>
-                        <th class="py-2 px-1 w-12 text-center">名次</th>
-                        <th class="py-2 px-1 w-12 text-center">得分</th>
-                    </tr>
-                </thead>
-                <tbody id="teamTableBody"></tbody>
-            </table>
+        <div class="w-full overflow-y-auto flex-1 no-scrollbar p-2">
+            <div class="modern-card">
+                <table class="modern-table text-[12px]">
+                    <thead>
+                        <tr>
+                            <th class="text-left pl-3">项目 (性别)</th>
+                            <th class="w-16">姓名</th>
+                            <th class="w-20 text-right pr-3">成绩</th>
+                            <th class="w-10 text-center">排</th>
+                            <th class="w-10 text-center">分</th>
+                        </tr>
+                    </thead>
+                    <tbody id="teamTableBody"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -204,7 +256,16 @@
             window.scrollTo(0, 0);
         }
 
-        function toggleAcc(panelId) { document.getElementById(panelId).classList.toggle('hidden'); }
+        function toggleAcc(panelId) { 
+            const panel = document.getElementById(panelId);
+            const btn = panel.previousElementSibling;
+            panel.classList.toggle('hidden'); 
+            
+            const arrow = btn.lastElementChild; 
+            
+            arrow.style.transform = panel.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+            arrow.style.transition = 'transform 0.2s';
+        }
 
         function parseTimeVal(val) {
             if (!val) return 0;
@@ -223,14 +284,17 @@
         function renderRealAnnouncements() {
             const list = document.getElementById('resultList');
             if(!db.schedule.length) {
-                list.innerHTML = '<li class="p-3 text-center text-gray-400">尚未生成赛程数据</li>'; return;
+                list.innerHTML = '<li class="p-6 text-center text-slate-400 text-sm">尚未生成赛程数据</li>'; return;
             }
             const eventNames = [...new Set(db.schedule.map(s => s.eventName))].sort();
             list.innerHTML = eventNames.map(eName => `
-                <li class="p-3 flex justify-between items-center hover:bg-blue-50 active:bg-blue-100 cursor-pointer border-b border-gray-100" 
+                <li class="p-4 flex justify-between items-center hover:bg-slate-50 cursor-pointer transition group" 
                     onclick="goToEventDetail('${eName}', false)">
-                    <span class="text-blue-800 font-bold text-sm">🏁 ${eName}</span>
-                    <span class="text-gray-400 text-xs">查看各组及总成绩 ➔</span>
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">🏁</div>
+                        <span class="text-slate-700 font-bold group-hover:text-blue-600 transition">${eName}</span>
+                    </div>
+                    <span class="text-slate-300 group-hover:text-blue-500 transition">➜</span>
                 </li>
             `).join('');
         }
@@ -243,26 +307,32 @@
             if(!db.schedule.length) return;
             const finalEvents = [...new Set(db.schedule.filter(s => s.eventName.includes('决赛')).map(s => s.eventName))].sort();
             if(finalEvents.length === 0) {
-                list.innerHTML = '<li class="p-3 text-center text-gray-400">暂无产生后续赛次决赛的项目</li>'; return;
+                list.innerHTML = '<li class="p-6 text-center text-slate-400 text-sm">暂无产生后续赛次决赛的项目</li>'; return;
             }
             list.innerHTML = finalEvents.map(eName => `
-                <li class="p-3 flex justify-between items-center hover:bg-purple-50 active:bg-purple-100 cursor-pointer border-b border-gray-100" 
+                <li class="p-4 flex justify-between items-center hover:bg-purple-50 cursor-pointer transition group" 
                     onclick="goToEventDetail('${eName}', true)">
-                    <span class="text-purple-900 font-bold text-sm">🏆 ${eName} </span>
-                    <span class="text-xs text-purple-500 font-bold">查看出线大名单 ➔</span>
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-xs">🏃</div>
+                        <span class="text-slate-700 font-bold group-hover:text-purple-600 transition">${eName}</span>
+                    </div>
+                    <span class="text-slate-300 group-hover:text-purple-500 transition">➜</span>
                 </li>
             `).join('');
         }
 
         // ==========================================
         // 核心：一键渲染【各小组成绩】+【最后综合成绩】
-        // 包含：动态多级纪录比对与破纪代码(XR/SR)自动加注
         // ==========================================
         function goToEventDetail(eventName, isFinalsList) {
             document.getElementById('detEventName').innerText = eventName;
-            document.getElementById('detHeatLabel').innerText = isFinalsList ? '晋级决赛检录名单' : '综合成绩公告';
+            document.getElementById('detHeatLabel').innerHTML = isFinalsList ? '✨ 晋级决赛检录名单' : '🏅 综合成绩公告';
             const contentArea = document.getElementById('detContentArea');
-            contentArea.innerHTML = '<div class="p-10 text-center text-gray-400 font-bold">正在同步成绩矩阵与纪录档案...</div>';
+            contentArea.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-20 text-slate-400">
+                    <svg class="animate-spin h-8 w-8 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span class="font-bold">正在同步成绩矩阵与纪录档案...</span>
+                </div>`;
             switchView('view-event-detail');
 
             let coreMatchName = eventName.replace('决赛', '').replace('预赛', '').replace('()', '').replace('（）', '').trim();
@@ -284,10 +354,9 @@
             .then(r => r.json())
             .then(data => {
                 if(data.length === 0) {
-                    contentArea.innerHTML = '<div class="p-8 text-center text-gray-400">该项目暂无编排数据</div>'; return;
+                    contentArea.innerHTML = '<div class="p-10 text-center text-slate-400 font-medium">该项目暂无编排数据</div>'; return;
                 }
 
-                // 🌟 核心突破：并发拉取该页面涉及到的【所有组别】的独立纪录设定
                 const uniqueGroups = [...new Set(data.map(i => i.group_name).filter(Boolean))];
                 Promise.all(uniqueGroups.map(g => 
                     fetch('/api/get_group_records', {
@@ -295,13 +364,11 @@
                     }).then(res => res.json()).then(recs => ({ group: g, records: recs }))
                 )).then(recordResults => {
                     
-                    // 将拉取到的纪录汇编成本地字典库
                     const globalRecordMap = {};
                     recordResults.forEach(rr => { globalRecordMap[rr.group] = rr.records; });
 
                     const isField = eventName.includes('跳') || eventName.includes('投') || eventName.includes('球') || eventName.includes('掷');
 
-                    // 🎯 辅助函数：根据具体成绩和组别自动判定是否产生破纪录代码徽章
                     function getRecordBadge(scoreStr, groupName, gender) {
                         const scoreVal = parseTimeVal(scoreStr);
                         if (scoreVal <= 0) return '';
@@ -310,19 +377,19 @@
                         const myRecords = (groupRecs[`${coreMatchName}_${gender}`] || []).filter(r => r.en && parseTimeVal(r.val) > 0);
                         
                         let brokenCode = '';
-                        let maxBonus = -1; // 用以应对加分为0但也需要挂徽章的情况
+                        let maxBonus = -1; 
                         
                         myRecords.forEach(rec => {
                             const recVal = parseTimeVal(rec.val);
                             const isBroken = isField ? (scoreVal > recVal) : (scoreVal < recVal);
                             if (isBroken && rec.bonus >= maxBonus) {
                                 maxBonus = rec.bonus;
-                                brokenCode = rec.code || 'XR'; // 兜底默认代码
+                                brokenCode = rec.code || 'XR'; 
                             }
                         });
                         
                         if (brokenCode) {
-                            return `<span class="text-[9px] bg-red-600 text-white px-1 py-0.5 rounded font-black shadow-sm tracking-wider">${brokenCode}</span>`;
+                            return `<span class="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-md font-bold shadow-sm tracking-wider ml-1">${brokenCode}</span>`;
                         }
                         return '';
                     }
@@ -342,29 +409,31 @@
                         const currentGroupName = groupData[0].group_name;
                         const currentGender = groupData[0].gender;
 
+                        // 分组标题栏
                         html += `
-                        <div class="bg-[#dbeafe] px-4 py-3 font-black text-[#1e3a8a] border-y-2 border-[#93c5fd] mt-4 shadow-sm flex justify-between items-center cursor-pointer active:bg-blue-200 transition" onclick="document.getElementById('${contentId}').classList.toggle('hidden')">
-                            <span>🔹 组别：${groupKey}</span>
-                            <span class="text-blue-600 text-xs bg-blue-100 px-2 py-1 rounded shadow-sm">点击展开/折叠 ▼</span>
-                        </div>
-                        <div id="${contentId}" class="hidden transition-all duration-300">`;
+                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 mb-4 overflow-hidden">
+                            <div class="px-4 py-3.5 bg-gradient-to-r from-slate-50 to-white flex justify-between items-center cursor-pointer hover:bg-slate-50 transition" onclick="document.getElementById('${contentId}').classList.toggle('hidden')">
+                                <span class="font-extrabold text-slate-700 text-[15px]">🏢 ${groupKey}</span>
+                                <span class="text-blue-500 bg-blue-50 text-[11px] font-bold px-2.5 py-1 rounded-full">展开/折叠</span>
+                            </div>
+                            <div id="${contentId}" class="hidden transition-all duration-300">`;
 
                         if (isFinalsList) {
                             const heats = {};
                             groupData.forEach(i => { const h = i.heat || '1'; if(!heats[h]) heats[h] = []; heats[h].push(i); });
                             
                             Object.keys(heats).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(h => {
-                                html += `<div class="px-3 py-1.5 text-xs font-bold text-gray-600 bg-white border-b">🚩 第 ${h} 组 (决赛)</div>`;
-                                html += `<table class="w-full text-center text-[13px] classic-dashed-table border-collapse bg-white mb-2">
-                                    <thead class="text-gray-500 bg-[#f8fafc]"><tr><th class="py-1.5 w-12 border-r">道次</th><th class="w-16 border-r">号码</th><th class="text-left pl-2">姓名</th><th class="text-left pl-2">单位</th></tr></thead>
+                                html += `<div class="px-4 py-2 text-[12px] font-bold text-slate-400 bg-slate-50 border-y border-slate-100 flex items-center gap-1"><span>🚩</span> 第 ${h} 组 (决赛)</div>`;
+                                html += `<table class="modern-table">
+                                    <thead><tr><th class="w-12 text-center">道次</th><th class="w-16">号码</th><th class="text-left pl-2">姓名</th><th class="text-left pl-2">单位</th></tr></thead>
                                     <tbody>`;
                                 const heatItems = heats[h].sort((a,b) => parseInt(a.lane) - parseInt(b.lane));
                                 heatItems.forEach(item => {
                                     html += `<tr>
-                                        <td class="py-2 text-gray-500 font-bold border-r">${item.lane || '-'}</td>
-                                        <td class="py-2 font-mono font-bold border-r">${item.bib || '---'}</td>
-                                        <td class="py-2 text-left pl-2 font-bold text-blue-700 underline" onclick="goToAthleteDetail('${item.name}')">${item.name}</td>
-                                        <td class="py-2 text-left pl-2 text-gray-600 truncate max-w-[120px]">${item.team_name}</td>
+                                        <td class="text-slate-400 font-bold">${item.lane || '-'}</td>
+                                        <td class="font-mono font-bold text-slate-500">${item.bib || '---'}</td>
+                                        <td class="text-left pl-2 font-bold text-blue-600 underline cursor-pointer" onclick="goToAthleteDetail('${item.name}')">${item.name}</td>
+                                        <td class="text-left pl-2 text-slate-600 truncate max-w-[120px]">${item.team_name}</td>
                                     </tr>`;
                                 });
                                 html += `</tbody></table>`;
@@ -373,23 +442,22 @@
                             const heats = {};
                             groupData.forEach(i => { const h = i.heat || '1'; if(!heats[h]) heats[h] = []; heats[h].push(i); });
                             
-                            // 各小组成绩列表
                             Object.keys(heats).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(h => {
-                                html += `<div class="px-3 py-1 text-[11px] font-bold text-gray-500 bg-gray-50 border-y border-gray-200">🚩 第 ${h} 小组成绩</div>`;
-                                html += `<table class="w-full text-center text-[13px] classic-dashed-table border-collapse bg-white">
-                                    <thead class="text-gray-400 bg-white"><tr><th class="py-1 w-10">道序</th><th class="w-16">号码</th><th class="text-left">姓名</th><th class="text-left">单位</th><th class="text-right pr-3">单组成绩</th></tr></thead>
+                                html += `<div class="px-4 py-2 text-[12px] font-bold text-slate-400 bg-slate-50 border-y border-slate-100 flex items-center gap-1"><span>🚩</span> 第 ${h} 小组成绩</div>`;
+                                html += `<table class="modern-table">
+                                    <thead><tr><th class="w-10">道序</th><th class="w-14">号码</th><th class="text-left">姓名</th><th class="text-left">单位</th><th class="text-right pr-4">成绩</th></tr></thead>
                                     <tbody>`;
                                 const heatItems = heats[h].sort((a,b) => parseInt(a.lane) - parseInt(b.lane));
                                 heatItems.forEach(item => {
                                     const badge = getRecordBadge(item.score, currentGroupName, currentGender);
                                     html += `<tr>
-                                        <td class="py-1.5 text-gray-400">${item.lane || '-'}</td>
-                                        <td class="py-1.5 font-mono text-gray-400">${item.bib || '-'}</td>
-                                        <td class="py-1.5 text-left font-bold" onclick="goToAthleteDetail('${item.name}')">${item.name}</td>
-                                        <td class="py-1.5 text-left text-gray-500 truncate max-w-[100px]">${item.team_name}</td>
-                                        <td class="py-1.5 text-right pr-3">
-                                            <div class="flex items-center justify-end gap-1">
-                                                <span class="font-mono font-bold text-gray-700">${item.score || '-'}</span>
+                                        <td class="text-slate-400 text-[12px]">${item.lane || '-'}</td>
+                                        <td class="font-mono text-slate-400 text-[12px]">${item.bib || '-'}</td>
+                                        <td class="text-left font-bold text-slate-700 cursor-pointer" onclick="goToAthleteDetail('${item.name}')">${item.name}</td>
+                                        <td class="text-left text-slate-500 text-[12px] truncate max-w-[90px]">${item.team_name}</td>
+                                        <td class="text-right pr-4">
+                                            <div class="flex items-center justify-end">
+                                                <span class="font-mono font-bold text-slate-700">${item.score || '-'}</span>
                                                 ${badge}
                                             </div>
                                         </td>
@@ -405,58 +473,66 @@
                                     return isField ? (sb - sa) : (sa - sb);
                                 });
 
-                                html += `<div class="px-3 py-2 text-[14px] font-black text-red-800 bg-[#fef2f2] border-t-2 border-red-200 mt-2 flex items-center justify-center tracking-widest">🏆 最后综合成绩排名</div>`;
+                                html += `
+                                <div class="px-4 py-3 font-extrabold text-orange-700 bg-orange-50 border-y border-orange-100 mt-2 flex items-center gap-2">
+                                    <span class="text-lg">🏆</span> 综合排名结果
+                                </div>`;
                                 
                                 let extraColName = roundStatus === '预赛' ? '录取' : '积分';
 
-                                html += `<table class="w-full text-center text-[13px] classic-solid-table border-collapse bg-white mb-4">
-                                    <thead class="text-white bg-[#8f8f8f]"><tr>
-                                        <th class="py-1.5 w-10">名次</th>
-                                        <th class="w-14">号码</th>
+                                html += `<table class="modern-table">
+                                    <thead class="bg-orange-50/50"><tr>
+                                        <th class="w-10 text-orange-800">名次</th>
+                                        <th class="w-12">号码</th>
                                         <th class="text-left pl-2">姓名</th>
                                         <th class="text-left pl-2">单位</th>
-                                        <th class="text-right pr-3 w-20">成绩</th>
-                                        <th class="w-12">${extraColName}</th>
+                                        <th class="text-right pr-4 w-20 text-orange-800">成绩</th>
+                                        <th class="w-12 text-orange-800">${extraColName}</th>
                                     </tr></thead>
                                     <tbody>`;
                                 
                                 let currentRank = 1;
                                 scored.forEach((item, idx) => {
                                     if (idx > 0 && parseTimeVal(item.score) !== parseTimeVal(scored[idx-1].score)) currentRank = idx + 1;
-                                    
                                     const badge = getRecordBadge(item.score, currentGroupName, currentGender);
 
                                     let extraColHtml = '';
                                     if (roundStatus === '预赛') {
                                         if (currentRank <= qualifyLimit) {
-                                            extraColHtml = '<span class="font-bold text-black text-[16px] font-mono">q</span>';
+                                            extraColHtml = '<span class="font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-[14px] font-mono shadow-sm">q</span>';
                                         }
                                     } else {
-                                        // 决赛阶段：从后端提取已计算好的积分（包含纪录分加成）
                                         let pts = item.points || 0;
-                                        if (pts > 0) extraColHtml = `<span class="font-bold text-orange-600">${pts}</span>`;
+                                        if (pts > 0) extraColHtml = `<span class="font-extrabold text-red-600 bg-red-50 px-2 py-0.5 rounded shadow-sm text-[13px]">${pts}</span>`;
                                     }
 
-                                    html += `<tr>
-                                        <td class="py-2 font-black text-red-600 bg-red-50">${currentRank}</td>
-                                        <td class="py-2 font-mono text-gray-600">${item.bib || '-'}</td>
-                                        <td class="py-2 text-left pl-2 font-bold text-blue-700 underline" onclick="goToAthleteDetail('${item.name}')">${item.name}</td>
-                                        <td class="py-2 text-left pl-2 text-gray-800 truncate max-w-[90px]">${item.team_name}</td>
-                                        <td class="py-2 bg-red-50 text-right pr-3">
-                                            <div class="flex items-center justify-end gap-1">
-                                                <span class="font-mono font-black text-red-600">${item.score}</span>
+                                    // 前三名样式高亮
+                                    let rankBadge = `<span class="font-bold text-slate-500">${currentRank}</span>`;
+                                    let rowBg = '';
+                                    if(currentRank === 1) { rankBadge = '🥇'; rowBg = 'bg-yellow-50/30'; }
+                                    else if(currentRank === 2) { rankBadge = '🥈'; rowBg = 'bg-slate-100/50'; }
+                                    else if(currentRank === 3) { rankBadge = '🥉'; rowBg = 'bg-orange-50/30'; }
+
+                                    html += `<tr class="${rowBg}">
+                                        <td class="text-[14px]">${rankBadge}</td>
+                                        <td class="font-mono text-slate-400 text-[12px]">${item.bib || '-'}</td>
+                                        <td class="text-left pl-2 font-bold text-blue-600 underline cursor-pointer" onclick="goToAthleteDetail('${item.name}')">${item.name}</td>
+                                        <td class="text-left pl-2 text-slate-700 text-[12px] truncate max-w-[80px]">${item.team_name}</td>
+                                        <td class="text-right pr-4">
+                                            <div class="flex items-center justify-end">
+                                                <span class="font-mono font-bold text-red-600 text-[14px]">${item.score}</span>
                                                 ${badge}
                                             </div>
                                         </td>
-                                        <td class="py-2 bg-red-50 text-center">${extraColHtml}</td>
+                                        <td class="text-center">${extraColHtml}</td>
                                     </tr>`;
                                 });
                                 html += `</tbody></table>`;
                             } else {
-                                html += `<div class="px-3 py-4 text-xs text-center text-gray-400 bg-white border-t border-gray-100">本组暂无裁判录入成绩，请等待比赛结束</div>`;
+                                html += `<div class="px-4 py-8 text-sm text-center text-slate-400">成绩核算中，请等待裁判长确认发布</div>`;
                             }
                         }
-                        html += `</div>`; 
+                        html += `</div></div>`; 
                     });
                     contentArea.innerHTML = html;
                 });
@@ -469,9 +545,12 @@
         function loadTeamRank() {
             const gName = document.getElementById('rankGroupSelect').value;
             const tbody = document.getElementById('rankTableBody');
-            if(!gName) return;
+            if(!gName) {
+                tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-slate-400 text-sm">请选择上方组别查看</td></tr>';
+                return;
+            }
 
-            tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-gray-400">正在极速核算纯净总分...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-blue-500 font-medium"><svg class="animate-spin h-5 w-5 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>正在极速核算纯净总分...</td></tr>';
             
             fetch('/api/calculate_team_ranking', {
                 method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ group_name: gName })
@@ -479,64 +558,62 @@
             .then(r => r.json())
             .then(data => {
                 const d = new Date();
-                document.getElementById('rankTime').innerText = `更新时间: ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+                document.getElementById('rankTime').innerText = `已更新 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 
                 if(data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-gray-400">该组别暂无队伍获得决赛积分</td></tr>'; return;
+                    tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400 text-sm">该组别暂无队伍获得决赛积分</td></tr>'; return;
                 }
 
                 tbody.innerHTML = data.map((t, i) => `
-                    <tr class="${i % 2 === 0 ? 'bg-white' : 'bg-[#f9fbfd]'} h-10">
-                        <td class="p-2 border-r border-gray-200 text-gray-500 font-bold">${i===0?'🥇':(i===1?'🥈':(i===2?'🥉':i+1))}</td>
-                        <td class="p-2 border-r border-gray-200 text-left font-bold text-gray-800">${t.name}</td>
-                        <td class="p-2 border-r border-gray-200 font-black text-blue-700 text-[15px] underline cursor-pointer" onclick="goToTeamDetail('${t.name}', '${gName}')">${t.score}</td>
-                        <td class="p-2 border-r border-gray-200 text-yellow-600 font-bold">${t.gold}</td>
-                        <td class="p-2 border-r border-gray-200 text-gray-500 font-bold">${t.silver}</td>
-                        <td class="p-2 text-orange-600 font-bold border-r border-gray-200">${t.bronze}</td>
-<td class="p-2 border-r border-gray-200 text-red-500 font-bold bg-red-50">+${t.total_record_bonus || 0}</td>
-<td class="p-2 font-black text-blue-700 text-[15px] underline cursor-pointer" onclick="..."> ${t.score}</td>
+                    <tr>
+                        <td class="font-bold text-slate-500 text-[14px]">${i===0?'🥇':(i===1?'🥈':(i===2?'🥉':i+1))}</td>
+                        <td class="text-left font-extrabold text-slate-800 text-[14px]">${t.name}</td>
+                        <td class="font-black text-blue-600 text-[16px] underline cursor-pointer" onclick="goToTeamDetail('${t.name}', '${gName}')">${t.score}</td>
+                        <td class="text-yellow-600 font-bold">${t.gold}</td>
+                        <td class="text-slate-400 font-bold">${t.silver}</td>
+                        <td class="text-orange-500 font-bold">${t.bronze}</td>
+                        <td>
+                            <span class="${t.total_record_bonus > 0 ? 'text-red-500 font-black bg-red-50 px-1.5 py-0.5 rounded-md' : 'text-slate-300'}">+${t.total_record_bonus || 0}</span>
+                        </td>
                     </tr>
                 `).join('');
             });
         }
 
-        // 班级积分贡献明细
-        // 班级积分贡献明细 (穿透至个人名次与成绩)
         function goToTeamDetail(teamName, groupName) {
-            document.getElementById('teamDetailTitle').innerText = `${teamName} 积分贡献明细`;
-            const d = new Date(); document.getElementById('teamCutoffTime').innerText = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+            document.getElementById('teamDetailTitle').innerText = `${teamName} 明细`;
+            const d = new Date(); 
+            document.getElementById('teamCutoffTime').innerText = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
             
             const tbody = document.getElementById('teamTableBody');
-            tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-gray-400">正在提取详细得分数据...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-400"><svg class="animate-spin h-5 w-5 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>正在提取详细得分数据...</td></tr>';
             switchView('view-team-detail');
 
-            // 🚀 调用刚刚在 app.py 里写好的新接口
             fetch('/api/get_team_score_details', {
                 method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ group_name: groupName, team_name: teamName })
             })
             .then(r => r.json())
             .then(data => {
                 if(!data || data.length === 0) { 
-                    tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-400">该班级暂无得分明细</td></tr>'; return; 
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-400 text-sm">该班级暂无得分明细</td></tr>'; return; 
                 }
                 
                 let html = '';
                 data.forEach(row => {
-                    // 智能识别接力项目
                     const isRelay = row.event_name.includes('接力') || row.event_name.includes('4×') || row.event_name.includes('4*');
-                    const displayName = isRelay ? '集体项目' : row.name;
+                    const displayName = isRelay ? '集 体' : row.name;
 
-                    html += `<tr class="border-b border-gray-200 hover:bg-blue-50 transition">
-                        <td class="py-2.5 px-2 text-left font-bold text-gray-700 border-r border-gray-100">${row.event_name} <span class="text-[10px] text-blue-500">(${row.gender})</span></td>
-                        <td class="py-2.5 px-1 font-bold text-blue-700 border-r border-gray-100 ${!isRelay ? 'cursor-pointer underline' : ''}" ${!isRelay ? `onclick="goToAthleteDetail('${row.name}')"` : ''}>${displayName}</td>
-                        <td class="py-2.5 px-1 text-right font-mono font-bold text-gray-800 border-r border-gray-100 pr-2">${row.score}</td>
-                        <td class="py-2.5 px-1 text-center font-bold text-orange-600 border-r border-gray-100">${row.rank}</td>
-                        <td class="py-2.5 px-1 text-center font-black text-red-600 bg-red-50/50">+${row.points}</td>
+                    html += `<tr>
+                        <td class="text-left pl-3 text-slate-800 font-bold border-r border-slate-50">${row.event_name} <br><span class="text-[10px] text-slate-400 font-normal">(${row.gender})</span></td>
+                        <td class="font-bold ${!isRelay ? 'text-blue-600 underline cursor-pointer' : 'text-slate-600'} border-r border-slate-50" ${!isRelay ? `onclick="goToAthleteDetail('${row.name}')"` : ''}>${displayName}</td>
+                        <td class="text-right font-mono font-bold text-slate-700 pr-3 border-r border-slate-50">${row.score}</td>
+                        <td class="text-center font-bold text-orange-500 border-r border-slate-50">${row.rank}</td>
+                        <td class="text-center font-black text-red-500 bg-red-50/50">+${row.points}</td>
                     </tr>`;
                 });
                 tbody.innerHTML = html;
             }).catch(e => {
-                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500">数据提取失败，请检查网络连接</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-red-500 text-sm">数据提取失败，请检查网络</td></tr>';
             });
         }
 
@@ -552,27 +629,36 @@
             
             if (type === 'athlete') {
                 const matched = db.athletes.filter(a => a.name.toLowerCase().includes(kw) || (a.bib && a.bib.includes(kw)));
-                if(!matched.length) { resArea.innerHTML = '<div class="p-4 text-gray-400 text-center">未检索到运动员，请检查名字</div>'; return; }
+                if(!matched.length) { resArea.innerHTML = '<div class="p-6 text-slate-400 text-center text-sm">未检索到运动员，请检查名字</div>'; return; }
                 
-                resArea.innerHTML = `<div class="p-2 bg-gray-50 text-xs text-gray-500 font-bold">检索到以下学生：</div>` + matched.map(a => {
+                resArea.innerHTML = `<div class="px-4 py-2 bg-slate-50 text-[11px] text-slate-400 font-bold uppercase tracking-widest">检索结果</div>` + matched.map(a => {
                     const tName = db.teams.find(t => t.id == a.teamId)?.name || '--';
                     return `
-                        <div class="p-3 text-sm flex justify-between items-center hover:bg-blue-50 border-b cursor-pointer" onclick="goToAthleteDetail('${a.name}')">
-                            <span class="font-bold text-blue-700 underline">👤 ${a.name} (${a.gender})</span>
-                            <span class="text-xs text-gray-500">${tName} | ${a.bib ? '号码:'+a.bib : '无号'}</span>
+                        <div class="p-4 flex justify-between items-center hover:bg-blue-50 cursor-pointer transition" onclick="goToAthleteDetail('${a.name}')">
+                            <div class="flex flex-col">
+                                <span class="font-extrabold text-blue-700 text-[15px]">👤 ${a.name} <span class="text-xs text-slate-400 font-normal ml-1">(${a.gender})</span></span>
+                                <span class="text-[12px] text-slate-500 mt-1">${tName}</span>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <span class="text-[10px] text-slate-400 mb-1">参赛号码</span>
+                                <span class="font-mono font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">${a.bib || '无号'}</span>
+                            </div>
                         </div>
                     `;
                 }).join('');
             } else {
                 const matched = db.teams.filter(t => t.name.toLowerCase().includes(kw));
-                if(!matched.length) { resArea.innerHTML = '<div class="p-4 text-gray-400 text-center">未检索到该代表队</div>'; return; }
+                if(!matched.length) { resArea.innerHTML = '<div class="p-6 text-slate-400 text-center text-sm">未检索到该代表队</div>'; return; }
                 
-                resArea.innerHTML = `<div class="p-2 bg-gray-50 text-xs text-gray-500 font-bold">检索到以下班级：</div>` + matched.map(t => {
+                resArea.innerHTML = `<div class="px-4 py-2 bg-slate-50 text-[11px] text-slate-400 font-bold uppercase tracking-widest">检索结果</div>` + matched.map(t => {
                     const gName = db.groups.find(g => g.id == t.groupId || g.id == t.group_id)?.name || '--';
                     return `
-                        <div class="p-3 text-sm flex justify-between items-center hover:bg-blue-50 border-b cursor-pointer" onclick="goToTeamDetail('${t.name}', '${gName}')">
-                            <span class="font-bold text-gray-800">🏫 ${t.name}</span>
-                            <span class="text-xs text-blue-500 font-bold">${gName} | 看积分 ➔</span>
+                        <div class="p-4 flex justify-between items-center hover:bg-blue-50 cursor-pointer transition" onclick="goToTeamDetail('${t.name}', '${gName}')">
+                            <div class="flex flex-col">
+                                <span class="font-extrabold text-slate-800 text-[15px]">🏫 ${t.name}</span>
+                                <span class="text-[12px] text-slate-500 mt-1">${gName}</span>
+                            </div>
+                            <span class="text-[11px] font-bold text-blue-500 bg-blue-50 px-3 py-1.5 rounded-full">查看得分 ➜</span>
                         </div>
                     `;
                 }).join('');
@@ -589,7 +675,7 @@
             document.getElementById('athDetailTeam').innerText = db.teams.find(t => t.id == ath.teamId)?.name || '--';
             
             const tbody = document.getElementById('athTableBody');
-            tbody.innerHTML = '<tr><td colspan="3" class="p-10 text-center text-gray-400 font-bold">正在提取个人成绩档案...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" class="p-10 text-center text-slate-400 font-medium"><svg class="animate-spin h-6 w-6 mx-auto mb-3 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>提取个人档案中...</td></tr>';
             switchView('view-athlete-detail');
 
             const team = db.teams.find(t => t.id == ath.teamId);
@@ -625,12 +711,14 @@
             });
 
             Promise.all(fetchPromises).then(results => {
-                if (results.length === 0) { tbody.innerHTML = '<tr><td colspan="3" class="p-6 text-center text-gray-400">暂无参赛项目</td></tr>'; return; }
+                if (results.length === 0) { tbody.innerHTML = '<tr><td colspan="3" class="p-6 text-center text-slate-400 text-sm">暂无参赛项目</td></tr>'; return; }
                 tbody.innerHTML = results.map(r => `
-                    <tr class="border-b border-gray-200 hover:bg-gray-100">
-                        <td class="py-3 px-2 text-left text-blue-900 font-bold">${r.event}</td>
-                        <td class="py-3 px-2 font-mono font-bold ${r.score.includes('未出') ? 'text-gray-400 font-normal' : 'text-red-600'}">${r.score}</td>
-                        <td class="py-3 px-2 text-center font-bold text-orange-600 text-[15px]">${r.rank}</td>
+                    <tr>
+                        <td class="text-left pl-4 text-slate-800 font-extrabold">${r.event}</td>
+                        <td class="font-mono font-bold text-[14px] ${r.score.includes('未出') ? 'text-slate-300 font-normal text-[12px]' : 'text-red-600'}">${r.score}</td>
+                        <td>
+                            <span class="${r.rank !== '--' ? 'bg-orange-100 text-orange-600 px-2 py-0.5 rounded-lg font-black text-[14px]' : 'text-slate-300'}">${r.rank}</span>
+                        </td>
                     </tr>
                 `).join('');
             });
