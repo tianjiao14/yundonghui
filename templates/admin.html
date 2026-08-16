@@ -258,6 +258,11 @@
         </div>
     </div>
 </div>
+<div class="bg-white p-5 rounded-lg shadow-sm border border-orange-200 bg-orange-50 mt-4">
+    <h3 class="font-bold text-orange-800 mb-4 border-b border-orange-200 pb-2">📱 系统访问入口 (扫码使用)</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center" id="qrContainer"></div>
+</div>
+
       </div> </div><div id="step-1" class="step-panel h-full flex flex-col p-5 overflow-hidden hidden">
             <div class="flex justify-between items-center mb-3 shrink-0">
                 <div class="flex items-center gap-2">
@@ -609,29 +614,23 @@
 </div>
 <div id="step-9" class="step-panel h-full hidden p-6 overflow-y-auto">
     <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">📊 报名数据实时统计</h2>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-            <h3 class="font-bold text-blue-800 mb-4 border-b pb-2">👥 组别/性别人数统计</h3>
-            <table class="w-full text-sm">
-                <thead class="bg-gray-50 text-gray-500">
-                    <tr><th class="p-2 text-left">组别</th><th class="p-2 text-center">性别</th><th class="p-2 text-right">人数</th></tr>
-                </thead>
-                <tbody id="statsGroupBody"></tbody>
-            </table>
-        </div>
-        
-        <div class="bg-white p-5 rounded-lg shadow-sm border border-orange-200 bg-orange-50">
-            <h3 class="font-bold text-orange-800 mb-4 border-b border-orange-200 pb-2">📱 系统访问入口 (扫码使用)</h3>
-            <div class="grid grid-cols-3 gap-2 text-center" id="qrContainer">
-                </div>
-        </div>
+    
+    <!-- 👥 组别/性别人数统计（独占一行或自适应） -->
+    <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 mb-8">
+        <h3 class="font-bold text-blue-800 mb-4 border-b pb-2">👥 组别/性别人数统计</h3>
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500">
+                <tr><th class="p-2 text-left">组别</th><th class="p-2 text-center">性别</th><th class="p-2 text-right">人数</th></tr>
+            </thead>
+            <tbody id="statsGroupBody"></tbody>
+        </table>
     </div>
 
+    <!-- 🏃 项目报名人数分布 -->
     <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
         <h3 class="font-bold text-purple-800 mb-4 border-b pb-2">🏃 项目报名人数分布</h3>
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4" id="statsEventContainer"></div>
     </div>
-</div>
 </div>
 <div id="recordModal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[100] flex justify-center items-center backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-xl shadow-2xl w-11/12 md:w-[85vw] max-h-[90vh] flex flex-col border overflow-hidden">
@@ -790,6 +789,7 @@ window.formatScheduleTime = function(rawTimeStr) {
         fetchLatestData(); 
         document.getElementById('athGender').addEventListener('change', function() { updateEventCheckboxes(this.value); });
         switchStep(0); 
+        if (typeof renderQRCodes === 'function') renderQRCodes();
     };
 
    
@@ -972,7 +972,11 @@ window.formatScheduleTime = function(rawTimeStr) {
         }
 
         // 💥 完美修复：原生集成所有生命周期钩子，彻底杜绝作用域冲突
-        switch (stepId) {
+      switch (stepId) {
+            case 0:
+                // 进入报名参数设置时自动渲染二维码
+                if (typeof renderQRCodes === 'function') renderQRCodes();
+                break;
             case 1: 
                 if (typeof renderEvents === 'function') renderEvents(); 
                 typeof renderGroupCheckboxes === 'function' && renderGroupCheckboxes(); 
@@ -989,7 +993,6 @@ window.formatScheduleTime = function(rawTimeStr) {
                 genderVal && typeof updateEventCheckboxes === 'function' && updateEventCheckboxes(genderVal);
                 break;
             case 5:
-                // 💡 融合修复：在打开 Step 5 时，原生读取最新比赛天数
                 const start = document.getElementById('competition_start_date')?.value;
                 const end = document.getElementById('competition_end_date')?.value;
                 if (start && end) {
@@ -1009,9 +1012,12 @@ window.formatScheduleTime = function(rawTimeStr) {
                 break;
             case 7: typeof initRankPage === 'function' && initRankPage(); break;
             case 8: typeof loadTeamPasswords === 'function' && loadTeamPasswords('get'); break;
-            case 9: typeof renderQRCodes === 'function' && renderQRCodes(); typeof loadStatistics === 'function' && loadStatistics(); break;
-        }
-    }
+            case 9: 
+                // 只保留拉取统计数据
+                typeof loadStatistics === 'function' && loadStatistics(); 
+                break;
+        } 
+ }
 window.manualScheduleMap = JSON.parse(localStorage.getItem('manual_schedule_map')) || {};
 window.renderManualScheduleGrid = function() {
         const grid = document.getElementById('manualScheduleGrid');
@@ -2155,8 +2161,8 @@ function getEventSettings(event) {
         if (typeof renderAll === 'function') { 
             renderAll(); 
         }
-
-        // 🚀 核心修复：斩断条件锁！只要执行了数据同步，无条件强刷左侧树和下方运动员大名单
+        if (typeof renderQRCodes === 'function') {
+            renderQRCodes();         }
         if (typeof renderTeamTree === 'function') renderTeamTree();
         if (typeof renderAthleteList === 'function') renderAthleteList();
 
