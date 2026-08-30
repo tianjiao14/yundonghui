@@ -12,8 +12,24 @@ import csv
 from functools import wraps
 from waitress import serve
 
-app = Flask(__name__)
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+import sys
+
+# 1. 动态判断运行环境（兼容原生 Python、Docker 容器以及打包后的 .exe）
+if getattr(sys, 'frozen', False):
+    # 打包成 exe 运行时，以 exe 所在的物理目录为基准
+    BASE_DIR = os.path.dirname(sys.executable)
+    BUNDLE_DIR = sys._MEIPASS
+else:
+    # 源码开发/Docker 运行环境
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+    BUNDLE_DIR = BASE_DIR
+
+# 2. 告诉 Flask 正确的模板和静态资源位置（防止 exe 找不到 HTML）
+app = Flask(
+    __name__,
+    template_folder=os.path.join(BUNDLE_DIR, 'templates'),
+    static_folder=os.path.join(BUNDLE_DIR, 'static')
+)
 
 app.secret_key = 'sports_day_secret_key_2026' # 🔐 密钥
 
@@ -24,10 +40,13 @@ def to_bool_str(val):
     s = str(val).lower()
     return '1' if s in ['true', '1', 'yes', 'on'] else '0'
 
-DB_FILE = os.path.join(BASE_DIR, "data", "sports_data.db")
+# 3. 确保 data 文件夹真实存在，避免 SQLite 报错 unable to open database file
+DATA_DIR = os.path.join(BASE_DIR, "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+DB_FILE = os.path.join(DATA_DIR, "sports_data.db")
 ADMIN_PASSWORD = "admin888"
 REFEREE_PASSWORD = "ref888"
-
 import re
 
 @app.route('/api/recalculate_all_points', methods=['POST'])

@@ -114,6 +114,26 @@
 .tree-team:hover:not(.active) { 
     background-color: #f3f4f6; 
 }
+/* 移动端抽屉过渡动效 */
+#sidebar {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (max-width: 1024px) {
+    /* 移动端默认隐藏在屏幕左侧外面 */
+    #sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        z-index: 50;
+        transform: translateX(-100%);
+    }
+    /* 呼出抽屉状态 */
+    #sidebar.sidebar-open {
+        transform: translateX(0);
+    }
+}
 @media print {
     /* 1. 隐藏所有侧边栏和按钮 */
     .w-64, .no-print, nav, button, .bg-yellow-50 { display: none !important; }
@@ -148,65 +168,59 @@
     </style>
 </head>
 <body class="flex h-screen ui-font">
-<div class="w-64 bg-white shadow-xl z-20 flex flex-col h-full border-r border-gray-200 shrink-0 no-print">
-    <div class="p-6 border-b border-gray-100">
-        <h1 class="text-xl font-extrabold text-blue-800 flex items-center gap-2">🏆 田径运动会管理系统</h1>
-    </div>
+<!-- ✅ 修复后：单层独立抽屉侧边栏 -->
+<div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity lg:hidden" onclick="toggleMobileSidebar()"></div>
 
-    <div class="flex-1 overflow-y-auto py-4 pr-2 custom-scrollbar">
-                    <button onclick="switchStep(0)" id="nav-0" class="nav-item">0. 报名参数设置</button>
-            <button onclick="switchStep(1)" id="nav-1" class="nav-item">1. 比赛项目设置</button>
-            <button onclick="switchStep(2)" id="nav-2" class="nav-item">2. 参赛单位(组别)</button>
-            <button onclick="switchStep(3)" id="nav-3" class="nav-item">3. 参赛单位(代表队)</button>
-            <button onclick="switchStep(4)" id="nav-4" class="nav-item">4. 运动员报名</button>
-            <div class="my-2 border-t border-gray-100"></div>
-            <button onclick="switchStep(5)" id="nav-5" class="nav-item text-purple-700 bg-purple-50 font-bold">5. 智能编排 (初赛)</button>
-            <button onclick="switchStep(6)" id="nav-6" class="nav-item border-l-4 border-orange-500 bg-orange-50 text-orange-700 font-bold">6. 成绩与决赛</button>
-            <button onclick="switchStep(7)" id="nav-7" class="nav-item border-l-4 border-pink-500 bg-pink-50 text-pink-700 font-bold">7. 团体总分排名</button>
-<div class="my-2 border-t mx-4"></div>
-<button onclick="switchStep(8)" id="nav-8" class="nav-item w-full text-left px-6 py-3 text-purple-600 font-bold hover:bg-purple-50 border-l-4 border-transparent transition-all">8. 账号密码管理</button>
-<button onclick="switchStep(9)" id="nav-9" class="nav-item border-l-4 border-green-500 bg-green-50 text-green-700 font-bold">9. 报名数据统计</button>
-        </div>
-
-   <div class="p-4 border-t border-gray-100 bg-gray-50/80 space-y-4 pb-13 no-print">
-    
-    <div class="bg-red-50 p-3 rounded-lg border border-red-100 space-y-3">
-        <p class="text-red-800 font-bold text-xs flex items-center gap-1">
-            🛠️ 系统维护与数据备份
-        </p>
-        
-        <div class="flex gap-2">
-            <button onclick="handleReset('data_only')" class="flex-1 bg-red-500 text-white py-1.5 rounded text-[10px] hover:bg-red-600 transition-colors shadow-sm">
-                🗑️ 清空成绩
-            </button>
-            <button onclick="handleReset('all')" class="flex-1 bg-black text-white py-1.5 rounded text-[10px] hover:bg-gray-800 transition-colors shadow-sm">
-                🔥 完全初始化
-            </button>
-        </div>
-
-        <div class="grid grid-cols-2 gap-2">
-            <button onclick="exportSystem()" class="bg-white text-blue-700 border border-blue-200 py-1.5 rounded text-[10px] hover:bg-blue-50 font-bold flex items-center justify-center gap-1 shadow-sm">
-                📤 导出备份
-            </button>
-            <button onclick="triggerImport()" class="bg-white text-orange-700 border border-orange-200 py-1.5 rounded text-[10px] hover:bg-orange-50 font-bold flex items-center justify-center gap-1 shadow-sm">
-                📥 导入备份
-            </button>
-        </div>
-    </div>
-
-    <div class="pt-2">
-        <button onclick="saveData()" class="w-full bg-green-600 text-white py-3 rounded-lg shadow-md hover:bg-green-700 font-extrabold text-sm transition-all active:scale-95 flex items-center justify-center gap-2">
-            💾 保存所有配置
+<div id="sidebar" class="w-72 lg:w-64 bg-white shadow-2xl lg:shadow-xl z-50 lg:z-20 flex flex-col h-full border-r border-gray-200 shrink-0 no-print">
+    <div class="p-4 lg:p-6 border-b border-gray-100 flex items-center justify-between">
+        <h1 class="text-lg lg:text-xl font-extrabold text-blue-800 flex items-center gap-2">🏆 田径运动会管理系统</h1>
+        <button onclick="toggleMobileSidebar()" class="lg:hidden text-gray-500 hover:text-gray-800 p-1.5 rounded-lg hover:bg-gray-100">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
         </button>
     </div>
-</div>
-    
+
+    <div class="flex-1 overflow-y-auto py-3 pr-2 custom-scrollbar">
+        <button onclick="switchStep(0)" id="nav-0" class="nav-item">0. 报名参数设置</button>
+        <button onclick="switchStep(1)" id="nav-1" class="nav-item">1. 比赛项目设置</button>
+        <button onclick="switchStep(2)" id="nav-2" class="nav-item">2. 参赛单位(组别)</button>
+        <button onclick="switchStep(3)" id="nav-3" class="nav-item">3. 参赛单位(代表队)</button>
+        <button onclick="switchStep(4)" id="nav-4" class="nav-item">4. 运动员报名</button>
+        <div class="my-2 border-t border-gray-100"></div>
+        <button onclick="switchStep(5)" id="nav-5" class="nav-item text-purple-700 bg-purple-50 font-bold">5. 智能编排 (初赛)</button>
+        <button onclick="switchStep(6)" id="nav-6" class="nav-item border-l-4 border-orange-500 bg-orange-50 text-orange-700 font-bold">6. 成绩与决赛</button>
+        <button onclick="switchStep(7)" id="nav-7" class="nav-item border-l-4 border-pink-500 bg-pink-50 text-pink-700 font-bold">7. 团体总分排名</button>
+        <div class="my-2 border-t mx-4"></div>
+        <button onclick="switchStep(8)" id="nav-8" class="nav-item w-full text-left px-6 py-3 text-purple-600 font-bold hover:bg-purple-50 border-l-4 border-transparent transition-all">8. 账号密码管理</button>
+        <button onclick="switchStep(9)" id="nav-9" class="nav-item border-l-4 border-green-500 bg-green-50 text-green-700 font-bold">9. 报名数据统计</button>
+    </div>
+
+    <div class="p-4 border-t border-gray-100 bg-gray-50/80 space-y-3 pb-8 lg:pb-6 no-print">
+        <div class="bg-red-50 p-2.5 rounded-lg border border-red-100 space-y-2">
+            <p class="text-red-800 font-bold text-xs flex items-center gap-1">🛠️ 系统维护与数据备份</p>
+            <div class="flex gap-2">
+                <button onclick="handleReset('data_only')" class="flex-1 bg-red-500 text-white py-1.5 rounded text-[10px] hover:bg-red-600 transition shadow-sm">🗑️ 清空成绩</button>
+                <button onclick="handleReset('all')" class="flex-1 bg-black text-white py-1.5 rounded text-[10px] hover:bg-gray-800 transition shadow-sm">🔥 完全初始化</button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="exportSystem()" class="bg-white text-blue-700 border border-blue-200 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1">📤 导出备份</button>
+                <button onclick="triggerImport()" class="bg-white text-orange-700 border border-orange-200 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1">📥 导入备份</button>
+            </div>
+        </div>
+        <button onclick="saveData()" class="w-full bg-green-600 text-white py-2.5 rounded-lg shadow hover:bg-green-700 font-extrabold text-xs transition flex items-center justify-center gap-2">💾 保存所有配置</button>
+    </div>
     <input type="file" id="importFile" accept=".json" class="hidden" onchange="importSystem(this)">
-</div>
+</div>    
     <div class="flex-1 bg-gray-50 h-full overflow-hidden relative flex flex-col">
+<div class="lg:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0 no-print">
+        <button onclick="toggleMobileSidebar()" class="p-2 -ml-2 rounded-md hover:bg-gray-100 text-gray-700 focus:outline-none flex items-center gap-2">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            <span class="text-xs font-bold text-gray-500" id="mobileCurrentMenuTitle">0. 报名参数设置</span>
+        </button>
+        <div class="text-xs font-black text-blue-800">田径管理系统</div>
+    </div>
         <div id="step-0" class="step-panel h-full flex flex-col p-8 overflow-y-auto hidden">
             <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">🛠️ 报名参数设置</h2>
-            <div class="mb-4"><label class="font-bold text-gray-600">赛事名称：</label><input type="text" id="cfgTitle" class="border p-2 rounded w-96 font-bold text-lg text-blue-800" value="运动会在线报名"></div>
+            <div class="mb-4"><label class="font-bold text-gray-600">赛事名称：</label><input type="text" id="cfgTitle" class="border p-2 rounded w-full max-w-md font-bold text-lg text-blue-800" value="运动会在线报名"></div>
             <div class="bg-white p-4 border rounded shadow-sm">
                 <h3 class="font-bold text-lg text-gray-700 border-b pb-2 mb-4">🔢 人数与项目限制</h3>
                 <div class="grid grid-cols-2 gap-x-12">
@@ -404,7 +418,7 @@
                 <div><h2 class="text-2xl font-bold text-gray-800">4. 运动员报名</h2></div>
                 <div id="currentViewTitle" class="text-sm font-bold text-blue-800 bg-blue-50 px-3 py-1 rounded hidden"></div>
             </div>
-            <div class="flex flex-1 overflow-hidden">
+                <div class="flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden">
                 <div class="w-56 bg-white border-r border-gray-200 overflow-y-auto shrink-0 p-3" id="teamTree"></div>
                 <div class="flex-1 bg-white flex flex-col min-w-0">
                     <div class="p-2 border-b bg-gray-50 flex gap-2 shrink-0">
@@ -481,7 +495,7 @@
                 </div>
             </div>
 
-            <div class="flex-1 flex gap-4 overflow-hidden min-h-0 mb-4 no-print">
+            <div class="flex-1 flex flex-col lg:flex-row gap-4 overflow-hidden min-h-0 mb-4 no-print">
                 <div class="w-1/3 bg-white border border-gray-200 rounded-lg flex flex-col overflow-hidden shadow-sm">
                     <div class="p-3 bg-gray-50 border-b font-black text-xs text-gray-700 flex justify-between items-center shrink-0">
                         <span>📦 待排项目池 (拖拽至右侧)</span>
@@ -952,7 +966,43 @@ window.formatScheduleTime = function(rawTimeStr) {
         scheduleGroupOrder[index + dir] = temp;
         renderGroupOrderUI();
     } 
+// 切换移动端侧边栏显隐
+function toggleMobileSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (!sidebar || !overlay) return;
 
+    const isOpen = sidebar.classList.contains('sidebar-open');
+    if (isOpen) {
+        sidebar.classList.remove('sidebar-open');
+        overlay.classList.add('hidden');
+    } else {
+        sidebar.classList.add('sidebar-open');
+        overlay.classList.remove('hidden');
+    }
+}
+
+// 在 switchStep 开头或结尾添加自动关闭抽屉与同步顶栏标题
+const origSwitchStep = window.switchStep;
+window.switchStep = function(stepId) {
+    // 1. 关闭移动端侧边栏
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar && sidebar.classList.contains('sidebar-open')) {
+        sidebar.classList.remove('sidebar-open');
+        if (overlay) overlay.classList.add('hidden');
+    }
+
+    // 2. 更新移动端顶栏标题文本
+    const navBtn = document.getElementById('nav-' + stepId);
+    const mobileTitle = document.getElementById('mobileCurrentMenuTitle');
+    if (navBtn && mobileTitle) {
+        mobileTitle.innerText = navBtn.innerText.trim();
+    }
+
+    // 3. 继续执行原面板切换逻辑
+    origSwitchStep(stepId);
+};
   function switchStep(stepId) {
         currentStepId = stepId; 
         document.querySelectorAll('.nav-item').forEach(btn => {
