@@ -71,7 +71,7 @@
 
             <div id="checkinSection" class="hidden flex-1 flex flex-col bg-gray-100 p-2 md:p-4">
                 <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-lg text-emerald-800 text-xs text-center font-bold mb-3 shadow-sm">
-                    💡 提示：以沙盘时间轴展示。点击单元内的项目卡片可展开检录名单，勾选标记到场情况。
+                    💡 提示：点击单元内的项目卡片可展开检录名单，勾选标记到场情况。
                 </div>
                 <div id="checkinList" class="flex-1 space-y-4 pb-10"></div>
             </div>
@@ -301,57 +301,80 @@
                 units[unitKey][category][heatKey].athletes.push(item);
             });
 
-            const renderHeatCard = (group, elementId) => {
-                group.athletes.sort((a,b) => parseInt(a.lane||0) - parseInt(b.lane||0));
-                const realTime = formatRealDate(group.timeStr);
-                const typeColor = group.isField ? 'orange' : 'blue';
+const renderHeatCard = (group, elementId) => {
+    group.athletes.sort((a,b) => parseInt(a.lane||0) - parseInt(b.lane||0));
+    const realTime = formatRealDate(group.timeStr);
+    const typeColor = group.isField ? 'orange' : 'blue';
 
-                return `
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-3">
-                    <div class="bg-white border-b border-gray-100 p-3 flex justify-between items-center cursor-pointer hover:bg-${typeColor}-50 transition active:bg-${typeColor}-100 select-none" onclick="document.getElementById('${elementId}').classList.toggle('hidden')">
-                        <div>
-                            <div class="text-[11px] font-black text-${typeColor}-600 mb-1 flex items-center gap-1">
-                                <span>🕒</span> ${realTime}
-                            </div>
-                            <div class="font-black text-gray-800 text-sm">
-                                ${group.groupName} ${group.gender}组 · ${group.eventName}
-                            </div>
-                        </div>
-                        <div class="text-xs font-bold text-${typeColor}-700 bg-${typeColor}-100 px-2 py-1 rounded-lg shadow-inner">
-                            第 ${group.heat} 组 ▼
-                        </div>
-                    </div>
-                    
-                    <div id="${elementId}" class="hidden">
-                        <table class="w-full text-center text-sm border-collapse">
-                            <thead class="bg-gray-50 text-gray-500 text-[11px] border-b">
-                                <tr>
-                                    <th class="py-2.5 px-1 w-10 border-r">道次</th>
-                                    <th class="py-2.5 px-1 w-12 border-r">号码</th>
-                                    <th class="py-2.5 px-2 text-left">姓名与单位</th>
-                                    <th class="py-2.5 px-1 w-14 text-center">✅检录</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${group.athletes.map(p => `
-                                <tr class="border-b border-gray-50 hover:bg-gray-50 active:bg-blue-50 transition">
-                                    <td class="py-2.5 font-black text-gray-400 border-r">${p.lane || '-'}</td>
-                                    <td class="py-2.5 font-mono font-black text-${typeColor}-600 border-r text-[12px]">${p.bib || '---'}</td>
-                                    <td class="py-2.5 text-left px-2">
-                                        <div class="font-black text-gray-800 text-[13px]">${p.name}</div>
-                                        <div class="text-[10px] text-gray-500 mt-0.5 truncate max-w-[110px]">${p.teamName}</div>
-                                    </td>
-                                    <td class="py-2.5 text-center">
-                                        <input type="checkbox" class="w-6 h-6 text-emerald-600 rounded cursor-pointer border-gray-300 shadow-inner">
-                                    </td>
-                                </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>`;
-            };
+    return `
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-3">
+        <div class="bg-white border-b border-gray-100 p-3 flex justify-between items-center cursor-pointer hover:bg-${typeColor}-50 transition active:bg-${typeColor}-100 select-none" onclick="document.getElementById('${elementId}').classList.toggle('hidden')">
+            <div>
+                <div class="text-[11px] font-black text-${typeColor}-600 mb-1 flex items-center gap-1">
+                    <span>🕒</span> ${realTime}
+                </div>
+                <div class="font-black text-gray-800 text-sm">
+                    ${group.groupName} ${group.gender}组 · ${group.eventName}
+                </div>
+            </div>
+            <div class="text-xs font-bold text-${typeColor}-700 bg-${typeColor}-100 px-2 py-1 rounded-lg shadow-inner">
+                第 ${group.heat} 组 ▼
+            </div>
+        </div>
+        
+        <div id="${elementId}" class="hidden">
+            <table class="w-full text-center text-sm border-collapse">
+                <thead class="bg-gray-50 text-gray-500 text-[11px] border-b">
+                    <tr>
+                        <th class="py-2.5 px-1 w-10 border-r">道次</th>
+                        <th class="py-2.5 px-1 w-12 border-r">号码</th>
+                        <th class="py-2.5 px-2 text-left">姓名与单位</th>
+                        <th class="py-2.5 px-1 w-16 text-center text-emerald-700">到位</th>
+                        <th class="py-2.5 px-1 w-16 text-center text-red-600">弃权</th>
+                    </tr>
+                </thead>
+                <tbody>
+                   ${group.athletes.map(p => {
+    const state = parseInt(p.checkedIn || 0);
+    const isPresent = (state === 1);
+    const isAbsent = (state === 2);
+    const rowBg = isPresent ? 'bg-emerald-50/50' : (isAbsent ? 'bg-red-50/40' : '');
 
+    return `
+    <tr id="checkin_row_${p.id}" class="border-b border-gray-100 hover:bg-gray-50 transition ${rowBg}">
+        <td class="py-2.5 font-black text-gray-400 border-r">${p.lane || '-'}</td>
+        <td class="py-2.5 font-mono font-black text-${typeColor}-600 border-r text-[12px]">${p.bib || '---'}</td>
+        <td class="py-2.5 text-left px-2">
+            <div class="font-black text-gray-800 text-[13px] flex items-center gap-1">
+                <span class="ath-name ${isAbsent ? 'line-through text-gray-400' : ''}">${p.name}</span>
+                <span class="tag-absent text-[10px] bg-red-100 text-red-700 px-1 py-0.2 rounded font-bold ${isAbsent ? '' : 'hidden'}">弃权</span>
+            </div>
+            <div class="text-[10px] text-gray-500 mt-0.5 truncate max-w-[110px]">${p.teamName}</div>
+        </td>
+        <!-- 到位打钩 (✓) -->
+        <td class="py-2.5 text-center">
+            <button type="button" 
+                    onclick="setCheckinStatus(${p.id}, ${isPresent ? 0 : 1})"
+                    class="btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition ${isPresent ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-gray-300 border-gray-300 hover:border-emerald-500'}">
+                ✓
+            </button>
+        </td>
+        <!-- 弃权打叉 (✕) -->
+        <td class="py-2.5 text-center">
+            <button type="button" 
+                    onclick="setCheckinStatus(${p.id}, ${isAbsent ? 0 : 2})"
+                    class="btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition ${isAbsent ? 'bg-red-600 text-white border-red-600 shadow-sm' : 'bg-white text-gray-300 border-gray-300 hover:border-red-500'}">
+                ✕
+            </button>
+        </td>
+    </tr>
+    `;
+}).join('')}
+                </tbody>
+            </table>
+        </div>
+    </div>`;
+};
             let html = '';
             Object.keys(units).sort((a,b) => {
                 const ua = units[a], ub = units[b];
@@ -542,6 +565,104 @@
         const tip = document.getElementById('statusTip');
         tip.innerText = msg; tip.className = "text-xs font-bold py-2 " + colorClass;
     }
+// 检录裁判打钩/取消打钩时，实时把状态保存到数据库
+function onCheckinToggle(startId, checkbox) {
+    const isChecked = checkbox.checked ? 1 : 0;
+    
+    fetch('/api/toggle_checkin', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: startId, checked_in: isChecked })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') {
+            // 勾选成功给所在行增加轻微背景提示
+            const tr = checkbox.closest('tr');
+            if (isChecked) {
+                tr.classList.add('bg-blue-50/50');
+            } else {
+                tr.classList.remove('bg-blue-50/50');
+            }
+        } else {
+            alert("检录状态同步失败：" + res.msg);
+            checkbox.checked = !checkbox.checked; // 失败回滚
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert("网络错误，检录状态未保存！");
+        checkbox.checked = !checkbox.checked;
+    });
+}
+// 切换检录状态：0=未检录, 1=到位(✓), 2=弃权(✕)
+function setCheckinStatus(startId, targetStatus) {
+    const row = document.getElementById(`checkin_row_${startId}`);
+    if (!row) return;
+
+    const btnPresent = row.querySelector('.btn-present');
+    const btnAbsent = row.querySelector('.btn-absent');
+    const nameSpan = row.querySelector('.ath-name');
+    const tagAbsent = row.querySelector('.tag-absent');
+
+    // 发起异步请求保存到数据库
+    fetch('/api/toggle_checkin', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: startId, checked_in: targetStatus })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') {
+            const state = parseInt(res.checked_in !== undefined ? res.checked_in : targetStatus);
+            const isPresent = (state === 1);
+            const isAbsent = (state === 2);
+
+            // 1. 更新行背景
+            row.classList.remove('bg-emerald-50/50', 'bg-red-50/40');
+            if (isPresent) row.classList.add('bg-emerald-50/50');
+            if (isAbsent) row.classList.add('bg-red-50/40');
+
+            // 2. 更新名字与弃权标记
+            if (nameSpan) {
+                if (isAbsent) nameSpan.classList.add('line-through', 'text-gray-400');
+                else nameSpan.classList.remove('line-through', 'text-gray-400');
+            }
+            if (tagAbsent) {
+                if (isAbsent) tagAbsent.classList.remove('hidden');
+                else tagAbsent.classList.add('hidden');
+            }
+
+            // 3. 更新“到位(✓)”按钮外观与点击事件
+            if (btnPresent) {
+                if (isPresent) {
+                    btnPresent.className = 'btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-emerald-600 text-white border-emerald-600 shadow-sm';
+                    btnPresent.setAttribute('onclick', `setCheckinStatus(${startId}, 0)`);
+                } else {
+                    btnPresent.className = 'btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-white text-gray-300 border-gray-300 hover:border-emerald-500';
+                    btnPresent.setAttribute('onclick', `setCheckinStatus(${startId}, 1)`);
+                }
+            }
+
+            // 4. 更新“弃权(✕)”按钮外观与点击事件
+            if (btnAbsent) {
+                if (isAbsent) {
+                    btnAbsent.className = 'btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-red-600 text-white border-red-600 shadow-sm';
+                    btnAbsent.setAttribute('onclick', `setCheckinStatus(${startId}, 0)`);
+                } else {
+                    btnAbsent.className = 'btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-white text-gray-300 border-gray-300 hover:border-red-500';
+                    btnAbsent.setAttribute('onclick', `setCheckinStatus(${startId}, 2)`);
+                }
+            }
+        } else {
+            alert("检录状态同步失败：" + (res.msg || ""));
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert("网络连接异常，检录状态未保存！");
+    });
+}
 </script>
 </body>
 </html>
