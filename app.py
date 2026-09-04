@@ -660,59 +660,99 @@ def reset_system():
 def export_teams():
     conn = get_db_connection()
     c = conn.cursor()
+    # 🌟 使用 LEFT JOIN，保证所有组别及其下属班级全部导出
     query = """
-        SELECT g.name as g_name, t.name as t_name, t.leader 
-        FROM cfg_teams t
-        JOIN cfg_groups g ON t.group_id = g.id
+        SELECT 
+            g.name as g_name, 
+            IFNULL(g.prefix, '-') as g_prefix,
+            IFNULL(t.name, '') as t_name, 
+            IFNULL(t.leader, '') as t_leader 
+        FROM cfg_groups g
+        LEFT JOIN cfg_teams t ON CAST(t.group_id AS TEXT) = CAST(g.id AS TEXT)
+        ORDER BY g.id ASC, t.id ASC
     """
     rows = c.execute(query).fetchall()
     conn.close()
 
     output = StringIO()
-    output.write('\ufeff')
+    output.write('\ufeff')  # 写入 BOM 防止 Excel 打开乱码
     writer = csv.writer(output)
-    writer.writerow(['组别', '队名', '领队'])
+    writer.writerow(['组别名称', '组别编号前缀', '代表队名称', '领队/教练'])
     
     for r in rows:
-        writer.writerow([r['g_name'], r['t_name'], r['leader'] or ''])
+        writer.writerow([r['g_name'], r['g_prefix'], r['t_name'], r['t_leader']])
         
     mem = BytesIO()
     mem.write(output.getvalue().encode('utf-8-sig'))
     mem.seek(0)
-    return send_file(mem, mimetype='text/csv', as_attachment=True, download_name=f'代表队名单_{datetime.now().strftime("%Y%m%d")}.csv')
-
+    return send_file(
+        mem, 
+        mimetype='text/csv', 
+        as_attachment=True, 
+        download_name=f'参赛单位与组别名单_{datetime.now().strftime("%Y%m%d")}.csv'
+    )
 @app.route('/api/import_teams', methods=['POST'])
 def import_teams():
-    if 'file' not in request.files: return jsonify({"status": "error", "msg": "未上传文件"})
+    if 'file' not in request.files: 
+        return jsonify({"status": "error", "msg": "未上传文件"})
     file = request.files['file']
     
     try:
         stream = StringIO(file.stream.read().decode("utf-8-sig"), newline=None)
         csv_input = csv.reader(stream)
-        next(csv_input)
+        header = next(csv_input, None)
         
         conn = get_db_connection()
         c = conn.cursor()
+        c.execute("BEGIN IMMEDIATE")
+
         groups_map = {row['name']: row['id'] for row in c.execute("SELECT id, name FROM cfg_groups").fetchall()}
         
-        success_count = 0
+        success_teams = 0
+        success_groups = 0
+
         for row in csv_input:
-            if len(row) < 2: continue
-            g_name, t_name = row[0].strip(), row[1].strip()
-            leader = row[2].strip() if len(row) > 2 else ""
+            if not row or not row[0].strip():
+                continue
             
-            gid = groups_map.get(g_name)
-            if not gid: continue
-            c.execute("INSERT OR REPLACE INTO cfg_teams (group_id, name, leader) VALUES (?, ?, ?)", 
-                      (gid, t_name, leader))
-            success_count += 1
+            g_name = row[0].strip()
+            # 兼容4列格式（组别, 前缀, 队名, 领队）与旧版3列格式（组别, 队名, 领队）
+            if len(row) >= 4:
+                g_prefix = row[1].strip() or '-'
+                t_name = row[2].strip()
+                t_leader = row[3].strip()
+            elif len(row) == 3:
+                g_prefix = '-'
+                t_name = row[1].strip()
+                t_leader = row[2].strip()
+            else:
+                g_prefix = '-'
+                t_name = row[1].strip() if len(row) > 1 else ''
+                t_leader = ''
+
+            # 如果组别不存在则自动新建组别
+            if g_name not in groups_map:
+                new_gid = int(datetime.now().timestamp() * 1000) + random.randint(100, 999)
+                c.execute("INSERT INTO cfg_groups (id, name, prefix) VALUES (?, ?, ?)", 
+                          (new_gid, g_name, g_prefix))
+                groups_map[g_name] = new_gid
+                success_groups += 1
+
+            gid = groups_map[g_name]
+
+            # 若填写了代表队名称，则新建或更新代表队
+            if t_name:
+                c.execute("INSERT OR REPLACE INTO cfg_teams (group_id, name, leader) VALUES (?, ?, ?)", 
+                          (gid, t_name, t_leader))
+                success_teams += 1
             
         conn.commit()
-        conn.close()
-        return jsonify({"status": "success", "msg": f"✅ 成功导入 {success_count} 个代表队！"})
+        return jsonify({"status": "success", "msg": f"✅ 导入成功！共处理 {success_groups} 个新组别，{success_teams} 个代表队！"})
     except Exception as e:
+        if 'conn' in locals(): conn.rollback()
         return jsonify({"status": "error", "msg": str(e)})
-
+    finally:
+        if 'conn' in locals(): conn.close()
 @app.route('/api/events')
 @login_required('team')
 def get_events():
@@ -896,24 +936,27 @@ def save_config():
                 rule = e.get('scoreRule') or e.get('score_rule') or '9,7,6,5,4,3,2,1'
                 rec = e.get('record') or ''
                 bonus = e.get('recordBonus') or e.get('record_bonus') or 0
+                
+                # 兼容前端传入的 0 值，不能直接用 or
+                limit_val = e.get('limit') if e.get('limit') is not None else (e.get('limit_count') if e.get('limit_count') is not None else 8)
+                dur_val = e.get('duration') if e.get('duration') is not None else 5
+                ven_val = e.get('venueCount') if e.get('venueCount') is not None else (e.get('venue_count') if e.get('venue_count') is not None else 1)
+                
                 sql = '''INSERT OR REPLACE INTO cfg_events 
                     (id, name, type, gender, score_rule, record, record_bonus, 
-                     is_double_score, need_lane, has_prelim, is_relay, limit_count, allowed_groups) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
+                     is_double_score, need_lane, has_prelim, is_relay, limit_count, allowed_groups, duration, venue_count, is_fun) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
                 params = (
-                    str(e['id']), 
-                    e['name'], 
-                    e['type'], 
-                    e['gender'], 
-                    str(rule), 
-                    str(rec), 
-                    str(bonus), 
+                    str(e.get('id', '')), e.get('name', ''), e.get('type', ''), e.get('gender', '双性'), 
+                    str(rule), str(rec), str(bonus), 
                     to_bool_str(e.get('isDoubleScore') or e.get('is_double_score')), 
                     to_bool_str(e.get('needLane') or e.get('need_lane')), 
                     to_bool_str(e.get('hasPrelim') or e.get('has_prelim')), 
                     to_bool_str(e.get('isRelay') or e.get('is_relay')), 
-                    int(e.get('limit', 2)),
-                    str(e.get('allowedGroups', ''))
+                    int(limit_val),
+                    str(e.get('allowedGroups') or e.get('allowed_groups') or ''),
+                    float(dur_val), int(ven_val),
+                    to_bool_str(e.get('isFun') or e.get('is_fun'))
                 )
                 c.execute(sql, params)
                 
@@ -929,7 +972,6 @@ def save_config():
         return jsonify({"status": "error", "msg": "保存失败: " + str(e)})
     finally:
         conn.close()
-
 @app.route('/api/team_members/<int:team_id>')
 def get_team_members(team_id):
     conn = get_db_connection()
@@ -1669,12 +1711,14 @@ def init_db():
 def upgrade_records():
     conn = get_db_connection()
     c = conn.cursor()
-    try: c.execute("ALTER TABLE cfg_events ADD COLUMN record TEXT")
-    except: pass
-    try: c.execute("ALTER TABLE cfg_events ADD COLUMN record_bonus INTEGER DEFAULT 0")
-    except: pass
-    try: c.execute("ALTER TABLE cfg_events ADD COLUMN duration REAL DEFAULT 5")
-    except: pass
+    columns_to_add = [
+        ("record", "TEXT"), ("record_bonus", "INTEGER DEFAULT 0"),
+        ("duration", "REAL DEFAULT 5"), ("venue_count", "INTEGER DEFAULT 1"),
+        ("allowed_groups", "TEXT DEFAULT ''"), ("is_fun", "TEXT DEFAULT '0'")
+    ]
+    for col, dtype in columns_to_add:
+        try: c.execute(f"ALTER TABLE cfg_events ADD COLUMN {col} {dtype}")
+        except: pass
     conn.commit()
     conn.close()
 
@@ -1765,12 +1809,9 @@ def batch_save_events():
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        try: c.execute("ALTER TABLE cfg_events ADD COLUMN is_fun TEXT DEFAULT '0'")
-        except: pass
-        try: c.execute("ALTER TABLE cfg_events ADD COLUMN allowed_groups TEXT DEFAULT ''")
-        except: pass
-        try: c.execute("ALTER TABLE cfg_events ADD COLUMN duration REAL DEFAULT 5")
-        except: pass
+        for col, dtype in [("is_fun", "TEXT DEFAULT '0'"), ("allowed_groups", "TEXT DEFAULT ''"), ("duration", "REAL DEFAULT 5"), ("venue_count", "INTEGER DEFAULT 1")]:
+            try: c.execute(f"ALTER TABLE cfg_events ADD COLUMN {col} {dtype}")
+            except: pass
         
         c.execute("DELETE FROM cfg_events")
         
@@ -1780,35 +1821,31 @@ def batch_save_events():
             need_lane_str = '1' if e.get('needLane') else '0'
             is_fun_str = '1' if e.get('isFun', False) else '0'
             
+            limit_val = e.get('limit') if e.get('limit') is not None else 8
+            dur_val = e.get('duration') if e.get('duration') is not None else 5
+            ven_val = e.get('venueCount') if e.get('venueCount') is not None else 1
+            
             c.execute('''
                 INSERT INTO cfg_events 
-                (id, name, type, gender, score_rule, record, record_bonus, is_double_score, need_lane, has_prelim, is_relay, limit_count, is_fun, allowed_groups, duration)
-                VALUES (?, ?, ?, ?, ?, '', ?, '0', ?, ?, ?, ?, ?, ?, ?)
+                (id, name, type, gender, score_rule, record, record_bonus, is_double_score, need_lane, has_prelim, is_relay, limit_count, is_fun, allowed_groups, duration, venue_count)
+                VALUES (?, ?, ?, ?, ?, '', ?, '0', ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
-                str(i + 1), 
-                e['name'], 
-                e['type'], 
-                e.get('gender', '双性'),
-                e.get('scoreRule', '9,7,6,5,4,3,2,1'), 
-                e.get('recordBonus', 0), 
-                need_lane_str, 
-                has_prelim_str, 
-                is_relay_str, 
-                e.get('limit', 8), 
-                is_fun_str,
+                str(i + 1), e.get('name', ''), e.get('type', ''), e.get('gender', '双性'),
+                e.get('scoreRule', '9,7,6,5,4,3,2,1'), e.get('recordBonus', 0), 
+                need_lane_str, has_prelim_str, is_relay_str, 
+                int(limit_val), is_fun_str,
                 str(e.get('allowedGroups', '')),
-                float(e.get('duration', 5))
+                float(dur_val), int(ven_val)
             ))
             
         conn.commit()
-        return jsonify({"success": True, "message": "✅ 项目选用矩阵及性别规则已全量同步到后台数据库！"})
+        return jsonify({"success": True, "message": "✅ 项目选用矩阵配置已全量同步到后台数据库！"})
     except Exception as ex:
         conn.rollback()
         import traceback; traceback.print_exc()
         return jsonify({"success": False, "message": str(ex)})
     finally:
         conn.close()
-
 # 统一在主逻辑初始化数据库
 init_db()
 force_sync_and_upgrade_db()

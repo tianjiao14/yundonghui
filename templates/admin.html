@@ -251,8 +251,8 @@
 
     <div class="flex-1 overflow-y-auto py-3 pr-2 custom-scrollbar">
     <button onclick="switchStep(0)" id="nav-0" class="nav-item">0. 报名参数设置</button>
-    <button onclick="switchStep(1)" id="nav-1" class="nav-item">1. 比赛项目设置</button>
-    <button onclick="switchStep(2)" id="nav-2" class="nav-item text-indigo-700 bg-indigo-50 font-bold border-l-4 border-indigo-500">2. 参赛单位设置</button>
+    <button onclick="switchStep(1)" id="nav-1" class="nav-item text-indigo-700 bg-indigo-50 font-bold border-l-4 border-indigo-500">1. 参赛单位设置</button>
+    <button onclick="switchStep(2)" id="nav-2" class="nav-item">2. 比赛项目设置</button>
     <button onclick="switchStep(3)" id="nav-3" class="nav-item">3. 运动员报名管理</button>
     <div class="my-2 border-t border-gray-100"></div>
     <button onclick="switchStep(4)" id="nav-4" class="nav-item text-purple-700 bg-purple-50 font-bold">4. 智能编排 </button>
@@ -338,7 +338,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center" id="qrContainer"></div>
 </div>
 
-      </div> </div><div id="step-1" class="step-panel h-full flex flex-col p-5 overflow-hidden hidden">
+      </div> </div><div id="step-2" class="step-panel h-full flex flex-col p-5 overflow-hidden hidden">
             <div class="flex justify-between items-center mb-3 shrink-0">
                 <div class="flex items-center gap-2">
                     <h2 class="text-xl font-black text-gray-800">1. 竞赛项目与规则设置</h2>
@@ -442,7 +442,7 @@
             </div>
         </div>
 
-        <div id="step-2" class="step-panel h-full flex flex-col p-3 md:p-6 overflow-y-auto lg:overflow-hidden hidden">
+        <div id="step-1" class="step-panel h-full flex flex-col p-3 md:p-6 overflow-y-auto lg:overflow-hidden hidden">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 shrink-0 bg-white p-3 rounded-xl border border-gray-200 shadow-xs">
         <div>
             <h2 class="text-lg md:text-xl font-black text-gray-800 flex items-center gap-1.5">
@@ -1222,11 +1222,11 @@
                 if (typeof renderQRCodes === 'function') renderQRCodes();
                 break;
             case 1: 
-                if (typeof renderEvents === 'function') renderEvents(); 
-                if (typeof renderGroupCheckboxes === 'function') renderGroupCheckboxes(); 
+                if (typeof renderAll === 'function') renderAll(); 
                 break;        
             case 2: 
-                if (typeof renderAll === 'function') renderAll(); 
+                if (typeof renderEvents === 'function') renderEvents(); 
+                if (typeof renderGroupCheckboxes === 'function') renderGroupCheckboxes(); 
                 break;
             case 3:
     renderMobileTeamSelector();
@@ -1273,7 +1273,7 @@
     }
 
     window.manualScheduleMap = JSON.parse(localStorage.getItem('manual_schedule_map')) || {};
-    window.renderManualScheduleGrid = function() {
+window.renderManualScheduleGrid = function() {
         const grid = document.getElementById('manualScheduleGrid');
         if (!grid) return;
         
@@ -1303,61 +1303,113 @@
                 const baseStart = unitType === 'AM' ? amStartMins : pmStartMins;
                 
                 let unitJobs = window.manualScheduleMap[unitKey] || [];
-                let trackPointer = 0; 
-                let fieldPointer = 0;
+               let trackPointer = 0; 
+               let fieldHighPointer = 0; 
+               let fieldLongPointer = 0; 
+               let fieldThrowPointer = 0;
+
+                // 记录同单元内各项目多场地的基准起始时间，确保场地1、场地2同时开始
+                let venueStartMap = {};
 
                 let cardsHtml = unitJobs.map(job => {
-                    let isField = job.isField;
-                    if(isField === undefined) isField = job.ename.includes('跳') || job.ename.includes('投') || job.ename.includes('球') || job.ename.includes('区') || job.ename.includes('掷');
-                    
-                    let startTime = formatMins(baseStart, isField ? fieldPointer : trackPointer);
+                    const isFun = (job.isFun === true || String(job.isFun) === 'true' || job.ename.includes('趣味') || job.etype === '趣味项目');
+                    let isField = !isFun && (job.isField === true || String(job.isField) === 'true');
                     
                     const group = db.groups.find(g => String(g.id) === String(job.jobKey.split('_')[0]));
-                    const cleanEvt = job.ename.replace(" (预赛)", "").replace(" (决赛)", "").trim();
+                    // 剥离后缀获取项目纯净名
+                    const cleanEvt = job.ename.replace(" (预赛)", "").replace(" (决赛)", "").replace(/ \(场地\d+\)/, "").trim();
+                    
                     let totalCount = 0; 
                     let heats = 1;
                     if(group && db.athletes) {
                         let rawEntries = db.athletes.filter(a => { 
-                            const t = db.teams.find(x => x.id == a.teamId); 
-                            return t && String(t.groupId) === String(group.id) && a.gender === job.gender && a.events.includes(cleanEvt); 
+                            const t = db.teams.find(x => String(x.id) === String(a.teamId)); 
+                            return t && String(t.groupId || t.group_id) === String(group.id) && a.gender === job.gender && a.events.includes(cleanEvt); 
                         });
-                        totalCount = cleanEvt.includes('接力') ? new Set(rawEntries.map(a => a.teamId)).size : rawEntries.length;
+                        let totalAthletes = cleanEvt.includes('接力') ? new Set(rawEntries.map(a => a.teamId)).size : rawEntries.length;
+                        
+                        // 多场地按场地均分人数
+                        let vMatch = job.ename.match(/ \(场地(\d+)\)/);
+                        let totalV = job.totalVenues || 2;
+                        if (isField && vMatch) {
+                            let perV = Math.ceil(totalAthletes / totalV);
+                            let vIdx = parseInt(vMatch[1]);
+                            if (vIdx === totalV) {
+                                totalCount = totalAthletes - (perV * (totalV - 1));
+                            } else {
+                                totalCount = perV;
+                            }
+                            if (totalCount < 0) totalCount = 0;
+                        } else {
+                            totalCount = totalAthletes;
+                        }
+
                         const evtCfg = db.events.find(e => e.name === cleanEvt || e.name === job.ename);
                         let limit = evtCfg ? (parseInt(evtCfg.limit) || parseInt(evtCfg.limit_count) || (isField ? 99 : 8)) : 8;
                         heats = Math.ceil(totalCount / limit) || 1;
                     }
-                    
-                    if (job.ename.includes('决赛') && !job.ename.includes('预赛') && !isField) {
-                        let topN = parseInt(document.getElementById('finalsTopN')?.value) || 8;
-                        totalCount = totalCount > topN ? topN : totalCount;
-                        heats = 1;
+
+                    const jobMins = parseInt(job.minutes) || 0;
+                    let startTime = '';
+
+                    // 🌟 判断田赛类型：跳高(high)、跳远/三级跳(long)、投掷铅球等(throw)
+                    let currentFType = 'throw';
+                    if (cleanEvt.includes('高') || cleanEvt.includes('撑竿')) currentFType = 'high';
+                    else if (cleanEvt.includes('远') || cleanEvt.includes('三级跳')) currentFType = 'long';
+
+                    // 🌟 计算时间：趣味不计入；跳高、跳远、投掷独立计时，同类多场地并行开赛
+                    if (isFun) {
+                        startTime = jobMins === 0 ? '全赛段' : formatMins(baseStart, 0);
+                    } else if (isField) {
+                        let activePointer = currentFType === 'high' ? fieldHighPointer : (currentFType === 'long' ? fieldLongPointer : fieldThrowPointer);
+                        
+                        let vMatch = job.ename.match(/ \(场地(\d+)\)/);
+                        let baseKey = `${job.jobKey.split('_')[0]}_${cleanEvt}_${job.gender}`;
+                        
+                        if (vMatch) {
+                            if (!venueStartMap[baseKey]) {
+                                venueStartMap[baseKey] = activePointer;
+                                startTime = formatMins(baseStart, activePointer);
+                                if (currentFType === 'high') fieldHighPointer += jobMins;
+                                else if (currentFType === 'long') fieldLongPointer += jobMins;
+                                else fieldThrowPointer += jobMins;
+                            } else {
+                                startTime = formatMins(baseStart, venueStartMap[baseKey]); // 场地2同步场地1时间
+                            }
+                        } else {
+                            startTime = formatMins(baseStart, activePointer);
+                            if (currentFType === 'high') fieldHighPointer += jobMins;
+                            else if (currentFType === 'long') fieldLongPointer += jobMins;
+                            else fieldThrowPointer += jobMins;
+                        }
+                    } else {
+                        startTime = formatMins(baseStart, trackPointer);
+                        trackPointer += jobMins;
                     }
 
-                    if (isField) fieldPointer += parseInt(job.minutes) || 5;
-                    else trackPointer += parseInt(job.minutes) || 5;
-
-                    const badgeColor = isField ? 'bg-orange-500' : (job.ename.includes('趣味') ? 'bg-amber-500' : 'bg-emerald-600');
+                    const badgeColor = isFun ? 'bg-amber-500' : (isField ? 'bg-orange-500' : 'bg-emerald-600');
+                    const timeTip = isFun ? (jobMins > 0 ? `${jobMins}分` : '不限时') : `${jobMins}分`;
 
                     return `
                         <div class="draggable-job flex items-center justify-between text-white text-xs px-2.5 py-2 rounded-lg shadow-xs font-bold relative group cursor-grab active:cursor-grabbing hover:opacity-90 ${badgeColor}"
-                             draggable="true" data-jobkey="${job.jobKey}" data-gname="${job.gname}" data-ename="${job.ename}" data-gender="${job.gender}" data-minutes="${job.minutes}" data-isfield="${isField}">
+                             draggable="true" data-jobkey="${job.jobKey}" data-gname="${job.gname}" data-ename="${job.ename}" data-gender="${job.gender}" data-minutes="${jobMins}" data-isfield="${isField}" data-isfun="${isFun}" data-totalvenues="${job.totalVenues||1}">
                             <div class="truncate pr-2 flex items-center gap-1.5 pointer-events-none">
                                 <span class="bg-black/20 px-1.5 py-0.5 rounded text-[10px] font-mono shadow-inner tracking-wider">${startTime}</span>
                                 <span class="truncate text-xs">${job.gname}${job.gender}·${job.ename}</span>
                                 <span class="text-[10px] text-white/90 font-normal whitespace-nowrap">(${totalCount}人/${heats}组)</span>
                             </div>
                             <div class="flex items-center gap-1.5 shrink-0">
-                                <span class="text-[10px] text-white/80 font-normal">(${job.minutes}分)</span>
+                                <span class="text-[10px] text-white/80 font-normal">(${timeTip})</span>
                                 <button onclick="removeJobFromUnit('${unitKey}', '${job.jobKey}')" class="text-white hover:text-red-300 font-black text-base shrink-0 bg-black/20 hover:bg-black/40 rounded w-5 h-5 flex items-center justify-center transition">×</button>
                             </div>
                         </div>`;
                 }).join('');
-
+let maxFieldTime = Math.max(fieldHighPointer, fieldLongPointer, fieldThrowPointer);
                 html += `
                     <div class="border border-dashed ${unitType === 'AM' ? 'border-blue-300 bg-blue-50/20' : 'border-orange-300 bg-orange-50/20'} rounded-xl p-2.5 flex flex-col min-h-[120px] drop-zone" data-unit="${unitKey}">
                         <div class="flex justify-between text-xs font-bold ${unitType === 'AM' ? 'text-blue-800' : 'text-orange-800'} mb-2 border-b pb-1.5">
                             <span>${title}</span>
-                            <span class="text-gray-500 font-mono text-[10px]">径赛 ${trackPointer}分 | 田赛 ${fieldPointer}分</span>
+                            <span class="text-gray-500 font-mono text-[10px]">径赛 ${trackPointer}分 | 田赛(最高) ${maxFieldTime}分 (跳高${fieldHighPointer}分/跳远${fieldLongPointer}分/投掷${fieldThrowPointer}分)</span>
                         </div>
                         <div class="flex-1 space-y-1.5 job-container min-h-[60px]">${cardsHtml}</div>
                     </div>`;
@@ -1392,8 +1444,8 @@
                 db.events.forEach(e => {
                     const cleanEventName = e.name.replace(" (预赛)", "").replace(" (决赛)", "").trim();
                     let rawEntries = db.athletes.filter(a => { 
-                        const t = db.teams.find(x => x.id == a.teamId); 
-                        return t && String(t.groupId) === String(g.id) && a.gender === gender && a.events.includes(cleanEventName); 
+                        const t = db.teams.find(x => String(x.id) === String(a.teamId)); 
+                        return t && String(t.groupId || t.group_id) === String(g.id) && a.gender === gender && a.events.includes(cleanEventName); 
                     });
                     
                     if (rawEntries.length === 0) return;
@@ -1401,42 +1453,91 @@
                     const isRelay = (String(e.isRelay) === 'true' || String(e.is_relay) === '1' || e.name.includes('接力'));
                     let totalEntriesCount = isRelay ? new Set(rawEntries.map(a => a.teamId)).size : rawEntries.length;
 
+                    // 🌟 1. 趣味项目绝不归入田赛
+                    const isFun = (e.type === '趣味项目' || e.type === '趣味' || String(e.isFun) === 'true' || String(e.is_fun) === '1');
+                    let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name.includes('投') || e.name.includes('铅球') || e.name.includes('实心球') || e.name.includes('标枪') || e.name.includes('铁饼'));
+                    let hasPrelim = (String(e.hasPrelim) === 'true' || String(e.has_prelim) === '1');
+
                     const settings = getEventSettings(e);
                     let maxPerHeat = settings.limit || 8;
                     let totalHeats = Math.ceil(totalEntriesCount / maxPerHeat) || 1;
 
-                    let isField = e.type === '田赛' || e.name.includes('跳') || e.name.includes('投') || e.name.includes('球') || e.name.includes('掷');
-                    let hasPrelim = (String(e.hasPrelim) === 'true' || String(e.has_prelim) === '1');
-
                     let jobsToCreate = [];
-                    if (hasPrelim && !isField) {
+                    if (isFun) {
+                        // 🌟 趣味项目：耗时留空表示不限时（0分），全员直决
+                        let rawDur = parseFloat(e.duration);
+                        let dur = (!isNaN(rawDur) && rawDur > 0) ? rawDur : 0;
+                        let timeDesc = dur === 0 ? "不限时" : `${totalHeats * dur}分钟`;
+
+                        jobsToCreate.push({
+                            jobKey: `${g.id}_${cleanEventName}_${gender}`,
+                            name: cleanEventName,
+                            time: totalHeats * dur,
+                            timeTip: timeDesc,
+                            formulaDesc: dur === 0 ? `趣味项目(全员直决·不占田径赛时)` : `趣味项目(${totalHeats}组×${dur}分)`,
+                            isField: false,
+                            isFun: true
+                        });
+                    } else if (hasPrelim && !isField) {
+                        let dur = parseFloat(e.duration) || 5;
                         jobsToCreate.push({
                             jobKey: `${g.id}_${cleanEventName}(预赛)_${gender}`,
                             name: cleanEventName + ' (预赛)',
-                            time: Math.ceil(totalHeats * (parseFloat(e.duration) || 5)),
-                            formulaDesc: `${totalHeats}组×${parseFloat(e.duration) || 5}分`
+                            time: Math.ceil(totalHeats * dur),
+                            timeTip: `${Math.ceil(totalHeats * dur)}分钟`,
+                            formulaDesc: `${totalHeats}组×${dur}分`,
+                            isField: false,
+                            isFun: false
                         });
                         jobsToCreate.push({
                             jobKey: `${g.id}_${cleanEventName}(决赛)_${gender}`,
                             name: cleanEventName + ' (决赛)',
-                            time: Math.ceil(1 * (parseFloat(e.duration) || 5)),
-                            formulaDesc: `1组(决赛)×${parseFloat(e.duration) || 5}分`
+                            time: Math.ceil(1 * dur),
+                            timeTip: `${Math.ceil(1 * dur)}分钟`,
+                            formulaDesc: `1组(决赛)×${dur}分`,
+                            isField: false,
+                            isFun: false
                         });
                     } else {
                         let vc = parseInt(e.venueCount) || 1;
-                        let totalTimeBudget = isField ? Math.ceil((totalEntriesCount / vc) * 3 * 1.2 + 10) : Math.ceil(totalHeats * (parseFloat(e.duration) || 5));
-                        jobsToCreate.push({
-                            jobKey: `${g.id}_${cleanEventName}_${gender}`,
-                            name: cleanEventName,
-                            time: totalTimeBudget,
-                            formulaDesc: isField ? `${totalEntriesCount}人÷${vc}场地×3次×1.2+10` : `${totalHeats}组×${parseFloat(e.duration) || 5}分`
-                        });
+                        let dur = parseFloat(e.duration) || 5;
+
+                        if (isField && vc > 1) {
+                            let perV = Math.ceil(totalEntriesCount / vc);
+                            let singleMins = Math.ceil(perV * 3 * 1.2 + 10);
+                            for (let v = 1; v <= vc; v++) {
+                                let vCount = (v === vc) ? (totalEntriesCount - perV * (vc - 1)) : perV;
+                                if (vCount < 0) vCount = 0;
+                                jobsToCreate.push({
+                                    jobKey: `${g.id}_${cleanEventName}_${gender}_venue${v}`,
+                                    name: `${cleanEventName} (场地${v})`,
+                                    time: singleMins,
+                                    timeTip: `${singleMins}分`,
+                                    formulaDesc: `${vCount}人÷场地${v}×3次×1.2+10`,
+                                    isField: true,
+                                    isFun: false,
+                                    totalVenues: vc
+                                });
+                            }
+                        } else {
+                            let totalTimeBudget = isField ? Math.ceil((totalEntriesCount / vc) * 3 * 1.2 + 10) : Math.ceil(totalHeats * dur);
+                            jobsToCreate.push({
+                                jobKey: `${g.id}_${cleanEventName}_${gender}`,
+                                name: cleanEventName,
+                                time: totalTimeBudget,
+                                timeTip: `${totalTimeBudget}分`,
+                                formulaDesc: isField ? `${totalEntriesCount}人÷${vc}场地×3次×1.2+10` : `${totalHeats}组×${dur}分`,
+                                isField: isField,
+                                isFun: false,
+                                totalVenues: 1
+                            });
+                        }
                     }
 
                     jobsToCreate.forEach(jobData => {
                         if (scheduledKeys.includes(jobData.jobKey)) return;
                         unscheduledCount++;
-                        const cardStyle = isField ? 'border-orange-200 bg-orange-50/60' : (e.type === '趣味项目' ? 'border-amber-200 bg-amber-50/60' : 'border-emerald-200 bg-emerald-50/60');
+                        const cardStyle = jobData.isFun ? 'border-amber-200 bg-amber-50/70' : (jobData.isField ? 'border-orange-200 bg-orange-50/60' : 'border-emerald-200 bg-emerald-50/60');
                         
                         html += `
                             <div class="border ${cardStyle} p-2.5 rounded-lg shadow-sm flex flex-col justify-between cursor-grab active:cursor-grabbing transition transform hover:scale-[1.01] hover:bg-white select-none draggable-job" 
@@ -1448,8 +1549,9 @@
                                  data-count="${totalEntriesCount}"
                                  data-heats="${totalHeats}"
                                  data-minutes="${jobData.time}"
-                                 data-isfield="${isField}"
-                                 data-etype="${e.type}">
+                                 data-isfield="${jobData.isField}"
+                                 data-isfun="${jobData.isFun}"
+                                 data-etype="${jobData.isFun ? '趣味项目' : (jobData.isField ? '田赛' : '径赛')}">
                                 <div class="flex justify-between items-center">
                                     <span class="font-black text-gray-800">${g.name}${gender}组</span>
                                     <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-white/80 border border-gray-200 text-gray-700 shadow-2xs">${jobData.name}</span>
@@ -1457,11 +1559,10 @@
                                 <div class="flex items-center justify-between mt-2 pt-1 border-t border-gray-200/50">
                                     <div class="text-[10px] text-gray-400">
                                         规模: <span class="text-gray-700 font-bold">${totalEntriesCount}${isRelay ? '队' : '人'}</span> (${totalHeats}组)<br>
-                                        公式: <span class="font-mono text-gray-500">${jobData.formulaDesc}</span>
+                                        说明: <span class="font-mono text-gray-500">${jobData.formulaDesc}</span>
                                     </div>
                                     <div class="text-right">
-                                        <span class="text-indigo-700 font-black font-mono text-base">${jobData.time}</span>
-                                        <span class="text-indigo-900 font-bold text-[10px]">分钟</span>
+                                        <span class="text-indigo-700 font-black font-mono text-sm">${jobData.timeTip}</span>
                                     </div>
                                 </div>
                             </div>
@@ -1718,7 +1819,7 @@ function deleteTeamItem(teamId) {
 const rawSwitchStep = window.switchStep;
 window.switchStep = function(stepId) {
     rawSwitchStep(stepId);
-    if (stepId === 2) {
+    if (stepId === 1) {
         renderAll();
     }
 };
@@ -1988,20 +2089,26 @@ function selectView(m, id, n) {
     }
 
     function getEventSettings(event) {
-        const name = event.name;
-        const isField = event.type === '田赛' || name.includes('跳') || name.includes('投') || name.includes('球') || name.includes('区') || name.includes('掷');
+        const name = event.name || '';
+        const isFun = (event.type === '趣味项目' || event.type === '趣味' || String(event.isFun) === 'true' || String(event.is_fun) === '1');
+
+        if (isFun) {
+            const rawLimit = parseInt(event.limit) || parseInt(event.limit_count);
+            const finalLimit = rawLimit > 0 ? rawLimit : 9999;
+            return { type: 'fun', limit: finalLimit, isFun: true };
+        }
+
+        const isField = event.type === '田赛' || name.includes('跳') || name.includes('投') || name.includes('铅球') || name.includes('实心球') || name.includes('标枪') || name.includes('铁饼');
         const isHeight = name.includes('跳高') || name.includes('撑竿跳');
         const isLong = name.includes('800') || name.includes('1000') || name.includes('1500') || name.includes('3000') || name.includes('5000') || name.includes('长跑');
-        const isFun = event.type === '趣味项目';
         
         const limitFromMatrix = parseInt(event.limit) || parseInt(event.limit_count);
         const fallbackLimit = isField ? 99 : (isLong ? 20 : 8);
         const finalLimit = limitFromMatrix || fallbackLimit;
 
-        if (isFun) return { type: 'fun', limit: finalLimit };
-        if (isField) return { type: isHeight ? 'height' : 'distance', limit: finalLimit };
-        if (isLong) return { type: 'long', limit: finalLimit };
-        return { type: 'sprint', limit: finalLimit };
+        if (isField) return { type: isHeight ? 'height' : 'distance', limit: finalLimit, isFun: false };
+        if (isLong) return { type: 'long', limit: finalLimit, isFun: false };
+        return { type: 'sprint', limit: finalLimit, isFun: false };
     }
 
     document.getElementById('cfgLanes')?.addEventListener('input', function(e) {
@@ -2571,7 +2678,7 @@ function selectView(m, id, n) {
                     ...e,
                     limit: e.limit_count ? parseInt(e.limit_count) : 8,
                     venueCount: e.venue_count ? parseInt(e.venue_count) : 1,
-                    duration: e.duration ? parseFloat(e.duration) : (e.name.includes('100') ? 3 : (e.name.includes('200') ? 5 : (e.type === '田赛' ? 20 : 5))),
+                    duration: (e.duration !== null && e.duration !== undefined && e.duration !== '') ? parseFloat(e.duration) : (e.name.includes('100') ? 3 : (e.name.includes('200') ? 5 : (e.type === '田赛' ? 20 : 5))),
                     scoreRule: e.scoreRule || e.score_rule || '9,7,6,5,4,3,2,1', 
                     record: e.record || '',
                     recordBonus: e.recordBonus || e.record_bonus || 0,
@@ -3232,8 +3339,19 @@ function selectView(m, id, n) {
         window.PRESET_MATRIX_POOL.forEach((preset, index) => {
             const activeEvt = db.events.find(e => e.name === preset.name || e.name.includes(preset.name));
             const isChecked = (activeEvt || preset.forceCheck) ? 'checked' : ''; 
-            const currentDuration = activeEvt && activeEvt.duration ? activeEvt.duration : preset.duration; 
-            const currentLimit = activeEvt && activeEvt.limit ? activeEvt.limit : preset.limit;
+            let currentDuration = '';
+if (activeEvt && activeEvt.duration !== null && activeEvt.duration !== undefined) {
+    currentDuration = parseFloat(activeEvt.duration) === 0 ? '' : activeEvt.duration;
+} else if (preset.duration !== undefined && !preset.isFun) {
+    currentDuration = preset.duration;
+}
+
+let currentLimit = '';
+if (activeEvt && activeEvt.limit !== null && activeEvt.limit !== undefined) {
+    currentLimit = parseInt(activeEvt.limit) === 0 || parseInt(activeEvt.limit) >= 999 ? '' : activeEvt.limit;
+} else if (preset.limit !== undefined && !preset.isFun) {
+    currentLimit = preset.limit;
+}
             let hasPrelimVal = preset.hasPrelim; 
             if (activeEvt) { hasPrelimVal = String(activeEvt.hasPrelim) === 'true' || String(activeEvt.has_prelim) === '1'; }
             const isRelayChecked = (activeEvt ? (String(activeEvt.isRelay) === 'true' || String(activeEvt.is_relay) === '1') : preset.isRelay) ? 'checked' : ''; 
@@ -3268,8 +3386,8 @@ function selectView(m, id, n) {
                 <td class="text-center font-bold text-gray-400">${index + 1}</td> 
                 <td class="font-black text-gray-800 text-sm">${preset.name}</td> 
                 <td> <span class="px-2 py-0.5 rounded text-[10px] font-bold ${preset.type.includes('趣味') ? 'bg-amber-100 text-amber-800 border border-amber-300' : (preset.type === '径赛' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-orange-50 text-orange-700 border border-orange-200')}"> ${preset.type} </span> </td> 
-                <td class="text-center"> <input type="number" id="dur_${index}" value="${currentDuration}" class="w-14 border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 focus:bg-white outline-none"> </td> 
-                <td class="text-center"> <input type="number" id="lim_${index}" value="${currentLimit}" class="w-14 border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 focus:bg-white outline-none"> </td> 
+                <td class="text-center"> <input type="number" id="dur_${index}" value="${currentDuration}" placeholder="不限" class="w-14 border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 focus:bg-white outline-none"> </td> 
+<td class="text-center"> <input type="number" id="lim_${index}" value="${currentLimit}" placeholder="不限" class="w-14 border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 focus:bg-white outline-none"> </td>
                 <td class="text-center"> <select id="pre_${index}" class="border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 outline-none text-[11px]"> <option value="true" ${hasPrelimVal ? 'selected' : ''}>预赛+决赛</option> <option value="false" ${!hasPrelimVal ? 'selected' : ''}>直决(无预赛)</option> </select> </td> 
                 <td class="text-center bg-indigo-50/30">${groupCheckboxesHtml}</td>
                 <td class="text-center text-blue-700 bg-blue-50/20"> <input type="checkbox" id="chk_${index}" ${isChecked} class="w-4 h-4 rounded text-blue-600 border-gray-300 cursor-pointer"> </td> 
@@ -3306,17 +3424,37 @@ function selectView(m, id, n) {
                     allowedGroupsStr = Array.from(checkedGroupEls).map(el => el.value).join(',');
                 }
 
+                const rawDur = document.getElementById(`dur_${index}`).value.trim();
+                const rawLim = document.getElementById(`lim_${index}`).value.trim();
+                const rawVen = document.getElementById(`ven_${index}`).value.trim();
+                const isFunChecked = document.getElementById(`fun_${index}`).checked;
+
+                // 🌟 趣味项目留空或填0统一按 0 分钟/不限保存；常规项目留空才取预设默认值
+                let finalDur = 0;
+                if (rawDur !== '') {
+                    finalDur = parseFloat(rawDur);
+                } else if (!isFunChecked) {
+                    finalDur = preset.duration !== undefined ? preset.duration : 5;
+                }
+
+                let finalLim = 0;
+                if (rawLim !== '') {
+                    finalLim = parseInt(rawLim);
+                } else if (!isFunChecked) {
+                    finalLim = preset.limit !== undefined ? preset.limit : 8;
+                }
+
                 selectedEvents.push({ 
                     name: preset.name, 
                     type: preset.type, 
                     gender: calculatedGender, 
-                    duration: parseInt(document.getElementById(`dur_${index}`).value) || preset.duration, 
-                    limit: parseInt(document.getElementById(`lim_${index}`).value) || preset.limit, 
-                    venueCount: parseInt(document.getElementById(`ven_${index}`).value) || 1, 
+                    duration: finalDur, 
+                    limit: finalLim, 
+                    venueCount: rawVen === '' ? 1 : parseInt(rawVen), 
                     hasPrelim: document.getElementById(`pre_${index}`).value === 'true', 
                     isRelay: document.getElementById(`rel_${index}`).checked, 
                     needLane: document.getElementById(`lan_${index}`).checked, 
-                    isFun: document.getElementById(`fun_${index}`).checked, 
+                    isFun: isFunChecked, 
                     allowedGroups: allowedGroupsStr, 
                     scoreRule: scoreRule,
                     recordBonus: recordBonus 
@@ -3412,8 +3550,9 @@ function selectView(m, id, n) {
                                 gname: jobDiv.dataset.gname,
                                 ename: jobDiv.dataset.ename,
                                 gender: jobDiv.dataset.gender,
-                                minutes: parseInt(jobDiv.dataset.minutes) || 5,
-                                isField: (jobDiv.dataset.isfield === 'true')
+                                minutes: parseInt(jobDiv.dataset.minutes) || 0,
+                                isField: (jobDiv.dataset.isfield === 'true'),
+                                isFun: (jobDiv.dataset.isfun === 'true')
                             });
                         }
                     });
@@ -3460,7 +3599,8 @@ function selectView(m, id, n) {
                     if (!rawEntries.length) return; 
 
                     let totalCount = (String(e.isRelay) === 'true' || e.name.includes('接力')) ? new Set(rawEntries.map(a => a.teamId)).size : rawEntries.length;
-                    let isField = e.type === '田赛' || e.name.includes('跳') || e.name.includes('投') || e.name.includes('球') || e.name.includes('区') || e.name.includes('掷');
+                    const isFun = (e.type === '趣味项目' || e.type === '趣味' || String(e.isFun) === 'true' || String(e.is_fun) === '1');
+let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name.includes('投') || e.name.includes('铅球') || e.name.includes('实心球') || e.name.includes('标枪') || e.name.includes('铁饼'));
                     
                     let fType = '';
                     if (isField) {
@@ -3498,13 +3638,47 @@ function selectView(m, id, n) {
                             jobKey: `${g.id}_${cleanEvt}(决赛)_${gender}`, gname: g.name, ename: cleanEvt + ' (决赛)', coreEvt: coreEvt,
                             gender: gender, minutes: finalMins, isField: false, fType: fType, isSprint: isSprint, weight: weight + 1, round: 'final'
                         });
-                    } else {
+                   } else {
                         let vc = parseInt(e.venueCount) || 1;
-                        let mins = isField ? Math.ceil((totalCount / vc) * 3 * 1.2 + 10) : Math.ceil(heats * (parseFloat(e.duration) || 5));
-                        allJobs.push({
-                            jobKey: `${g.id}_${cleanEvt}_${gender}`, gname: g.name, ename: cleanEvt, coreEvt: coreEvt,
-                            gender: gender, minutes: mins, isField: isField, fType: fType, isSprint: isSprint, weight: weight, round: 'direct'
-                        });
+                        if (isField && vc > 1) {
+                            // 🌟 多场地并行：拆分为多个场地卡片，每个场地人数均分
+                            let peoplePerVenue = Math.ceil(totalCount / vc);
+                            let singleMins = Math.ceil(peoplePerVenue * 3 * 1.2 + 10);
+                            for (let v = 1; v <= vc; v++) {
+                                allJobs.push({
+                                    jobKey: `${g.id}_${cleanEvt}_${gender}_venue${v}`,
+                                    gname: g.name,
+                                    ename: `${cleanEvt} (场地${v})`,
+                                    coreEvt: coreEvt,
+                                    gender: gender,
+                                    minutes: singleMins,
+                                    isField: true,
+                                    fType: fType,
+                                    isSprint: false,
+                                    weight: weight,
+                                    round: 'direct',
+                                    venueIndex: v,
+                                    totalVenues: vc
+                                });
+                            }
+                        } else {
+                            let mins = isField ? Math.ceil((totalCount / vc) * 3 * 1.2 + 10) : Math.ceil(heats * (parseFloat(e.duration) || 5));
+                            allJobs.push({
+                                jobKey: `${g.id}_${cleanEvt}_${gender}`,
+                                gname: g.name,
+                                ename: cleanEvt,
+                                coreEvt: coreEvt,
+                                gender: gender,
+                                minutes: mins,
+                                isField: isField,
+                                fType: fType,
+                                isSprint: isSprint,
+                                weight: weight,
+                                round: 'direct',
+                                venueIndex: 1,
+                                totalVenues: 1
+                            });
+                        }
                     }
                 });
             });
@@ -3567,38 +3741,37 @@ function selectView(m, id, n) {
             window.manualScheduleMap[bestUnit].push(job);
         });
 
+        // 🌟 核心：同一项目的多场地必须绑定排入同一个单元
+        let processedVenues = new Set();
         fieldJobs.forEach(job => {
-            let bestUnit = null;
+            let baseKey = job.jobKey.replace(/_venue\d+$/, '');
+            if (processedVenues.has(baseKey)) return;
+
+            // 找出属于同一个项目的所有场地任务（场地1、场地2）
+            let groupVenueJobs = fieldJobs.filter(j => j.jobKey.replace(/_venue\d+$/, '') === baseKey);
             let targetTrack = job.fType === 'high' ? fieldHighTrack : (job.fType === 'long' ? fieldLongTrack : fieldThrowTrack);
             let sortedUnits = [...units].sort((a, b) => targetTrack[a] - targetTrack[b]);
-            let minConflictScore = Infinity;
+            let bestUnit = sortedUnits[0];
 
             for (let u of sortedUnits) {
-                let hasHardConflict = window.manualScheduleMap[u].some(existing => 
-                    existing.gname === job.gname && existing.gender === job.gender && existing.isField
-                );
-                
-                let hasCrossConflict = false;
-                window.manualScheduleMap[u].forEach(ex => {
-                    if (ex.gname === job.gname) {
-                        if (job.fType === 'long' && (ex.ename.includes('100米') || ex.ename.includes('200米'))) hasCrossConflict = true;
-                        if (job.fType === 'high' && ex.ename.includes('栏')) hasCrossConflict = true;
-                    }
-                });
-
-                if (hasHardConflict || hasCrossConflict) continue;
-
-                let sameGroupCount = window.manualScheduleMap[u].filter(ex => ex.gname === job.gname).length;
-                if (sameGroupCount < minConflictScore) {
-                    minConflictScore = sameGroupCount;
+                let hasConflict = window.manualScheduleMap[u].some(existing => {
+    // 同一班级组别与性别的运动员，如果同时兼报了跳高和跳远，避免撞期；但不同组别的跳高和跳远完全可以同时进行
+    let isSameGroupAth = (existing.gname === job.gname && existing.gender === job.gender);
+    let isSameVenueType = (existing.fType === job.fType); // 只有同是跳高场地或同是跳远场地才排队
+    return isSameVenueType || (isSameGroupAth && existing.isField && !existing.ename.includes(job.coreEvt));
+});
+                if (!hasConflict) {
                     bestUnit = u;
+                    break;
                 }
             }
-            
-            if (!bestUnit) bestUnit = sortedUnits[0];
 
-            targetTrack[bestUnit] += job.minutes;
-            window.manualScheduleMap[bestUnit].push(job);
+            // 同步分配所有场地到最佳单元
+            groupVenueJobs.forEach(vJob => {
+                window.manualScheduleMap[bestUnit].push(vJob);
+            });
+            targetTrack[bestUnit] += job.minutes; // 只增加单场耗时
+            processedVenues.add(baseKey);
         });
 
         localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
@@ -3639,7 +3812,7 @@ function selectView(m, id, n) {
                 const group = db.groups.find(g => String(g.id) === String(savedJob.jobKey.split('_')[0]));
                 if(!group) return;
 
-                const cleanEventName = savedJob.ename.replace(" (预赛)", "").replace(" (决赛)", "").trim();
+                const cleanEventName = savedJob.ename.replace(" (预赛)", "").replace(" (决赛)", "").replace(/ \(场地\d+\)/, "").trim();
                 const gender = savedJob.gender;
                 const eventCfg = db.events.find(e => e.name === savedJob.ename || e.name === cleanEventName);
                 const settings = getEventSettings(eventCfg || {name: cleanEventName});
@@ -3668,6 +3841,16 @@ function selectView(m, id, n) {
                     return t && String(t.groupId) === String(group.id) && a.gender === gender && a.events.includes(cleanEventName); 
                 });
                 if(!rawEntries.length) return; 
+               let venueMatch = savedJob.ename.match(/ \(场地(\d+)\)/);
+                if (isField && venueMatch) {
+                    let vIdx = parseInt(venueMatch[1]);
+                    let totalV = savedJob.totalVenues || 2;
+                    let perVenueCount = Math.ceil(rawEntries.length / totalV);
+                    let startIdx = (vIdx - 1) * perVenueCount;
+                    let endIdx = (vIdx === totalV) ? rawEntries.length : (startIdx + perVenueCount);
+                    rawEntries = rawEntries.slice(startIdx, endIdx);
+                    if (!rawEntries.length) return;
+                }
 
                 const isRelay = (String(eventCfg?.isRelay) === 'true' || cleanEventName.includes('接力'));
                 processList = isRelay ? Object.values(rawEntries.reduce((acc, a) => {
@@ -3776,9 +3959,13 @@ function selectView(m, id, n) {
 
                 let jobMins = parseInt(savedJob.minutes) || 5;
                 if (isField) {
-                    if (fType === 'high') fieldHighPointer += jobMins;
-                    else if (fType === 'long') fieldLongPointer += jobMins;
-                    else fieldThrowPointer += jobMins;
+                    // 🌟 场地 2、3 与场地 1 同时开赛，不重复增加时间偏移量
+                    let vMatch = savedJob.ename.match(/ \(场地(\d+)\)/);
+                    if (!vMatch || vMatch[1] === '1') {
+                        if (fType === 'high') fieldHighPointer += jobMins;
+                        else if (fType === 'long') fieldLongPointer += jobMins;
+                        else fieldThrowPointer += jobMins;
+                    }
                 } else {
                     trackPointer += jobMins;
                 }
