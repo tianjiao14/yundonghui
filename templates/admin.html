@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>田径运动会管理系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
 /* 现代成绩卡片与移动端列表样式 */
 .modern-score-card {
@@ -262,6 +263,7 @@
     <button onclick="switchStep(7)" id="nav-7" class="nav-item w-full text-left px-6 py-3 text-purple-600 font-bold hover:bg-purple-50 border-l-4 border-transparent transition-all">7. 账号密码管理</button>
     <button onclick="switchStep(8)" id="nav-8" class="nav-item border-l-4 border-green-500 bg-green-50 text-green-700 font-bold">8. 报名数据统计</button>
     <button onclick="switchStep(9)" id="nav-9" class="nav-item border-l-4 border-cyan-500 bg-cyan-50 text-cyan-800 font-bold">9. 运动会进程监控</button>
+    <button onclick="switchStep(10)" id="nav-10" class="nav-item border-l-4 border-indigo-500 bg-indigo-50 text-indigo-900 font-bold">10. 运动会数据分析</button>
 </div>
 
     <div class="p-4 border-t border-gray-100 bg-gray-50/80 space-y-3 pb-8 lg:pb-6 no-print">
@@ -418,24 +420,26 @@
                 <div class="overflow-y-auto flex-1 no-scrollbar">
                     <table class="fixed-table text-left text-xs">
                         <thead class="sticky top-0 z-10 bg-gray-100 shadow-sm font-black border-b border-gray-200">
-                            <tr class="h-9 text-gray-700">
-                                <th style="width: 50px" class="text-center">序号</th>
-                                <th style="width: 150px">项目名称</th>
-                                <th style="width: 110px">项目类型</th>
-                                <th style="width: 90px" class="text-center">每组耗时</th>
-                                <th style="width: 90px" class="text-center">每组最多人数</th>
-                                <th style="width: 110px" class="text-center">赛次控制</th>
-                                <th style="width: 180px" class="text-center text-indigo-700">适用组别(默认全选)</th>
-                                <th style="width: 80px" class="text-center text-blue-700">是否选用</th>
-                                <th style="width: 100px" class="text-center text-amber-700">团体(接力)</th>
-                                <th style="width: 90px" class="text-center text-purple-700">是否分道</th>
-                                <th style="width: 45px" class="text-center text-teal-700">男</th>
-                                <th style="width: 45px" class="text-center text-teal-700">女</th>
-                                <th style="width: 45px" class="text-center text-teal-700">混</th>
-                                <th style="width: 70px" class="text-center text-orange-700">场地数</th> 
-                                <th style="width: 130px" class="text-center text-red-700">不占限额(趣味)</th>
-                            </tr>
-                        </thead>
+    <tr class="h-9 text-gray-700">
+        <th style="width: 40px" class="text-center">序号</th>
+        <th style="width: 130px">项目名称</th>
+        <th style="width: 90px">项目类型</th>
+        <th style="width: 80px" class="text-center">每组耗时</th>
+        <th style="width: 80px" class="text-center">每组人数</th>
+        <th style="width: 80px" class="text-center text-orange-600">录取名次</th>
+        <th style="width: 100px" class="text-center">赛次控制</th>
+        <th style="width: 160px" class="text-center text-indigo-700">适用组别</th>
+        <th style="width: 70px" class="text-center text-blue-700">选用</th>
+        <th style="width: 80px" class="text-center text-amber-700">接力</th>
+        <th style="width: 70px" class="text-center text-purple-700">分道</th>
+        <th style="width: 35px" class="text-center text-teal-700">男</th>
+        <th style="width: 35px" class="text-center text-teal-700">女</th>
+        <th style="width: 35px" class="text-center text-teal-700">混</th>
+        <th style="width: 60px" class="text-center text-orange-700">场地数</th> 
+        <th style="width: 90px" class="text-center text-red-700">趣味项目</th>
+        <th style="width: 60px" class="text-center text-red-600">操作</th>
+    </tr>
+</thead>
                         <tbody id="matrixEventBody" class="divide-y divide-gray-100"></tbody>
                     </table>
                 </div>
@@ -854,6 +858,99 @@
         <div class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar" id="monitorTimelineContainer"></div>
     </div>
 </div>
+<div id="step-10" class="step-panel min-h-full hidden p-4 md:p-6 space-y-6 pb-20 overflow-y-auto">
+    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shrink-0">
+        <div>
+            <h2 class="text-xl font-black text-gray-800 flex items-center gap-2">
+                <span>📈</span> <span>全校体能素质分析与单项评估大屏</span>
+            </h2>
+            <p class="text-xs text-gray-400 mt-0.5">按具体独立单项精准核算平均水平与极值表现，杜绝跨量程混算</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <!-- 1. 年级/组别筛选 -->
+            <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg">
+                <span class="text-[11px] font-bold text-gray-500">年级:</span>
+                <select id="analysisGradeSelect" onchange="onAnalysisFilterChange()" class="bg-transparent font-bold text-xs outline-none text-gray-700"></select>
+            </div>
+            <!-- 2. 班级筛选 -->
+            <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg">
+                <span class="text-[11px] font-bold text-gray-500">班级:</span>
+                <select id="analysisTeamSelect" onchange="renderAnalysisView()" class="bg-transparent font-bold text-xs outline-none text-gray-700">
+                    <option value="ALL">全部班级(年级大盘)</option>
+                </select>
+            </div>
+            <!-- 3. 性别筛选 -->
+            <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg">
+                <span class="text-[11px] font-bold text-gray-500">性别:</span>
+                <select id="analysisGenderSelect" onchange="renderAnalysisView()" class="bg-transparent font-bold text-xs outline-none text-gray-700">
+                    <option value="ALL">全部男女</option>
+                    <option value="男">仅看男生</option>
+                    <option value="女">仅看女生</option>
+                </select>
+            </div>
+            <!-- 4. 单项聚焦 -->
+            <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg">
+                <span class="text-[11px] font-bold text-gray-500">项目:</span>
+                <select id="analysisEventSelect" onchange="renderAnalysisView()" class="bg-transparent font-bold text-xs outline-none text-gray-700">
+                    <option value="ALL">全项目概览</option>
+                </select>
+            </div>
+            <button onclick="fetchPhysicalAnalysisData()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition flex items-center gap-1">
+                🔄 刷新
+            </button>
+        </div>
+    </div>
+
+    <!-- 核心具体单项指标卡片矩阵 (平均值、极值一览) -->
+    <div>
+        <div class="text-xs font-black text-gray-700 mb-2 flex items-center justify-between">
+            <span>🎯 各独立项目水平与极值档案</span>
+            <span class="text-[11px] text-gray-400">径赛用时越短越优，田赛远度数值越大越优</span>
+        </div>
+        <div id="eventMetricsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
+    </div>
+
+    <!-- 可视化图表对比 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+            <h3 class="text-xs font-black text-gray-700 mb-3 flex items-center gap-1.5">
+                <span>📊</span> <span>男女生单项均值直方对比</span>
+            </h3>
+            <div class="flex-1 min-h-[260px] relative">
+                <canvas id="chartDimensionBar"></canvas>
+            </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+            <h3 class="text-xs font-black text-gray-700 mb-3 flex items-center gap-1.5">
+                <span>⚡</span> <span>单项前沿最优极值榜 (校纪录/最优对比)</span>
+            </h3>
+            <div class="flex-1 min-h-[260px] relative">
+                <canvas id="chartDimensionRadar"></canvas>
+            </div>
+        </div>
+    </div>
+
+  <!-- 班级横向对比排查表 -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-3.5 bg-gray-50/80 border-b border-gray-200 flex justify-between items-center">
+            <span class="text-xs font-black text-gray-800 flex items-center gap-1.5">
+                <span>📋</span> <span>各班级具体单项横向均值对比表</span>
+            </span>
+            <span class="text-[11px] text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                可横向对比各班级在特定单项上的实力分布
+            </span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+                <thead class="bg-gray-100 text-gray-600 border-b">
+                    <tr id="teamTableHead"></tr>
+                </thead>
+                <tbody id="teamTableBody" class="divide-y divide-gray-100"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
   <script>
     let db = { events: [], groups: [], teams: [], athletes: [], schedule: [], results: [] };
     let viewMode = 'none'; 
@@ -1071,7 +1168,31 @@
         }
 
         const targetSchedule = db.schedule.filter(s => s.groupName === window.curResGroup && s.gender === window.curResGender);
-        const events = [...new Set(targetSchedule.map(s => s.eventName))].filter(Boolean).sort((a,b) => a.localeCompare(b, 'zh-CN'));
+        
+        // 🌟 核心：清洗去除 (场地1)、(场地2) 等后缀，将多场地项目合并为一个统一按钮
+        const cleanEventSet = new Set();
+        targetSchedule.forEach(s => {
+            if (s.eventName) {
+                const cleanName = s.eventName.replace(/\s*\(场地\d+\)/g, '').replace(/\s*（场地\d+）/g, '').trim();
+                cleanEventSet.add(cleanName);
+            }
+        });
+
+        const events = [...cleanEventSet].sort((a, b) => {
+            // 剥离预赛/决赛后缀，获取纯项目名
+            const baseA = a.replace(' (预赛)', '').replace(' (决赛)', '').replace('（预赛）', '').replace('（决赛）', '').trim();
+            const baseB = b.replace(' (预赛)', '').replace(' (决赛)', '').replace('（预赛）', '').replace('（决赛）', '').trim();
+            
+            if (baseA !== baseB) {
+                return baseA.localeCompare(baseB, 'zh-CN');
+            }
+            // 如果是同一个项目（如 100米），强制让带有“预赛”的排在前面，“决赛”排在后面
+            const isPreA = a.includes('预赛');
+            const isPreB = b.includes('预赛');
+            if (isPreA && !isPreB) return -1;
+            if (!isPreA && isPreB) return 1;
+            return 0;
+        });
 
         if (events.length === 0) {
             container.innerHTML = '<span class="text-[11px] text-gray-400">暂无项目</span>';
@@ -1096,6 +1217,17 @@
             };
             container.appendChild(btn);
         });
+         const activeClean = (window.curResEvent || '').replace(' (预赛)', '').replace(' (决赛)', '').trim();
+        const activeCfg = db.events.find(e => e.name === activeClean || e.name === window.curResEvent);
+        const autoQualify = activeCfg?.qualifyCount || activeCfg?.qualify_count || 8;
+        const topNInput = document.getElementById('finalsTopN');
+        if (topNInput) {
+            topNInput.value = autoQualify;
+        }
+
+        if (typeof checkFinalsBtnVisibility === 'function') {
+            checkFinalsBtnVisibility();
+        }
 
         renderResultSheet();
     }
@@ -1241,12 +1373,17 @@
                     window.competitionTotalDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
                     if (isNaN(window.competitionTotalDays) || window.competitionTotalDays < 1) window.competitionTotalDays = 1; 
                 }
-                if (db && db.schedule) renderScheduleResult(); 
+                
                 if (typeof refreshSchOptions === 'function') refreshSchOptions();
                 if (typeof initGroupOrder === 'function') initGroupOrder();
                 if (typeof renderStep5EventDurations === 'function') renderStep5EventDurations(); 
-                setTimeout(() => { typeof calculateEventTimeBudget === 'function' && calculateEventTimeBudget(); }, 50);
-                break; 
+                if (typeof renderManualScheduleGrid === 'function') renderManualScheduleGrid();
+                if (db && db.schedule && db.schedule.length > 0) {
+                    renderScheduleResult();
+                } else {
+                    setTimeout(() => { typeof calculateEventTimeBudget === 'function' && calculateEventTimeBudget(); }, 50);
+                }
+                break;
             case 5: 
                 if (typeof initResGroupTabs === 'function') initResGroupTabs();
                 break;
@@ -1269,6 +1406,9 @@
                     }
                 }
                 break;
+case 10:
+    fetchPhysicalAnalysisData();
+    break;
         }
     }
 
@@ -1321,7 +1461,15 @@ window.renderManualScheduleGrid = function() {
                     
                     let totalCount = 0; 
                     let heats = 1;
-                    if(group && db.athletes) {
+                    const isFinalRound = job.ename.includes('决赛') && !job.ename.includes('预赛');
+                    const evtCfg = db.events.find(e => e.name === cleanEvt || e.name === job.ename);
+                    const hasPrelim = evtCfg ? (String(evtCfg.hasPrelim) === 'true' || String(evtCfg.has_prelim) === '1') : false;
+
+                    if (isFinalRound && hasPrelim && !isField) {
+                        // 🌟 核心修复：有预赛的径赛决赛，固定为 8 人（或道次数）且固定只有 1 组！
+                        totalCount = 8;
+                        heats = 1;
+                    } else if (group && db.athletes) {
                         let rawEntries = db.athletes.filter(a => { 
                             const t = db.teams.find(x => String(x.id) === String(a.teamId)); 
                             return t && String(t.groupId || t.group_id) === String(group.id) && a.gender === job.gender && a.events.includes(cleanEvt); 
@@ -1344,7 +1492,6 @@ window.renderManualScheduleGrid = function() {
                             totalCount = totalAthletes;
                         }
 
-                        const evtCfg = db.events.find(e => e.name === cleanEvt || e.name === job.ename);
                         let limit = evtCfg ? (parseInt(evtCfg.limit) || parseInt(evtCfg.limit_count) || (isField ? 99 : 8)) : 8;
                         heats = Math.ceil(totalCount / limit) || 1;
                     }
@@ -1576,7 +1723,12 @@ let maxFieldTime = Math.max(fieldHighPointer, fieldLongPointer, fieldThrowPointe
         container.innerHTML = html || '<div class="text-center py-12 text-green-600 font-bold text-xs">🎉 赞！所有项目已全部分配完毕！</div>';
         
         recalculateUnitTimelines();
-        compileFinalScheduleData();
+
+        if (!db.schedule || db.schedule.length === 0 || window.isManualRescheduling) {
+            compileFinalScheduleData();
+        } else {
+            renderScheduleResult();
+        }
     };
 
     window.removeJobFromUnit = function(unitKey, jobKey) {
@@ -2316,19 +2468,48 @@ function selectView(m, id, n) {
     }
 
     function syncScheduleToCloud() {
-        if (!db.schedule || db.schedule.length === 0) return alert("请先点击【🏃 开始编排】生成数据！");
-        if (!confirm("确定要发布当前的编排结果吗？\n\n发布后，裁判员将在手机端看到分组和道次信息。\n注意：这会覆盖之前的编排记录。")) return;
+        if (!db.schedule || db.schedule.length === 0) return alert("请先点击【一键编排】生成数据！");
+        if (!confirm("⚠️ 确定要发布当前的最新编排吗？\n\n【注意】：重新编排发布后将开启一场新比赛，所有过往录入的成绩、团体总分以及生成的决赛单将被全部清空重置！")) return;
+        
         const btn = document.querySelector('button[onclick="syncScheduleToCloud()"]');
-        const oldText = btn.innerText; btn.innerText = "正在发布..."; btn.disabled = true;
-        fetch('/api/save_schedule_to_db', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(db.schedule) })
-        .then(r => r.json()).then(res => { btn.innerText = oldText; btn.disabled = false; if (res.status === 'success') alert("✅ 发布成功！"); else alert("❌ 发布失败: " + res.msg); })
-        .catch(err => { btn.innerText = oldText; btn.disabled = false; alert("网络错误"); });
+        const oldText = btn.innerText; 
+        btn.innerText = "正在发布并重置数据..."; 
+        btn.disabled = true;
+
+        fetch('/api/save_schedule_to_db', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(db.schedule) 
+        })
+        .then(r => r.json())
+        .then(res => { 
+            btn.innerText = oldText; 
+            btn.disabled = false; 
+            if (res.status === 'success') {
+                alert(res.msg);
+                // 🌟 同步拉取最新空数据并刷新成绩管理页面
+                fetchLatestData();
+                if (typeof initResGroupTabs === 'function') initResGroupTabs();
+                if (typeof initRankPage === 'function') initRankPage();
+            } else {
+                alert("❌ 发布失败: " + res.msg); 
+            }
+        })
+        .catch(err => { 
+            btn.innerText = oldText; 
+            btn.disabled = false; 
+            alert("网络传输错误，请检查后端运行状态"); 
+        });
     }
 
     function generateFinals() {
         const groupName = window.curResGroup;
         const eventName = window.curResEvent;
         const gender = window.curResGender;
+if (eventName.includes('决赛')) {
+            alert("⚠️ 当前项目已经是【决赛】，无法重复生成决赛表！\n请切换到【预赛】项目后再点击生成。");
+            return;
+        }
         const topN = parseInt(document.getElementById('finalsTopN')?.value) || 8;
         const div = document.getElementById('resultOutput');
         
@@ -2515,13 +2696,53 @@ function selectView(m, id, n) {
                 body: JSON.stringify({ event_name: rawEventName, group_name: groupName, gender: gender }) 
             })
             .then(r => r.json()).then(data => {
-                const validAthletes = data.filter(i => i.score && !isNaN(parseFloat(parseTimeVal(i.score))));
-                if(validAthletes.length === 0) { div.innerHTML = `<div class="text-center text-gray-400 mt-10"><p class="text-xl mb-2">该项目暂无成绩</p></div>`; return; }
+               // 🌟 辅助：判定是否为包含有效用时的真实成绩（剔除弃权、DNS等）
+                const isRealScore = (scoreStr) => {
+                    if (!scoreStr) return false;
+                    const s = String(scoreStr).trim();
+                    if (s === '' || s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || s.includes('DNF')) return false;
+                    return parseTimeVal(s) > 0;
+                };
+
+                // 1. 有效成绩选手参与正常排序与排名
+                const validAthletes = data.filter(i => isRealScore(i.score));
+                
+                // 2. 弃权或无有效成绩的选手提取出来放到底部
+                const abandonedAthletes = data.filter(i => !isRealScore(i.score) && (String(i.score).includes('弃权') || i.checked_in == 2 || String(i.score).includes('DNS')));
+
+                if(validAthletes.length === 0 && abandonedAthletes.length === 0) { 
+                    div.innerHTML = `<div class="text-center text-gray-400 mt-10"><p class="text-xl mb-2">该项目暂无成绩</p></div>`; 
+                    return; 
+                }
 
                 validAthletes.sort((a,b) => !isField ? (parseTimeVal(a.score) - parseTimeVal(b.score)) : (parseTimeVal(b.score) - parseTimeVal(a.score)));
 
                 const myRecords = (groupRecordsData[`${coreMatchName}_${gender}`] || []).filter(r => r.en && parseTimeVal(r.val) > 0);
+                // 🌟🌟🌟 核心：从成绩公告中提取晋级选手，静默同步至决赛 🌟🌟🌟
+                if (actualRound === '预赛') {
+                    const topFinalists = validAthletes.slice(0, topN).map(a => ({
+                        name: a.name,
+                        team_name: a.team_name,
+                        bib: a.bib || ''
+                    }));
 
+                    if (topFinalists.length > 0) {
+                        fetch('/api/direct_publish_announcement_finals', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                group_name: groupName,
+                                event_name: rawEventName,
+                                gender: gender,
+                                qualifiers: topFinalists
+                            })
+                        }).then(r => r.json()).then(res => {
+                            if (res.status === 'success') {
+                                console.log("✅ 决赛名单已随成绩公告静默发布完成！");
+                            }
+                        });
+                    }
+                }
                 let rowsHtml = ''; let currentRank = 1;
                 validAthletes.forEach((p, idx) => {
                     if (idx > 0 && parseTimeVal(p.score) !== parseTimeVal(validAthletes[idx-1].score)) currentRank = idx + 1;
@@ -2581,7 +2802,19 @@ function selectView(m, id, n) {
                         <td style="font-size:10pt; border:1px solid #000;">${remark}</td>
                     </tr>`;
                 });
-
+               abandonedAthletes.forEach(p => {
+    rowsHtml += `
+    <tr style="color: #64748b; background-color: #f8fafc;">
+        <td style="font-family:Times New Roman; font-weight:bold; border:1px solid #000; height:35px;">--</td>
+        <td style="font-family:Times New Roman; font-weight:bold; border:1px solid #000;">${p.bib || ''}</td>
+        <td style="font-weight:bold; text-align:left; padding-left:20px; border:1px solid #000;">${p.name}</td>
+        <td style="border:1px solid #000;">${p.team_name}</td>
+        <td style="font-weight:bold; color:red; border:1px solid #000;">弃权</td>
+        <td style="border:1px solid #000;"></td>
+        <td style="border:1px solid #000;"></td>
+        <td style="font-size:10pt; border:1px solid #000;">未参赛</td>
+    </tr>`;
+});
                 const today = new Date(); const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
                 const finalHtml = `
                 <div class="rc-card break-inside-avoid" style="background:#fff; padding:30px;">
@@ -2673,27 +2906,43 @@ function selectView(m, id, n) {
             if (data.teams) { db.teams = data.teams; }
             if (data.athletes) { db.athletes = data.athletes; }
             if (data.schedule) { db.schedule = data.schedule; }  
-            if (data.events && data.events.length > 0) {
-                db.events = data.events.map(e => ({
-                    ...e,
-                    limit: e.limit_count ? parseInt(e.limit_count) : 8,
-                    venueCount: e.venue_count ? parseInt(e.venue_count) : 1,
-                    duration: (e.duration !== null && e.duration !== undefined && e.duration !== '') ? parseFloat(e.duration) : (e.name.includes('100') ? 3 : (e.name.includes('200') ? 5 : (e.type === '田赛' ? 20 : 5))),
-                    scoreRule: e.scoreRule || e.score_rule || '9,7,6,5,4,3,2,1', 
-                    record: e.record || '',
-                    recordBonus: e.recordBonus || e.record_bonus || 0,
-                    isDoubleScore: (String(e.isDoubleScore) === 'true' || String(e.is_double_score) === '1'),
-                    needLane: (String(e.needLane) === 'true' || String(e.need_lane) === '1'),
-                    hasPrelim: (String(e.hasPrelim) === 'true' || String(e.has_prelim) === '1'),
-                    isRelay: (String(e.isRelay) === 'true' || String(e.is_relay) === '1')
-                }));
+           if (data.events && data.events.length > 0) {
+                db.events = data.events.map(e => {
+                    // 🌟 严格读取数据库里的真实值，只有为 undefined 时才使用兜底
+                    const rawLimit = e.limit_count !== undefined ? e.limit_count : e.limit;
+                    const rawDur = e.duration;
+                    const rawVen = e.venue_count !== undefined ? e.venue_count : e.venueCount;
 
+                   return {
+                        ...e,
+                        limit: (rawLimit !== null && rawLimit !== undefined && rawLimit !== '') ? parseInt(rawLimit) : 8,
+                        venueCount: (rawVen !== null && rawVen !== undefined && rawVen !== '') ? parseInt(rawVen) : 1,
+                        duration: (rawDur !== null && rawDur !== undefined && rawDur !== '') ? parseFloat(rawDur) : 5,
+                        // 🌟🌟🌟 就放在这里！从后端映射录取名次 🌟🌟🌟
+                        qualifyCount: (e.qualify_count !== undefined && e.qualify_count !== null) ? parseInt(e.qualify_count) : 8,
+                        scoreRule: e.scoreRule || e.score_rule || '9,7,6,5,4,3,2,1', 
+                        record: e.record || '',
+                        recordBonus: e.recordBonus || e.record_bonus || 0,
+                        isDoubleScore: (String(e.isDoubleScore) === 'true' || String(e.is_double_score) === '1'),
+                        needLane: (String(e.needLane) === 'true' || String(e.need_lane) === '1'),
+                        hasPrelim: (String(e.hasPrelim) === 'true' || String(e.has_prelim) === '1'),
+                        isRelay: (String(e.isRelay) === 'true' || String(e.is_relay) === '1')
+                    };
+                });
+
+                // 🌟 同步更新预设池中的数值，防止重新渲染时回滚
                 db.events.forEach(savedEvt => {
-                    if (!window.PRESET_MATRIX_POOL.some(p => p.name === savedEvt.name)) {
+                    const presetItem = window.PRESET_MATRIX_POOL.find(p => p.name === savedEvt.name);
+                    if (presetItem) {
+                        presetItem.duration = savedEvt.duration;
+                        presetItem.limit = savedEvt.limit;
+                        presetItem.venueCount = savedEvt.venueCount;
+                    } else {
                         window.PRESET_MATRIX_POOL.push({
-                            name: savedEvt.name, type: savedEvt.type, gender: savedEvt.gender || '双性', duration: savedEvt.duration,
-                            limit: savedEvt.limit_count || 8, hasPrelim: savedEvt.hasPrelim, isRelay: savedEvt.isRelay,
-                            needLane: savedEvt.needLane, isFun: (String(savedEvt.is_fun) === '1' || String(savedEvt.isFun) === 'true'), forceCheck: true 
+                            name: savedEvt.name, type: savedEvt.type, gender: savedEvt.gender || '双性', 
+                            duration: savedEvt.duration, limit: savedEvt.limit, venueCount: savedEvt.venueCount,
+                            hasPrelim: savedEvt.hasPrelim, isRelay: savedEvt.isRelay, needLane: savedEvt.needLane, 
+                            isFun: (String(savedEvt.is_fun) === '1' || String(savedEvt.isFun) === 'true'), forceCheck: true 
                         });
                     }
                 });
@@ -2749,19 +2998,66 @@ function selectView(m, id, n) {
             
             let finalHTML = '';
             
-            const isDummy = data.some(item => item.name === '预赛晋级选手' || item.team_name === '待定');
-            if (isDummy) {
-                finalHTML += `
-                <div class="bg-orange-50 border-2 border-orange-400 border-dashed rounded-xl p-5 text-center mb-4 no-print shadow-xs">
-                    <h3 class="text-base font-black text-orange-900 mb-1.5">⚡ 决赛名单尚未生成</h3>
-                    <p class="text-xs text-orange-700 mb-3 font-medium">若预赛成绩已全部录入完毕，请点击下方按钮一键提取晋级选手并排定道次！</p>
-                    <button onclick="generateFinals()" class="bg-orange-600 text-white px-6 py-2.5 rounded-lg shadow-md hover:bg-orange-700 font-black text-xs transition active:scale-95">
-                        🎯 一键提取预赛出线名单
-                    </button>
-                </div>`;
-            }
+        // 🌟🌟🌟 全自动闭环：如果当前是决赛，且道次还是“待定”，静默从预赛计算出线并秒级发布刷新 🌟🌟🌟
+        const isDummy = data.some(item => item.name && (item.name.includes('待定') || item.name === '预赛晋级选手'));
+        if (isDummy && eventName.includes('决赛')) {
+            const prelimName = eventName.replace(' (决赛)', ' (预赛)').replace('（决赛）', '（预赛）');
+            
+            // 自动去拉取预赛的成绩
+            fetch('/api/get_event_start_list', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ event_name: prelimName, group_name: groupName, gender: gender })
+            })
+            .then(r => r.json())
+            .then(prelimData => {
+                // 筛选有效数字成绩并排除弃权
+                const validPrelim = prelimData.filter(i => {
+                    if (!i.score || i.score.includes('弃权') || i.score.includes('DNS')) return false;
+                    return parseTimeVal(i.score) > 0;
+                });
 
-            const allScoredItems = data.filter(i => i.score && i.score.trim() !== '');
+                if (validPrelim.length > 0) {
+                    // 按用时升序排序
+                    validPrelim.sort((a, b) => parseTimeVal(a.score) - parseTimeVal(b.score));
+                    
+                    // 读取项目配置的录取人数
+                    const activeClean = eventName.replace(' (决赛)', '').trim();
+                    const activeCfg = db.events.find(e => e.name === activeClean);
+                    const topN = activeCfg?.qualifyCount || activeCfg?.qualify_count || 8;
+                    
+                    const topFinalists = validPrelim.slice(0, topN).map(a => ({
+                        name: a.name,
+                        team_name: a.team_name,
+                        bib: a.bib || ''
+                    }));
+
+                    // 静默推送到后端数据库写入
+                    fetch('/api/direct_publish_announcement_finals', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            group_name: groupName,
+                            event_name: eventName,
+                            gender: gender,
+                            qualifiers: topFinalists
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(pubRes => {
+                        if (pubRes.status === 'success') {
+                            // 写入成功后，瞬间自动刷新当前表格！
+                            renderResultSheet();
+                        }
+                    });
+                }
+            });
+        }
+
+                const allScoredItems = data.filter(i => {
+                if (!i.score || i.score.includes('弃权') || i.score.includes('DNS')) return false;
+                return parseTimeVal(i.score) > 0;
+            });
             const isField = eventName.includes('跳') || eventName.includes('投') || eventName.includes('球') || eventName.includes('掷'); 
             const sortAsc = !isField; 
 
@@ -2776,7 +3072,12 @@ function selectView(m, id, n) {
             const qualifiedIds = new Set(allScoredItems.slice(0, qualifyLimit).map(i => i.id));
 
             const heats = {};
-            data.forEach(item => { const h = item.heat || '1'; if(!heats[h]) heats[h] = []; heats[h].push(item); });
+            data.forEach(item => { 
+                // 🌟 核心修复：如果是田赛（跳高/跳远/投掷等），同一项目/场地全部归入第 1 组统一出表！
+                const h = isField ? '1' : (item.heat || '1'); 
+                if(!heats[h]) heats[h] = []; 
+                heats[h].push(item); 
+            });
 
             let finalDisplayName = displayEventName;
             if (!finalDisplayName.includes('男') && !finalDisplayName.includes('女') && gender) {
@@ -2784,13 +3085,18 @@ function selectView(m, id, n) {
             }
 
             Object.keys(heats).sort((a,b) => parseInt(a) - parseInt(b)).forEach(heatNum => {
-                const items = heats[heatNum]; 
+                const items = heats[heatNum];
                 const scoredItems = items.filter(i => i.score && i.score.trim() !== '');
                 scoredItems.sort((a,b) => { const sa = parseTimeVal(a.score); const sb = parseTimeVal(b.score); return sortAsc ? (sa - sb) : (sb - sa); });
                 
                 const rankMap = {}; 
                 scoredItems.forEach((item, idx) => rankMap[item.id] = idx + 1);
-                
+                items.forEach(p => {
+                    const isItemAbandoned = (p.score && (p.score.includes('弃权') || p.score.includes('DNS'))) || p.checked_in == 2;
+                    if (isItemAbandoned) {
+                        rankMap[p.id] = '--';
+                    }
+                });
                 const maxLane = Math.max(...items.map(i => parseInt(i.lane) || 0)); 
                 const cols = Math.max(maxLane, 8); 
                 const laneMap = {}; 
@@ -3270,21 +3576,21 @@ function selectView(m, id, n) {
     }
 
     window.PRESET_MATRIX_POOL = [
-        { name: "100米", type: "径赛", duration: 3, limit: 8, hasPrelim: true, isRelay: false, needLane: true, isFun: false },
-        { name: "200米", type: "径赛", duration: 3, limit: 8, hasPrelim: true, isRelay: false, needLane: true, isFun: false },
-        { name: "400米", type: "径赛", duration: 4, limit: 8, hasPrelim: false, isRelay: false, needLane: true, isFun: false },
-        { name: "800米", type: "径赛", duration: 5, limit: 12, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
-        { name: "1500米", type: "径赛", duration: 8, limit: 20, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
-        { name: "3000米", type: "径赛", duration: 12, limit: 24, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
-        { name: "100米栏", type: "径赛", duration: 4, limit: 8, hasPrelim: true, isRelay: false, needLane: true, isFun: false },
-        { name: "110米栏", type: "径赛", duration: 4, limit: 8, hasPrelim: true, isRelay: false, needLane: true, isFun: false },
-        { name: "4×100米接力", type: "径赛", duration: 4, limit: 8, hasPrelim: false, isRelay: true, needLane: true, isFun: false },
-        { name: "4×400米接力", type: "径赛", duration: 5, limit: 8, hasPrelim: false, isRelay: true, needLane: true, isFun: false },
-        { name: "跳高", type: "田赛", duration: 15, limit: 15, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
-        { name: "跳远", type: "田赛", duration: 15, limit: 15, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
-        { name: "三级跳远", type: "田赛", duration: 15, limit: 15, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
-        { name: "铅球", type: "田赛", duration: 15, limit: 15, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
-        { name: "实心球", type: "田赛", duration: 15, limit: 15, hasPrelim: false, isRelay: false, needLane: false, isFun: false }
+        { name: "100米", type: "径赛", duration: 3, limit: 8, qualifyCount: 8, hasPrelim: true, isRelay: false, needLane: true, isFun: false },
+        { name: "200米", type: "径赛", duration: 3, limit: 8, qualifyCount: 8, hasPrelim: true, isRelay: false, needLane: true, isFun: false },
+        { name: "400米", type: "径赛", duration: 4, limit: 8, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: true, isFun: false },
+        { name: "800米", type: "径赛", duration: 5, limit: 12, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
+        { name: "1500米", type: "径赛", duration: 8, limit: 20, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
+        { name: "3000米", type: "径赛", duration: 12, limit: 24, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
+        { name: "100米栏", type: "径赛", duration: 4, limit: 8, qualifyCount: 8, hasPrelim: true, isRelay: false, needLane: true, isFun: false },
+        { name: "110米栏", type: "径赛", duration: 4, limit: 8, qualifyCount: 8, hasPrelim: true, isRelay: false, needLane: true, isFun: false },
+        { name: "4×100米接力", type: "径赛", duration: 4, limit: 8, qualifyCount: 8, hasPrelim: false, isRelay: true, needLane: true, isFun: false },
+        { name: "4×400米接力", type: "径赛", duration: 5, limit: 8, qualifyCount: 8, hasPrelim: false, isRelay: true, needLane: true, isFun: false },
+        { name: "跳高", type: "田赛", duration: 15, limit: 15, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
+        { name: "跳远", type: "田赛", duration: 15, limit: 15, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
+        { name: "三级跳远", type: "田赛", duration: 15, limit: 15, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
+        { name: "铅球", type: "田赛", duration: 15, limit: 15, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
+        { name: "实心球", type: "田赛", duration: 15, limit: 15, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false }
     ];
 
     window.appendCustomToMatrix = function() {
@@ -3331,38 +3637,39 @@ function selectView(m, id, n) {
         alert(`🎉 项目【${name}】已成功放入矩阵池，请在下方列表核对并点击“保存所有项目配置”！`);
     };
 
+   // 🌟 删除项目函数
+    window.deleteMatrixEvent = function(index) {
+        const item = window.PRESET_MATRIX_POOL[index];
+        if (!confirm(`确定要从项目矩阵中彻底删除【${item.name}】吗？`)) return;
+        window.PRESET_MATRIX_POOL.splice(index, 1);
+        renderEvents();
+    };
+
     function renderEvents() {
         const tbody = document.getElementById('matrixEventBody'); 
         if (!tbody) return; 
         tbody.innerHTML = '';
 
         window.PRESET_MATRIX_POOL.forEach((preset, index) => {
-            const activeEvt = db.events.find(e => e.name === preset.name || e.name.includes(preset.name));
+            const activeEvt = db.events.find(e => e.name === preset.name);
             const isChecked = (activeEvt || preset.forceCheck) ? 'checked' : ''; 
-            let currentDuration = '';
-if (activeEvt && activeEvt.duration !== null && activeEvt.duration !== undefined) {
-    currentDuration = parseFloat(activeEvt.duration) === 0 ? '' : activeEvt.duration;
-} else if (preset.duration !== undefined && !preset.isFun) {
-    currentDuration = preset.duration;
-}
+            
+            let currentDuration = activeEvt?.duration ?? preset.duration ?? 5;
+            let currentLimit = activeEvt?.limit ?? preset.limit ?? 8;
+            // 🌟 录取名次：优先读取数据库已存的 qualify_count，其次预设，默认取 8
+            let currentQualify = activeEvt?.qualifyCount ?? activeEvt?.qualify_count ?? preset.qualifyCount ?? 8;
 
-let currentLimit = '';
-if (activeEvt && activeEvt.limit !== null && activeEvt.limit !== undefined) {
-    currentLimit = parseInt(activeEvt.limit) === 0 || parseInt(activeEvt.limit) >= 999 ? '' : activeEvt.limit;
-} else if (preset.limit !== undefined && !preset.isFun) {
-    currentLimit = preset.limit;
-}
-            let hasPrelimVal = preset.hasPrelim; 
-            if (activeEvt) { hasPrelimVal = String(activeEvt.hasPrelim) === 'true' || String(activeEvt.has_prelim) === '1'; }
+            let hasPrelimVal = activeEvt ? (String(activeEvt.hasPrelim) === 'true' || String(activeEvt.has_prelim) === '1') : preset.hasPrelim;
             const isRelayChecked = (activeEvt ? (String(activeEvt.isRelay) === 'true' || String(activeEvt.is_relay) === '1') : preset.isRelay) ? 'checked' : ''; 
             const needLaneChecked = (activeEvt ? (String(activeEvt.needLane) === 'true' || String(activeEvt.need_lane) === '1') : preset.needLane) ? 'checked' : '';
-            let isFunChecked = preset.isFun ? 'checked' : ''; 
-            if (activeEvt) { isFunChecked = (String(activeEvt.is_fun) === '1' || String(activeEvt.isFun) === 'true') ? 'checked' : ''; }
-            let currentGender = activeEvt && activeEvt.gender ? activeEvt.gender : (preset.gender || '双性');
+            let isFunChecked = (activeEvt ? (String(activeEvt.is_fun) === '1' || String(activeEvt.isFun) === 'true') : preset.isFun) ? 'checked' : '';
+            
+            let currentGender = activeEvt?.gender || preset.gender || '双性';
             let isMaleChecked = (currentGender === '男' || currentGender === '双性') ? 'checked' : ''; 
             let isFemaleChecked = (currentGender === '女' || currentGender === '双性') ? 'checked' : ''; 
             let isMixedChecked = (currentGender === '混合') ? 'checked' : '';
-            let currentVenueCount = activeEvt && activeEvt.venueCount ? activeEvt.venueCount : (preset.venueCount || 1);
+            let currentVenueCount = activeEvt?.venueCount ?? preset.venueCount ?? 1;
+
             const savedAllowedStr = activeEvt ? (activeEvt.allowedGroups || activeEvt.allowed_groups || '') : '';
             const savedAllowedArr = savedAllowedStr ? savedAllowedStr.split(',') : [];
             let groupCheckboxesHtml = '';
@@ -3377,7 +3684,7 @@ if (activeEvt && activeEvt.limit !== null && activeEvt.limit !== undefined) {
                     </label>`;
                 }).join('') + `</div>`;
             } else {
-                groupCheckboxesHtml = '<span class="text-[10px] text-gray-300">请先在Step 2添加组别</span>';
+                groupCheckboxesHtml = '<span class="text-[10px] text-gray-300">请先在Step 1添加组别</span>';
             }
 
             const tr = document.createElement('tr'); 
@@ -3385,19 +3692,28 @@ if (activeEvt && activeEvt.limit !== null && activeEvt.limit !== undefined) {
             tr.innerHTML = `
                 <td class="text-center font-bold text-gray-400">${index + 1}</td> 
                 <td class="font-black text-gray-800 text-sm">${preset.name}</td> 
-                <td> <span class="px-2 py-0.5 rounded text-[10px] font-bold ${preset.type.includes('趣味') ? 'bg-amber-100 text-amber-800 border border-amber-300' : (preset.type === '径赛' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-orange-50 text-orange-700 border border-orange-200')}"> ${preset.type} </span> </td> 
-                <td class="text-center"> <input type="number" id="dur_${index}" value="${currentDuration}" placeholder="不限" class="w-14 border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 focus:bg-white outline-none"> </td> 
-<td class="text-center"> <input type="number" id="lim_${index}" value="${currentLimit}" placeholder="不限" class="w-14 border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 focus:bg-white outline-none"> </td>
+                <td> <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${preset.type.includes('趣味') ? 'bg-amber-100 text-amber-800 border border-amber-300' : (preset.type === '径赛' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-orange-50 text-orange-700 border border-orange-200')}"> ${preset.type} </span> </td> 
+                <td class="text-center"> <input type="number" id="dur_${index}" value="${currentDuration}" class="w-12 border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 focus:bg-white outline-none"> </td> 
+                <td class="text-center"> <input type="number" id="lim_${index}" value="${currentLimit}" class="w-12 border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 focus:bg-white outline-none"> </td>
+                <!-- 🌟 录取名次输入框 -->
+                <td class="text-center bg-orange-50/30"> <input type="number" id="qua_${index}" value="${currentQualify}" min="1" max="64" class="w-12 border border-orange-300 rounded text-center font-mono font-bold text-orange-700 py-0.5 bg-white outline-none focus:ring-1 focus:ring-orange-400"> </td>
                 <td class="text-center"> <select id="pre_${index}" class="border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 outline-none text-[11px]"> <option value="true" ${hasPrelimVal ? 'selected' : ''}>预赛+决赛</option> <option value="false" ${!hasPrelimVal ? 'selected' : ''}>直决(无预赛)</option> </select> </td> 
                 <td class="text-center bg-indigo-50/30">${groupCheckboxesHtml}</td>
                 <td class="text-center text-blue-700 bg-blue-50/20"> <input type="checkbox" id="chk_${index}" ${isChecked} class="w-4 h-4 rounded text-blue-600 border-gray-300 cursor-pointer"> </td> 
                 <td class="text-center text-amber-700"> <input type="checkbox" id="rel_${index}" ${isRelayChecked} class="w-4 h-4 rounded text-amber-600 border-gray-300 cursor-pointer"> </td> 
                 <td class="text-center text-purple-700 bg-purple-50/10"> <input type="checkbox" id="lan_${index}" ${needLaneChecked} class="w-4 h-4 rounded text-purple-600 border-gray-300 cursor-pointer"> </td> 
-                <td class="text-center border-r border-gray-100"> <input type="checkbox" id="gen_m_${index}" ${isMaleChecked} class="w-3.5 h-3.5 rounded text-teal-600 border-gray-300 cursor-pointer"> </td> 
-                <td class="text-center border-r border-gray-100"> <input type="checkbox" id="gen_f_${index}" ${isFemaleChecked} class="w-3.5 h-3.5 rounded text-teal-600 border-gray-300 cursor-pointer"> </td> 
-                <td class="text-center border-r border-gray-100"> <input type="checkbox" id="gen_x_${index}" ${isMixedChecked} class="w-3.5 h-3.5 rounded text-teal-600 border-gray-300 cursor-pointer"> </td>
+                <td class="text-center"> <input type="checkbox" id="gen_m_${index}" ${isMaleChecked} class="w-3.5 h-3.5 rounded text-teal-600 border-gray-300 cursor-pointer"> </td> 
+                <td class="text-center"> <input type="checkbox" id="gen_f_${index}" ${isFemaleChecked} class="w-3.5 h-3.5 rounded text-teal-600 border-gray-300 cursor-pointer"> </td> 
+                <td class="text-center"> <input type="checkbox" id="gen_x_${index}" ${isMixedChecked} class="w-3.5 h-3.5 rounded text-teal-600 border-gray-300 cursor-pointer"> </td>
                 <td class="text-center bg-orange-50/20"> <input type="number" id="ven_${index}" value="${currentVenueCount}" min="1" class="w-10 h-5 border border-orange-300 rounded text-center text-orange-700 font-bold outline-none"> </td> 
-                <td class="text-center bg-red-50/20 text-red-700"> <input type="checkbox" id="fun_${index}" ${isFunChecked} class="w-4 h-4 rounded text-red-600 border-gray-300 cursor-pointer"> </td>`;
+                <td class="text-center bg-red-50/20 text-red-700"> <input type="checkbox" id="fun_${index}" ${isFunChecked} class="w-4 h-4 rounded text-red-600 border-gray-300 cursor-pointer"> </td>
+                <!-- 🌟 删除操作按钮 -->
+                <td class="text-center">
+                    <button type="button" onclick="deleteMatrixEvent(${index})" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-1.5 py-0.5 rounded text-[11px] font-bold transition active:scale-95">
+                        删除
+                    </button>
+                </td>
+            `;
             tbody.appendChild(tr);
         });
     }
@@ -3444,12 +3760,16 @@ if (activeEvt && activeEvt.limit !== null && activeEvt.limit !== undefined) {
                     finalLim = preset.limit !== undefined ? preset.limit : 8;
                 }
 
+               const rawQua = document.getElementById(`qua_${index}`).value.trim();
+                const finalQua = rawQua === '' ? 8 : (parseInt(rawQua) || 8);
+
                 selectedEvents.push({ 
                     name: preset.name, 
                     type: preset.type, 
                     gender: calculatedGender, 
                     duration: finalDur, 
                     limit: finalLim, 
+                    qualifyCount: finalQua, // 🌟 包含录取名次
                     venueCount: rawVen === '' ? 1 : parseInt(rawVen), 
                     hasPrelim: document.getElementById(`pre_${index}`).value === 'true', 
                     isRelay: document.getElementById(`rel_${index}`).checked, 
@@ -3462,9 +3782,18 @@ if (activeEvt && activeEvt.limit !== null && activeEvt.limit !== undefined) {
             }
         });
 
-        fetch('/api/batch_save_events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ events: selectedEvents }) })
+fetch('/api/batch_save_events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ events: selectedEvents }) })
         .then(res => res.json()).then(data => { 
             if (data.success) { 
+                // 🌟 同步更新本地全局池
+                selectedEvents.forEach(se => {
+                    const target = window.PRESET_MATRIX_POOL.find(p => p.name === se.name);
+                    if (target) {
+                        target.duration = se.duration;
+                        target.limit = se.limit;
+                        target.venueCount = se.venueCount;
+                    }
+                });
                 alert('🎉 项目选用矩阵及限定组别配置已成功保存！'); 
                 fetchLatestData(); 
             } else { 
@@ -3568,6 +3897,8 @@ if (activeEvt && activeEvt.limit !== null && activeEvt.limit !== undefined) {
 
     window.generateSchedule = function() {
         if(!confirm("⚡ 确定要执行一键智能编排吗？\n注意：这将会把全场所有项目按照竞赛科学原则排入沙盘中！")) return;
+       window.isManualRescheduling = true;
+        db.schedule = [];
 
         window.manualScheduleMap = {}; 
         const maxDays = window.competitionTotalDays || 2;
@@ -3776,6 +4107,7 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
 
         localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
         calculateEventTimeBudget(); 
+        window.isManualRescheduling = false;
     };
 
     // 修复双重循环与括号缺失
@@ -3832,8 +4164,30 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                 const isFinalWithPrelim = savedJob.ename.includes('决赛') && !savedJob.ename.includes('预赛') && !isField;
                 if (isFinalWithPrelim) {
                     let jobMins = parseInt(savedJob.minutes) || 5;
+                    let heatEstTimeStr = `第${dayNum}天${unitType === 'AM' ? '上午' : '下午'} ${formatMins(baseStartMins, trackPointer)}`;
+                    let heatTimeIndexValue = dayNum * 100000 + (unitType === 'PM' ? 5000 : 0) + trackPointer;
+
+                    // 🌟 核心：在 db.schedule 中预排第 1 组（8 个道次），供裁判端直接归位检录
+                    for (let l = 1; l <= 8; l++) {
+                        db.schedule.push({
+                            id: Date.now() + Math.random(),
+                            groupName: group.name,
+                            eventName: savedJob.ename,
+                            gender: gender,
+                            heat: 1,
+                            lane: l,
+                            bib: '',
+                            name: `第${l}道(决赛待定)`,
+                            teamName: '预赛出线',
+                            type: 'sprint',
+                            totalLanes: 8,
+                            estTime: heatEstTimeStr,
+                            timeIndex: heatTimeIndexValue,
+                            isField: 0
+                        });
+                    }
                     trackPointer += jobMins;
-                    return;
+                    return; // 处理完 1 组后继续下一个任务
                 }
 
                 let rawEntries = db.athletes.filter(a => { 
@@ -3872,9 +4226,7 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                     return teamData;
                 }) : rawEntries.map(a => ({ ...a, teamName: db.teams.find(t => t.id == a.teamId)?.name || "", isTeam: false }));
 
-                if (isField) {
-                    maxPerHeat = Math.ceil(processList.length / vc) || 99;
-                }
+                maxPerHeat = settings.limit || 15;
                 totalHeats = Math.ceil(processList.length / maxPerHeat) || 1;
 
                 let currentPointer = 0;
@@ -4081,7 +4433,7 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
             .then(r => r.json())
             .then(res => {
                 if (res.status !== 'success' || !res.tasks || res.tasks.length === 0) {
-                    container.innerHTML = '<div class="text-center py-20 text-gray-400 font-bold text-sm">📂 暂无赛程数据，请先在【Step 5】完成编排并发布！</div>';
+                    container.innerHTML = '<div class="text-center py-20 text-gray-400 font-bold text-sm">📂 暂无赛程数据，请先在【Step 4】完成编排并发布！</div>';
                     return;
                 }
 
@@ -4098,38 +4450,30 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                     const checked = task.checked_count || 0;
                     const scored = task.scored_count || 0;
 
-                    let status = 'unchecked';
-                    if (scored >= total && total > 0) {
-                        status = 'finished';
-                        countFinished++;
-                    } else if (scored > 0) {
-                        status = 'ongoing';
-                        countOngoing++;
-                    } else if (checked > 0) {
-                        status = 'pending';
-                        countPending++;
-                    } else {
-                        status = 'unchecked';
-                        countUnchecked++;
-                    }
+                    // 🌟 核心：直接使用后端根据起点发车(is_started)和终点有效成绩计算出的权威状态
+                    let status = task.status || 'unchecked';
 
                     let cardStyle = '';
                     let badgeStyle = '';
                     let statusText = '';
                     
                     if (status === 'finished') {
+                        countFinished++;
                         cardStyle = 'bg-gray-50 border-gray-200 opacity-60 text-gray-500';
                         badgeStyle = 'bg-gray-200 text-gray-600';
-                        statusText = '🏁 比赛已完成';
+                        statusText = '🏁 比赛已结束';
                     } else if (status === 'ongoing') {
+                        countOngoing++;
                         cardStyle = 'bg-emerald-50 border-emerald-500 shadow-md ring-2 ring-emerald-400 text-emerald-950 font-bold';
                         badgeStyle = 'bg-emerald-600 text-white animate-pulse';
-                        statusText = '🟢 成绩录入中';
+                        statusText = '🟢 跑道进行中 / 成绩录入中';
                     } else if (status === 'pending') {
+                        countPending++;
                         cardStyle = 'bg-blue-50 border-blue-400 shadow-sm text-blue-950 font-bold';
                         badgeStyle = 'bg-blue-600 text-white';
                         statusText = `🔵 待开始 (已检录 ${checked}/${total})`;
                     } else {
+                        countUnchecked++;
                         cardStyle = 'bg-white border-gray-200 hover:border-gray-300 text-gray-800';
                         badgeStyle = 'bg-gray-100 text-gray-600 border border-gray-200';
                         statusText = '⚪ 未检录';
@@ -4161,6 +4505,7 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                                   class="cursor-pointer inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border transition select-none ${style}">
                                 <span>${icon}</span>
                                 <span class="${nameClass}">${a.name}</span>
+                                ${state === 2 ? '<span class="text-[9px] text-red-500 font-bold">[弃权]</span>' : ''}
                                 ${hasScore ? `<b>(${a.score})</b>` : ''}
                             </span>
                         `;
@@ -4185,7 +4530,7 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                             </div>
 
                             <div class="shrink-0 text-right font-mono text-xs text-gray-400">
-                                <div>${task.est_time || ''}</div>
+                                <div>${window.formatScheduleTime ? window.formatScheduleTime(task.est_time) : (task.est_time || '')}</div>
                             </div>
                         </div>
                     `;
@@ -4413,6 +4758,320 @@ function toggleGridMobile() {
     grid.classList.toggle('hidden');
     if (tip) tip.innerText = grid.classList.contains('hidden') ? '(点击展开)' : '(点击折叠)';
 }
+let rawAnalysisData = {};
+    let dimensionBarChart = null;
+    let dimensionRadarChart = null;
+
+    function fetchPhysicalAnalysisData() {
+        fetch('/api/analyze_physical_data', { method: 'POST' })
+            .then(r => r.json())
+            .then(res => {
+                if (res.status !== 'success') return;
+                rawAnalysisData = res.data || {};
+                const grades = Object.keys(rawAnalysisData);
+                
+                const select = document.getElementById('analysisGradeSelect');
+                if (!select) return;
+
+                if (grades.length === 0) {
+                    document.getElementById('eventMetricsContainer').innerHTML = `
+                        <div class="col-span-full py-12 text-center text-gray-400 font-bold text-xs bg-white rounded-xl border border-gray-200">
+                            📂 当前暂无任何已录入的比赛成绩，比赛录入成绩后将在此自动生成分析。
+                        </div>`;
+                    return;
+                }
+
+                const currentG = select.value;
+                select.innerHTML = grades.map(g => `<option value="${g}">${g}</option>`).join('');
+                if (grades.includes(currentG)) select.value = currentG;
+
+                onAnalysisFilterChange();
+            })
+            .catch(err => console.error("拉取分析数据失败:", err));
+    }
+
+    function onAnalysisFilterChange() {
+        const gradeSelect = document.getElementById('analysisGradeSelect');
+        const teamSelect = document.getElementById('analysisTeamSelect');
+        const eventSelect = document.getElementById('analysisEventSelect');
+        if (!gradeSelect || !teamSelect || !eventSelect) return;
+
+        const gName = gradeSelect.value;
+        const gradeData = rawAnalysisData[gName];
+        if (!gradeData) return;
+
+        // 填充班级下拉框
+        const teams = gradeData.teams || [];
+        const prevTeam = teamSelect.value;
+        teamSelect.innerHTML = '<option value="ALL">全部班级(年级大盘)</option>' + 
+            teams.map(t => `<option value="${t.team}">${t.team}</option>`).join('');
+        if (teams.some(t => t.team === prevTeam)) teamSelect.value = prevTeam;
+
+        // 填充项目下拉框
+        const events = Object.keys(gradeData.events || {});
+        const prevEvt = eventSelect.value;
+        eventSelect.innerHTML = '<option value="ALL">全项目概览</option>' + 
+            events.map(e => `<option value="${e}">${e}</option>`).join('');
+        if (events.includes(prevEvt)) eventSelect.value = prevEvt;
+
+        renderAnalysisView();
+    }
+
+    function renderAnalysisView() {
+        const gradeSelect = document.getElementById('analysisGradeSelect');
+        const teamSelect = document.getElementById('analysisTeamSelect');
+        const genderSelect = document.getElementById('analysisGenderSelect');
+        const eventSelect = document.getElementById('analysisEventSelect');
+        if (!gradeSelect || !rawAnalysisData) return;
+
+        const gName = gradeSelect.value;
+        const gradeData = rawAnalysisData[gName];
+        if (!gradeData) return;
+
+        const selTeam = teamSelect.value;
+        const selGen = genderSelect.value;
+        const selEvt = eventSelect.value;
+
+        const allEvents = gradeData.events || {};
+        let activeEventNames = Object.keys(allEvents);
+        if (selEvt !== 'ALL') {
+            activeEventNames = activeEventNames.filter(e => e === selEvt);
+        }
+
+        // ==========================================
+        // 1. 渲染各项目详细指标卡片 (平均值 + 极值)
+        // ==========================================
+        const metricsContainer = document.getElementById('eventMetricsContainer');
+        let cardHtml = '';
+
+        activeEventNames.forEach(eName => {
+            const item = allEvents[eName];
+            const unit = item.is_field ? 'm' : 's';
+
+            // 班级均值覆盖
+            let customTeamAvg = null;
+            if (selTeam !== 'ALL') {
+                const teamObj = (gradeData.teams || []).find(t => t.team === selTeam);
+                if (teamObj && teamObj.scores && teamObj.scores[eName] !== undefined) {
+                    customTeamAvg = teamObj.scores[eName];
+                }
+            }
+
+            const showMale = (selGen === 'ALL' || selGen === '男');
+            const showFemale = (selGen === 'ALL' || selGen === '女');
+
+            cardHtml += `
+            <div class="bg-white p-3.5 rounded-xl border border-gray-200 shadow-xs hover:shadow-md transition flex flex-col justify-between">
+                <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+                    <span class="font-black text-gray-800 text-sm flex items-center gap-1">
+                        <span>${item.is_field ? '🎯' : '🏃'}</span> ${eName}
+                    </span>
+                    <span class="text-[10px] px-2 py-0.5 rounded font-bold ${item.is_field ? 'bg-orange-50 text-orange-700 border border-orange-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}">
+                        ${item.is_field ? '田赛/远度' : '径赛/用时'}
+                    </span>
+                </div>
+
+                ${customTeamAvg !== null ? `
+                    <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-2 my-2 text-center">
+                        <span class="text-[10px] text-indigo-700 font-bold block">${selTeam} 班级平均</span>
+                        <span class="font-mono font-black text-indigo-900 text-lg">${customTeamAvg}${unit}</span>
+                    </div>
+                ` : ''}
+
+                <div class="grid ${showMale && showFemale ? 'grid-cols-2' : 'grid-cols-1'} gap-2 mt-2 text-xs">
+                    ${showMale ? `
+                    <div class="bg-blue-50/70 border border-blue-100 p-2 rounded-lg">
+                        <div class="text-blue-900 font-bold text-[10px] flex justify-between">
+                            <span>男生均值</span>
+                            <span class="font-normal text-gray-400">${item.male_count}人</span>
+                        </div>
+                        <div class="font-mono font-black text-blue-700 text-base my-0.5">
+                            ${item.male_avg > 0 ? item.male_avg + unit : '--'}
+                        </div>
+                        <div class="text-[10px] text-gray-500 flex justify-between border-t border-blue-100/60 pt-1 mt-1">
+                            <span>最优极值:</span>
+                            <span class="font-mono font-bold text-blue-800">${item.male_best > 0 ? item.male_best + unit : '--'}</span>
+                        </div>
+                    </div>` : ''}
+
+                    ${showFemale ? `
+                    <div class="bg-pink-50/70 border border-pink-100 p-2 rounded-lg">
+                        <div class="text-pink-900 font-bold text-[10px] flex justify-between">
+                            <span>女生均值</span>
+                            <span class="font-normal text-gray-400">${item.female_count}人</span>
+                        </div>
+                        <div class="font-mono font-black text-pink-700 text-base my-0.5">
+                            ${item.female_avg > 0 ? item.female_avg + unit : '--'}
+                        </div>
+                        <div class="text-[10px] text-gray-500 flex justify-between border-t border-pink-100/60 pt-1 mt-1">
+                            <span>最优极值:</span>
+                            <span class="font-mono font-bold text-pink-800">${item.female_best > 0 ? item.female_best + unit : '--'}</span>
+                        </div>
+                    </div>` : ''}
+                </div>
+            </div>`;
+        });
+        metricsContainer.innerHTML = cardHtml || '<div class="col-span-full py-8 text-center text-gray-400 text-xs font-bold">无匹配项目数据</div>';
+
+        // ==========================================
+        // 2. 柱状图：项目男女生平均对比
+        // ==========================================
+        const ctxBar = document.getElementById('chartDimensionBar').getContext('2d');
+        if (dimensionBarChart) dimensionBarChart.destroy();
+
+        const barLabels = activeEventNames;
+        const maleAverages = barLabels.map(k => allEvents[k].male_avg || 0);
+        const femaleAverages = barLabels.map(k => allEvents[k].female_avg || 0);
+
+        dimensionBarChart = new Chart(ctxBar, {
+            type: 'bar',
+            data: {
+                labels: barLabels,
+                datasets: [
+                    {
+                        label: '男生均值',
+                        data: maleAverages,
+                        backgroundColor: 'rgba(59, 130, 246, 0.75)',
+                        borderColor: '#2563eb',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    },
+                    {
+                        label: '女生均值',
+                        data: femaleAverages,
+                        backgroundColor: 'rgba(236, 72, 153, 0.75)',
+                        borderColor: '#db2777',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11, weight: 'bold' } } } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
+                    x: { grid: { display: false }, ticks: { font: { size: 10, weight: 'bold' } } }
+                }
+            }
+        });
+
+        // ==========================================
+        // 3. 最优极值条形对比图
+        // ==========================================
+        const ctxRadar = document.getElementById('chartDimensionRadar').getContext('2d');
+        if (dimensionRadarChart) dimensionRadarChart.destroy();
+
+        const maleBests = barLabels.map(k => allEvents[k].male_best || 0);
+        const femaleBests = barLabels.map(k => allEvents[k].female_best || 0);
+
+        dimensionRadarChart = new Chart(ctxRadar, {
+            type: 'bar',
+            data: {
+                labels: barLabels,
+                datasets: [
+                    {
+                        label: '男生最好极值',
+                        data: maleBests,
+                        backgroundColor: 'rgba(16, 185, 129, 0.75)',
+                        borderColor: '#059669',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    },
+                    {
+                        label: '女生最好极值',
+                        data: femaleBests,
+                        backgroundColor: 'rgba(245, 158, 11, 0.75)',
+                        borderColor: '#d97706',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11, weight: 'bold' } } } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
+                    x: { grid: { display: false }, ticks: { font: { size: 10, weight: 'bold' } } }
+                }
+            }
+        });
+
+        // ==========================================
+        // 4. 班级横向具体单项明细对照表
+        // ==========================================
+        const tableHead = document.getElementById('teamTableHead');
+        const tableBody = document.getElementById('teamTableBody');
+        
+        tableHead.innerHTML = `<th class="p-2.5 text-center w-12">序号</th><th class="p-2.5 text-left">班级名称</th>` + 
+            activeEventNames.map(k => `<th class="p-2.5 text-center">${k}均值</th>`).join('');
+
+        let teams = gradeData.teams || [];
+        if (selTeam !== 'ALL') {
+            teams = teams.filter(t => t.team === selTeam);
+        }
+
+        tableBody.innerHTML = teams.map((t, idx) => {
+            const cells = activeEventNames.map(k => {
+                const val = t.scores[k];
+                if (!val) return `<td class="p-2 text-center text-gray-300">--</td>`;
+                const isField = allEvents[k]?.is_field;
+                return `<td class="p-2 text-center font-mono font-bold text-gray-800">${val}${isField ? 'm' : 's'}</td>`;
+            }).join('');
+
+            return `
+                <tr class="hover:bg-indigo-50/20 transition">
+                    <td class="p-2 text-center text-gray-400 font-mono">${idx + 1}</td>
+                    <td class="p-2 text-left font-black text-gray-800">${t.team}</td>
+                    ${cells}
+                </tr>`;
+        }).join('');
+    }
+// 🌟 控制“生成决赛表”按钮的显示与隐藏
+    function checkFinalsBtnVisibility() {
+        const btnFinals = document.querySelector('button[onclick="generateFinals()"]');
+        const finalsTopNBox = document.getElementById('finalsTopN')?.closest('div');
+        if (!btnFinals) return;
+
+        const curEvt = window.curResEvent || '';
+        
+        // 1. 如果当前选中的已经是“决赛”项目（如 100米 (决赛)），坚决隐藏/禁用！
+        if (curEvt.includes('决赛')) {
+            btnFinals.classList.add('hidden');
+            if (finalsTopNBox) finalsTopNBox.classList.add('hidden');
+            return;
+        }
+
+        // 2. 检查配置表，该项目是否配置了“预赛+决赛”
+        const cleanName = curEvt.replace(' (预赛)', '').replace(' (决赛)', '').trim();
+        const cfg = db.events.find(e => e.name === cleanName || e.name === curEvt);
+        const hasPrelim = cfg ? (String(cfg.hasPrelim) === 'true' || String(cfg.has_prelim) === '1') : false;
+
+        // 只有包含“预赛”或配置了预赛的项目，才展示“生成决赛表”按钮
+        if (curEvt.includes('预赛') || hasPrelim) {
+            btnFinals.classList.remove('hidden');
+            if (finalsTopNBox) finalsTopNBox.classList.remove('hidden');
+        } else {
+            btnFinals.classList.add('hidden');
+            if (finalsTopNBox) finalsTopNBox.classList.add('hidden');
+        }
+    }
+window.triggerAutoFinalsPublish = function() {
+        const gName = window.curResGroup;
+        const eName = window.curResEvent;
+        const gen = window.curResGender;
+        fetch('/api/trigger_auto_finals', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ group_name: gName, event_name: eName, gender: gen })
+        }).then(r => r.json()).then(res => {
+            alert(res.msg);
+            renderResultSheet();
+        });
+    };
 </script>
 </body>
 </html>

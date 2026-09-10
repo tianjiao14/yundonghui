@@ -102,11 +102,11 @@
                     <span class="text-gray-400 text-sm">▼</span>
                 </button>
                 <div id="panel-team-score" class="hidden bg-white p-3 border-t border-slate-100">
-                    <div class="flex justify-between items-center mb-4 px-1">
-                        <select id="rankGroupSelect" onchange="loadTeamRank()" class="border-none bg-blue-50 text-blue-700 font-bold rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 transition cursor-pointer">
-                            <option value="">-- 选择组别 --</option>
-                        </select>
-                        <span class="text-[11px] text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded-full" id="rankTime"></span>
+                    <div class="flex justify-between items-center mb-3 px-1 gap-2">
+            
+                        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 flex-1" id="rankGroupTabs">
+                        </div>
+                        <span class="text-[10px] text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded-full shrink-0" id="rankTime"></span>
                     </div>
                     <div class="overflow-x-auto rounded-xl border border-slate-100">
                         <table class="modern-table">
@@ -241,10 +241,8 @@
                 
                 if(data.config && data.config.title) document.getElementById('sysTitle').innerText = data.config.title;
                 
-                const rankSel = document.getElementById('rankGroupSelect');
-                rankSel.innerHTML = '<option value="">-- 选择组别 --</option>';
-                db.groups.forEach(g => { rankSel.innerHTML += `<option value="${g.name}">${g.name}</option>`; });
-                
+                renderRankGroupTabs();
+
                 renderRealAnnouncements();
                 renderSubsequentStartLists();
             }).catch(e => console.error("数据连接异常:", e));
@@ -278,30 +276,39 @@
             return parseFloat(s) || 0;
         }
 
-        // ==========================================
-        // 1. 成绩公告列表
-        // ==========================================
         function renderRealAnnouncements() {
             const list = document.getElementById('resultList');
-            if(!db.schedule.length) {
-                list.innerHTML = '<li class="p-6 text-center text-slate-400 text-sm">尚未生成赛程数据</li>'; return;
+            if(!db.schedule || !db.schedule.length) {
+                list.innerHTML = '<li class="p-6 text-center text-slate-400 text-sm">尚未生成赛程数据</li>'; 
+                return;
             }
-            const eventNames = [...new Set(db.schedule.map(s => s.eventName))].sort();
+            const eventSet = new Set();
+            db.schedule.forEach(s => {
+                if (s.eventName) {
+                    const cleanName = s.eventName.replace(/\s*\(场地\d+\)/g, '').replace(/\s*（场地\d+）/g, '').trim();
+                    eventSet.add(cleanName);
+                }
+            });
+
+            const eventNames = Array.from(eventSet).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+
             list.innerHTML = eventNames.map(eName => `
                 <li class="p-4 flex justify-between items-center hover:bg-slate-50 cursor-pointer transition group" 
                     onclick="goToEventDetail('${eName}', false)">
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">🏁</div>
-                        <span class="text-slate-700 font-bold group-hover:text-blue-600 transition">${eName}</span>
+                        <span class="text-slate-800 font-bold group-hover:text-blue-600 transition text-[15px]">${eName}</span>
                     </div>
                     <span class="text-slate-300 group-hover:text-blue-500 transition">➜</span>
                 </li>
             `).join('');
         }
 
-        // ==========================================
-        // 2. 后续参赛名单列表
-        // ==========================================
+        function goToEventDetailWithParams(eventName, groupName, gender, isFinalsList) {
+            window.activeQueryGroup = groupName;
+            window.activeQueryGender = gender;
+            goToEventDetail(eventName, isFinalsList);
+        }
         function renderSubsequentStartLists() {
             const list = document.getElementById('startList');
             if(!db.schedule.length) return;
@@ -321,9 +328,6 @@
             `).join('');
         }
 
-        // ==========================================
-        // 核心：一键渲染【各小组成绩】+【最后综合成绩】
-        // ==========================================
         function goToEventDetail(eventName, isFinalsList) {
             document.getElementById('detEventName').innerText = eventName;
             document.getElementById('detHeatLabel').innerHTML = isFinalsList ? '✨ 晋级决赛检录名单' : '🏅 综合成绩公告';
@@ -348,8 +352,13 @@
             const qualifyLimit = evtCfg ? (parseInt(evtCfg.limit) || parseInt(evtCfg.limit_count) || 8) : 8;
 
             fetch('/api/get_event_start_list', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ event_name: eventName }) 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    event_name: eventName,
+                    group_name: '',
+                    gender: ''
+                }) 
             })
             .then(r => r.json())
             .then(data => {
@@ -466,8 +475,17 @@
                                 html += `</tbody></table>`;
                             });
 
-                            const scored = groupData.filter(i => i.score && i.score.trim() !== '');
-                            if (scored.length > 0) {
+                            const isRealScore = (scoreStr) => {
+                                if (!scoreStr) return false;
+                                const s = String(scoreStr).trim();
+                                if (s === '' || s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || s.includes('DNF')) return false;
+                                return parseTimeVal(s) > 0;
+                            };
+
+                            const scored = groupData.filter(i => isRealScore(i.score));
+                            const abandoned = groupData.filter(i => !isRealScore(i.score) && (String(i.score).includes('弃权') || i.checked_in == 2 || String(i.score).includes('DNS')));
+
+                            if (scored.length > 0 || abandoned.length > 0) {
                                 scored.sort((a,b) => {
                                     const sa = parseTimeVal(a.score); const sb = parseTimeVal(b.score);
                                     return isField ? (sb - sa) : (sa - sb);
@@ -490,7 +508,7 @@
                                         <th class="w-12 text-orange-800">${extraColName}</th>
                                     </tr></thead>
                                     <tbody>`;
-                                
+
                                 let currentRank = 1;
                                 scored.forEach((item, idx) => {
                                     if (idx > 0 && parseTimeVal(item.score) !== parseTimeVal(scored[idx-1].score)) currentRank = idx + 1;
@@ -506,7 +524,6 @@
                                         if (pts > 0) extraColHtml = `<span class="font-extrabold text-red-600 bg-red-50 px-2 py-0.5 rounded shadow-sm text-[13px]">${pts}</span>`;
                                     }
 
-                                    // 前三名样式高亮
                                     let rankBadge = `<span class="font-bold text-slate-500">${currentRank}</span>`;
                                     let rowBg = '';
                                     if(currentRank === 1) { rankBadge = '🥇'; rowBg = 'bg-yellow-50/30'; }
@@ -527,6 +544,18 @@
                                         <td class="text-center">${extraColHtml}</td>
                                     </tr>`;
                                 });
+
+                                abandoned.forEach(item => {
+                                    html += `<tr class="text-slate-400 bg-slate-50/40">
+                                        <td class="text-[12px] font-mono font-bold text-slate-400">--</td>
+                                        <td class="font-mono text-slate-400 text-[12px]">${item.bib || '-'}</td>
+                                        <td class="text-left pl-2 font-medium text-slate-500">${item.name}</td>
+                                        <td class="text-left pl-2 text-slate-400 text-[12px] truncate max-w-[80px]">${item.team_name}</td>
+                                        <td class="text-right pr-4 font-bold text-red-500 text-xs">弃权</td>
+                                        <td class="text-center text-slate-300">-</td>
+                                    </tr>`;
+                                });
+
                                 html += `</tbody></table>`;
                             } else {
                                 html += `<div class="px-4 py-8 text-sm text-center text-slate-400">成绩核算中，请等待裁判长确认发布</div>`;
@@ -539,29 +568,69 @@
             });
         }
 
-        // ==========================================
-        // 3. 团体总分
-        // ==========================================
-        function loadTeamRank() {
-            const gName = document.getElementById('rankGroupSelect').value;
-            const tbody = document.getElementById('rankTableBody');
-            if(!gName) {
-                tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-slate-400 text-sm">请选择上方组别查看</td></tr>';
+        window.activeRankGroup = '';
+        function renderRankGroupTabs() {
+            const container = document.getElementById('rankGroupTabs');
+            if (!container) return;
+
+            if (!db.groups || db.groups.length === 0) {
+                container.innerHTML = '<span class="text-xs text-slate-400 font-bold">暂无组别</span>';
                 return;
             }
 
-            tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-blue-500 font-medium"><svg class="animate-spin h-5 w-5 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>正在极速核算纯净总分...</td></tr>';
+            if (!window.activeRankGroup || !db.groups.some(g => g.name === window.activeRankGroup)) {
+                window.activeRankGroup = db.groups[0].name;
+            }
+
+            container.innerHTML = db.groups.map(g => {
+                const isSelected = (g.name === window.activeRankGroup);
+                return `
+                    <button type="button" 
+                            onclick="selectRankGroup('${g.name}')"
+                            class="px-3 py-1.5 rounded-lg text-xs font-black transition-all shrink-0 active:scale-95 select-none ${
+                                isSelected 
+                                ? 'bg-blue-600 text-white shadow-sm' 
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200/60'
+                            }">
+                        ${g.name}
+                    </button>
+                `;
+            }).join('');
+
+            loadTeamRank(window.activeRankGroup);
+        }
+        function selectRankGroup(groupName) {
+            window.activeRankGroup = groupName;
+            renderRankGroupTabs();
+        }
+        function loadTeamRank(groupName) {
+            const gName = groupName || window.activeRankGroup;
+            const tbody = document.getElementById('rankTableBody');
+            if (!tbody) return;
+
+            if (!gName) {
+                tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-slate-400 text-sm">暂无组别数据</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-blue-500 font-medium"><svg class="animate-spin h-5 w-5 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>正在极速核算积分...</td></tr>';
             
             fetch('/api/calculate_team_ranking', {
-                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ group_name: gName })
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({ group_name: gName })
             })
             .then(r => r.json())
             .then(data => {
                 const d = new Date();
-                document.getElementById('rankTime').innerText = `已更新 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                const timeEl = document.getElementById('rankTime');
+                if (timeEl) {
+                    timeEl.innerText = `已更新 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                }
 
-                if(data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400 text-sm">该组别暂无队伍获得决赛积分</td></tr>'; return;
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400 text-sm">该组别暂无队伍获得积分</td></tr>'; 
+                    return;
                 }
 
                 tbody.innerHTML = data.map((t, i) => `
@@ -617,9 +686,6 @@
             });
         }
 
-        // ==========================================
-        // 4. 查询及运动员成绩穿透
-        // ==========================================
         function executeSearch() {
             const type = document.getElementById('searchType').value;
             const kw = document.getElementById('searchInput').value.trim().toLowerCase();
@@ -665,7 +731,6 @@
             }
         }
 
-        // 精确提取个人全科成绩
         function goToAthleteDetail(athleteName) {
             const ath = db.athletes.find(a => a.name === athleteName);
             if (!ath) return alert("数据异常");
