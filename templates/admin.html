@@ -191,7 +191,7 @@
     
     /* 2. 隐藏非当前活动的面板 */
     .step-panel { display: none !important; }
-    #step-5:not(.hidden), #step-6:not(.hidden), #step-7:not(.hidden), 
+    #step-4:not(.hidden), #step-5:not(.hidden), #step-6:not(.hidden), #step-7:not(.hidden), 
     #step-8:not(.hidden), #step-9:not(.hidden) { 
         display: block !important; 
         width: 100% !important;
@@ -200,8 +200,8 @@
         position: static !important;
     }
 
-    /* 3. 强制解除容器高度限制，防止空白页 */
-    body, .flex-1, main { height: auto !important; overflow: visible !important; }
+    /* 3. 强制解除容器高度限制，防止空白页及长表格被截断 */
+    body, .flex-1, main, #step-4, #scheduleOutput { height: auto !important; overflow: visible !important; }
 
   /* 3. 密码条卡片样式优化：防止分页切断 */
     #passwordList {
@@ -1413,7 +1413,7 @@ case 10:
     }
 
     window.manualScheduleMap = JSON.parse(localStorage.getItem('manual_schedule_map')) || {};
-window.renderManualScheduleGrid = function() {
+    window.renderManualScheduleGrid = function() {
         const grid = document.getElementById('manualScheduleGrid');
         if (!grid) return;
         
@@ -1443,30 +1443,39 @@ window.renderManualScheduleGrid = function() {
                 const baseStart = unitType === 'AM' ? amStartMins : pmStartMins;
                 
                 let unitJobs = window.manualScheduleMap[unitKey] || [];
-               let trackPointer = 0; 
-               let fieldHighPointer = 0; 
-               let fieldLongPointer = 0; 
-               let fieldThrowPointer = 0;
-
-                // 记录同单元内各项目多场地的基准起始时间，确保场地1、场地2同时开始
+                let trackPointer = 0; 
+                let fieldHighPointer = 0; 
+                let fieldLongPointer = 0; 
+                let fieldThrowPointer = 0;
                 let venueStartMap = {};
 
                 let cardsHtml = unitJobs.map(job => {
-                    const isFun = (job.isFun === true || String(job.isFun) === 'true' || job.ename.includes('趣味') || job.etype === '趣味项目');
-                    let isField = !isFun && (job.isField === true || String(job.isField) === 'true');
+                    const cleanEvt = job.ename.replace(" (预赛)", "").replace(" (决赛)", "").replace(/[\(（]场地\d+[\)）]/, "").trim();
+                    
+                    const evtCfg = db.events.find(e => e.name === cleanEvt || e.name === job.ename) || {};
+                    const isFun = (
+                        evtCfg.type === '趣味项目' || 
+                        evtCfg.type === '趣味' || 
+                        String(evtCfg.isFun) === 'true' || 
+                        String(evtCfg.is_fun) === '1' || 
+                        job.isFun === true || 
+                        String(job.isFun) === 'true'
+                    );
+                    
+                    let isField = !isFun && (
+                        evtCfg.type === '田赛' || 
+                        job.isField === true || 
+                        String(job.isField) === 'true'
+                    );
                     
                     const group = db.groups.find(g => String(g.id) === String(job.jobKey.split('_')[0]));
-                    // 剥离后缀获取项目纯净名
-                    const cleanEvt = job.ename.replace(" (预赛)", "").replace(" (决赛)", "").replace(/ \(场地\d+\)/, "").trim();
                     
                     let totalCount = 0; 
                     let heats = 1;
                     const isFinalRound = job.ename.includes('决赛') && !job.ename.includes('预赛');
-                    const evtCfg = db.events.find(e => e.name === cleanEvt || e.name === job.ename);
-                    const hasPrelim = evtCfg ? (String(evtCfg.hasPrelim) === 'true' || String(evtCfg.has_prelim) === '1') : false;
+                    const hasPrelim = (String(evtCfg.hasPrelim) === 'true' || String(evtCfg.has_prelim) === '1');
 
                     if (isFinalRound && hasPrelim && !isField) {
-                        // 🌟 核心修复：有预赛的径赛决赛，固定为 8 人（或道次数）且固定只有 1 组！
                         totalCount = 8;
                         heats = 1;
                     } else if (group && db.athletes) {
@@ -1476,52 +1485,44 @@ window.renderManualScheduleGrid = function() {
                         });
                         let totalAthletes = cleanEvt.includes('接力') ? new Set(rawEntries.map(a => a.teamId)).size : rawEntries.length;
                         
-                        // 多场地按场地均分人数
-                        let vMatch = job.ename.match(/ \(场地(\d+)\)/);
+                        let vMatch = job.ename.match(/[\(（]场地(\d+)[\)）]/);
                         let totalV = job.totalVenues || 2;
                         if (isField && vMatch) {
                             let perV = Math.ceil(totalAthletes / totalV);
                             let vIdx = parseInt(vMatch[1]);
-                            if (vIdx === totalV) {
-                                totalCount = totalAthletes - (perV * (totalV - 1));
-                            } else {
-                                totalCount = perV;
-                            }
+                            totalCount = (vIdx === totalV) ? (totalAthletes - (perV * (totalV - 1))) : perV;
                             if (totalCount < 0) totalCount = 0;
                         } else {
                             totalCount = totalAthletes;
                         }
 
-                        let limit = evtCfg ? (parseInt(evtCfg.limit) || parseInt(evtCfg.limit_count) || (isField ? 99 : 8)) : 8;
+                        let limit = parseInt(evtCfg.limit) || parseInt(evtCfg.limit_count) || (isField ? 99 : 8);
                         heats = Math.ceil(totalCount / limit) || 1;
                     }
 
                     const jobMins = parseInt(job.minutes) || 0;
                     let startTime = '';
 
-                    // 🌟 判断田赛类型：跳高(high)、跳远/三级跳(long)、投掷铅球等(throw)
                     let currentFType = 'throw';
                     if (cleanEvt.includes('高') || cleanEvt.includes('撑竿')) currentFType = 'high';
-                    else if (cleanEvt.includes('远') || cleanEvt.includes('三级跳')) currentFType = 'long';
+                    else if (cleanEvt.includes('远') || cleanEvt.includes('三级跳') || cleanEvt.includes('蛙跳')) currentFType = 'long';
 
-                    // 🌟 计算时间：趣味不计入；跳高、跳远、投掷独立计时，同类多场地并行开赛
                     if (isFun) {
-                        startTime = jobMins === 0 ? '全赛段' : formatMins(baseStart, 0);
+                        startTime = formatMins(baseStart, 0);
                     } else if (isField) {
                         let activePointer = currentFType === 'high' ? fieldHighPointer : (currentFType === 'long' ? fieldLongPointer : fieldThrowPointer);
-                        
-                        let vMatch = job.ename.match(/ \(场地(\d+)\)/);
+                        let vMatch = job.ename.match(/[\(（]场地(\d+)[\)）]/);
                         let baseKey = `${job.jobKey.split('_')[0]}_${cleanEvt}_${job.gender}`;
                         
                         if (vMatch) {
-                            if (!venueStartMap[baseKey]) {
+                            if (venueStartMap[baseKey] !== undefined) {
+                                startTime = formatMins(baseStart, venueStartMap[baseKey]);
+                            } else {
                                 venueStartMap[baseKey] = activePointer;
                                 startTime = formatMins(baseStart, activePointer);
                                 if (currentFType === 'high') fieldHighPointer += jobMins;
                                 else if (currentFType === 'long') fieldLongPointer += jobMins;
                                 else fieldThrowPointer += jobMins;
-                            } else {
-                                startTime = formatMins(baseStart, venueStartMap[baseKey]); // 场地2同步场地1时间
                             }
                         } else {
                             startTime = formatMins(baseStart, activePointer);
@@ -1534,14 +1535,15 @@ window.renderManualScheduleGrid = function() {
                         trackPointer += jobMins;
                     }
 
-                    const badgeColor = isFun ? 'bg-amber-500' : (isField ? 'bg-orange-500' : 'bg-emerald-600');
-                    const timeTip = isFun ? (jobMins > 0 ? `${jobMins}分` : '不限时') : `${jobMins}分`;
+                    const badgeColor = isFun ? 'bg-purple-600 border border-purple-400' : (isField ? 'bg-orange-500' : 'bg-emerald-600');
+                    const timeTip = `${jobMins}分`;
 
                     return `
                         <div class="draggable-job flex items-center justify-between text-white text-xs px-2.5 py-2 rounded-lg shadow-xs font-bold relative group cursor-grab active:cursor-grabbing hover:opacity-90 ${badgeColor}"
                              draggable="true" data-jobkey="${job.jobKey}" data-gname="${job.gname}" data-ename="${job.ename}" data-gender="${job.gender}" data-minutes="${jobMins}" data-isfield="${isField}" data-isfun="${isFun}" data-totalvenues="${job.totalVenues||1}">
                             <div class="truncate pr-2 flex items-center gap-1.5 pointer-events-none">
                                 <span class="bg-black/20 px-1.5 py-0.5 rounded text-[10px] font-mono shadow-inner tracking-wider">${startTime}</span>
+                                ${isFun ? '<span class="bg-white/20 text-[9px] px-1 py-0.2 rounded font-black">趣味</span>' : ''}
                                 <span class="truncate text-xs">${job.gname}${job.gender}·${job.ename}</span>
                                 <span class="text-[10px] text-white/90 font-normal whitespace-nowrap">(${totalCount}人/${heats}组)</span>
                             </div>
@@ -1551,7 +1553,8 @@ window.renderManualScheduleGrid = function() {
                             </div>
                         </div>`;
                 }).join('');
-let maxFieldTime = Math.max(fieldHighPointer, fieldLongPointer, fieldThrowPointer);
+
+                let maxFieldTime = Math.max(fieldHighPointer, fieldLongPointer, fieldThrowPointer);
                 html += `
                     <div class="border border-dashed ${unitType === 'AM' ? 'border-blue-300 bg-blue-50/20' : 'border-orange-300 bg-orange-50/20'} rounded-xl p-2.5 flex flex-col min-h-[120px] drop-zone" data-unit="${unitKey}">
                         <div class="flex justify-between text-xs font-bold ${unitType === 'AM' ? 'text-blue-800' : 'text-orange-800'} mb-2 border-b pb-1.5">
@@ -2377,6 +2380,12 @@ function selectView(m, id, n) {
             try {
                 const [gName, eName, gen, heat] = k.split('#');
                 const items = grouped[k];
+               // 🌟 核心过滤：如果该组是决赛，且里面的选手属于占位待定，不予渲染与打印！
+                const isFinalsRound = eName.includes('决赛') && !eName.includes('预赛');
+                const isDummyFinals = items.some(item => !item.name || item.name.includes('待定') || item.teamName === '预赛出线' || item.name === '预赛晋级选手');
+                if (isFinalsRound && isDummyFinals) {
+                    return; // 跳过此待定决赛表，不显示也不打印
+                }
                 const type = items[0].type || 'sprint';
                 const totalHeats = heatCounts[`${gName}#${eName}#${gen}`] || 1;
                 const coreMatchName = eName.replace(" (预赛)", "").replace(" (决赛)", "").trim();
@@ -2850,9 +2859,22 @@ if (eventName.includes('决赛')) {
         }).catch(err => { console.error(err); alert("获取纪录设定失败"); });
     };
 
-    function exportWord() {
+function exportWord() {
         if (!db.schedule || db.schedule.length === 0) return alert("暂无数据，请先编排");
-        const events = {}; db.schedule.forEach(s => { const key = `${s.groupName} ${s.eventName} (${s.gender})`; if (!events[key]) events[key] = []; events[key].push(s); });
+        const events = {}; 
+        db.schedule.forEach(s => { 
+            // 🌟 核心过滤：有预决赛且决赛名单仍待定的项目，不导出进 Word
+            const isFinals = s.eventName.includes('决赛') && !s.eventName.includes('预赛');
+            const isDummy = !s.name || s.name.includes('待定') || s.teamName === '预赛出线' || s.name === '预赛晋级选手';
+            if (isFinals && isDummy) {
+                return; // 跳过待定决赛
+            }
+
+            const key = `${s.groupName} ${s.eventName} (${s.gender})`; 
+            if (!events[key]) events[key] = []; 
+            events[key].push(s); 
+        });
+
         let html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>竞赛分组名单</title><style>@page { size: A4 landscape; margin: 1.5cm; } body { font-family: 'SimSun', 'Songti SC', serif; color: #000; } .main-title { text-align: center; font-size: 26pt; margin-bottom: 10px; letter-spacing: 2px; font-weight: normal; } .date-line { text-align: center; font-size: 12pt; margin-bottom: 20px; font-family: 'Times New Roman', serif; } .event-block { margin-bottom: 25pt; page-break-inside: avoid; } .event-header { font-size: 15pt; border-bottom: 1px solid black; padding-bottom: 6px; margin-bottom: 10px; text-align: left; font-weight: normal; } .heat-title { font-size: 11pt; margin-top: 10px; margin-bottom: 5px; text-align: left; font-weight: normal; } table { width: 100%; border-collapse: collapse; table-layout: fixed; text-align: center; margin-bottom: 5px; } td { padding: 2px 0; border: none; vertical-align: top; } .row-idx td { border-bottom: 1px solid #000; font-size: 10.5pt; color: #000; height: 24px; vertical-align: bottom; padding-bottom: 4px; } .row-bib td { font-size: 10.5pt; padding-top: 4px; font-family: 'Times New Roman', serif; } .row-name td { font-size: 14pt; padding-top: 4px; padding-bottom: 2px; font-family: 'SimSun', serif; } .row-team td { font-size: 10.5pt; color: #333; padding-bottom: 15px; font-family: 'SimSun', serif; }</style></head><body><div class="main-title">竞赛分组名单</div><div class="date-line">${new Date().getFullYear()}年${new Date().getMonth()+1}月${new Date().getDate()}日</div>`;
         let idx = 1;
         Object.keys(events).sort().forEach(evtKey => {
@@ -2998,60 +3020,73 @@ if (eventName.includes('决赛')) {
             
             let finalHTML = '';
             
-        // 🌟🌟🌟 全自动闭环：如果当前是决赛，且道次还是“待定”，静默从预赛计算出线并秒级发布刷新 🌟🌟🌟
-        const isDummy = data.some(item => item.name && (item.name.includes('待定') || item.name === '预赛晋级选手'));
+       // 🌟🌟🌟 终极全自动：只要查看决赛且名单仍是待定，自动从预赛提取前N名并秒级发布入库 🌟🌟🌟
+        const isDummy = data.some(item => !item.name || item.name.includes('待定') || item.name === '预赛晋级选手' || item.team_name === '待定' || item.team_name === '预赛出线');
+        
         if (isDummy && eventName.includes('决赛')) {
-            const prelimName = eventName.replace(' (决赛)', ' (预赛)').replace('（决赛）', '（预赛）');
-            
-            // 自动去拉取预赛的成绩
-            fetch('/api/get_event_start_list', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ event_name: prelimName, group_name: groupName, gender: gender })
-            })
-            .then(r => r.json())
-            .then(prelimData => {
-                // 筛选有效数字成绩并排除弃权
-                const validPrelim = prelimData.filter(i => {
-                    if (!i.score || i.score.includes('弃权') || i.score.includes('DNS')) return false;
-                    return parseTimeVal(i.score) > 0;
-                });
+            const cleanCore = eventName.replace(' (决赛)', '').replace('(决赛)', '').replace('（决赛）', '').trim();
+            const autoLockKey = `${groupName}_${gender}_${cleanCore}`;
 
-                if (validPrelim.length > 0) {
-                    // 按用时升序排序
-                    validPrelim.sort((a, b) => parseTimeVal(a.score) - parseTimeVal(b.score));
-                    
-                    // 读取项目配置的录取人数
-                    const activeClean = eventName.replace(' (决赛)', '').trim();
-                    const activeCfg = db.events.find(e => e.name === activeClean);
-                    const topN = activeCfg?.qualifyCount || activeCfg?.qualify_count || 8;
-                    
-                    const topFinalists = validPrelim.slice(0, topN).map(a => ({
-                        name: a.name,
-                        team_name: a.team_name,
-                        bib: a.bib || ''
-                    }));
+            if (!window._finalsAutoLock) window._finalsAutoLock = {};
 
-                    // 静默推送到后端数据库写入
-                    fetch('/api/direct_publish_announcement_finals', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            group_name: groupName,
-                            event_name: eventName,
-                            gender: gender,
-                            qualifiers: topFinalists
-                        })
-                    })
-                    .then(res => res.json())
-                    .then(pubRes => {
-                        if (pubRes.status === 'success') {
-                            // 写入成功后，瞬间自动刷新当前表格！
-                            renderResultSheet();
-                        }
+            if (!window._finalsAutoLock[autoLockKey]) {
+                window._finalsAutoLock[autoLockKey] = true;
+
+                // 尝试匹配预赛名称（兼容空格与中英文括号）
+                const prelimCandidateNames = [`${cleanCore} (预赛)`, `${cleanCore}（预赛）`, `${cleanCore}(预赛)`, cleanCore];
+                
+                fetch('/api/get_event_start_list', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ event_name: prelimCandidateNames[0], group_name: groupName, gender: gender })
+                })
+                .then(r => r.json())
+                .then(prelimData => {
+                    // 严格排除弃权、未参赛，仅保留数字成绩 > 0 的有效选手
+                    const validPrelim = prelimData.filter(i => {
+                        if (!i.score) return false;
+                        const s = String(i.score).trim();
+                        if (s === '' || s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || s.includes('DNF')) return false;
+                        return parseTimeVal(s) > 0;
                     });
-                }
-            });
+
+                    if (validPrelim.length > 0) {
+                        validPrelim.sort((a, b) => parseTimeVal(a.score) - parseTimeVal(b.score));
+                        
+                        const activeCfg = db.events.find(e => e.name === cleanCore) || {};
+                        const topN = activeCfg?.qualifyCount || activeCfg?.qualify_count || 8;
+
+                        const topFinalists = validPrelim.slice(0, topN).map(a => ({
+                            name: a.name,
+                            team_name: a.team_name,
+                            bib: a.bib || ''
+                        }));
+
+                        fetch('/api/direct_publish_announcement_finals', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                group_name: groupName,
+                                event_name: eventName,
+                                gender: gender,
+                                qualifiers: topFinalists
+                            })
+                        })
+                        .then(res => res.json())
+                        .then(pubRes => {
+                            // 延时释放锁并刷新呈现已排定好的真实决赛表
+                            setTimeout(() => {
+                                delete window._finalsAutoLock[autoLockKey];
+                                renderResultSheet();
+                            }, 300);
+                        })
+                        .catch(() => { delete window._finalsAutoLock[autoLockKey]; });
+                    } else {
+                        delete window._finalsAutoLock[autoLockKey];
+                    }
+                })
+                .catch(() => { delete window._finalsAutoLock[autoLockKey]; });
+            }
         }
 
                 const allScoredItems = data.filter(i => {
@@ -4110,8 +4145,7 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
         window.isManualRescheduling = false;
     };
 
-    // 修复双重循环与括号缺失
-    window.compileFinalScheduleData = function() {
+   window.compileFinalScheduleData = function() {
         db.schedule = []; 
 
         if (!window.manualScheduleMap || Object.keys(window.manualScheduleMap).length === 0) {
@@ -4124,6 +4158,7 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
             return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.floor(total%60)).padStart(2,'0')}`;
         };
 
+        // 🌟 最外层：遍历每一天的上下午单元
         Object.keys(window.manualScheduleMap).sort().forEach(unitKey => {
             const match = unitKey.match(/Day(\d+)_(AM|PM)/);
             if (!match) return;
@@ -4139,20 +4174,41 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
             let fieldHighPointer = 0; 
             let fieldLongPointer = 0; 
             let fieldThrowPointer = 0; 
+            let venueStartMap = {};
 
+            // 🌟 内层：遍历当前单元里排进去的每一个项目卡片
             window.manualScheduleMap[unitKey].forEach(savedJob => {
                 const group = db.groups.find(g => String(g.id) === String(savedJob.jobKey.split('_')[0]));
                 if(!group) return;
 
-                const cleanEventName = savedJob.ename.replace(" (预赛)", "").replace(" (决赛)", "").replace(/ \(场地\d+\)/, "").trim();
+                const cleanEventName = savedJob.ename.replace(" (预赛)", "").replace(" (决赛)", "").replace(/[\(（]场地\d+[\)）]/, "").trim();
                 const gender = savedJob.gender;
-                const eventCfg = db.events.find(e => e.name === savedJob.ename || e.name === cleanEventName);
+                
+                // 1. 完全以配置表 db.events 为准判断属性
+                const eventCfg = db.events.find(e => e.name === cleanEventName || e.name === savedJob.ename) || {};
                 const settings = getEventSettings(eventCfg || {name: cleanEventName});
-                let isField = eventCfg?.type === '田赛' || cleanEventName.includes('跳') || cleanEventName.includes('投') || cleanEventName.includes('球') || cleanEventName.includes('掷');
+                
+                // 2. 统一判定项目属性
+                const isFun = (
+                    eventCfg.type === '趣味项目' || 
+                    eventCfg.type === '趣味' || 
+                    String(eventCfg.isFun) === 'true' || 
+                    String(eventCfg.is_fun) === '1' ||
+                    savedJob.isFun === true ||
+                    String(savedJob.isFun) === 'true'
+                );
+
+                const isField = !isFun && (
+                    eventCfg.type === '田赛' || 
+                    savedJob.isField === true ||
+                    String(savedJob.isField) === 'true' ||
+                    cleanEventName.includes('跳') || cleanEventName.includes('投') || cleanEventName.includes('球') || cleanEventName.includes('掷')
+                );
+
                 let fType = '';
                 if (isField) {
                     if (cleanEventName.includes('跳高') || cleanEventName.includes('撑竿跳')) fType = 'high';
-                    else if (cleanEventName.includes('跳远') || cleanEventName.includes('三级跳')) fType = 'long';
+                    else if (cleanEventName.includes('跳远') || cleanEventName.includes('三级跳') || cleanEventName.includes('蛙跳')) fType = 'long';
                     else fType = 'throw';
                 }
 
@@ -4167,7 +4223,7 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                     let heatEstTimeStr = `第${dayNum}天${unitType === 'AM' ? '上午' : '下午'} ${formatMins(baseStartMins, trackPointer)}`;
                     let heatTimeIndexValue = dayNum * 100000 + (unitType === 'PM' ? 5000 : 0) + trackPointer;
 
-                    // 🌟 核心：在 db.schedule 中预排第 1 组（8 个道次），供裁判端直接归位检录
+                    // 预排决赛占位
                     for (let l = 1; l <= 8; l++) {
                         db.schedule.push({
                             id: Date.now() + Math.random(),
@@ -4187,17 +4243,18 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                         });
                     }
                     trackPointer += jobMins;
-                    return; // 处理完 1 组后继续下一个任务
+                    return; 
                 }
 
                 let rawEntries = db.athletes.filter(a => { 
-                    const t = db.teams.find(x => x.id == a.teamId); 
-                    return t && String(t.groupId) === String(group.id) && a.gender === gender && a.events.includes(cleanEventName); 
+                    const t = db.teams.find(x => String(x.id) === String(a.teamId)); 
+                    return t && String(t.groupId || t.group_id) === String(group.id) && a.gender === gender && a.events.includes(cleanEventName); 
                 });
                 if(!rawEntries.length) return; 
-               let venueMatch = savedJob.ename.match(/ \(场地(\d+)\)/);
-                if (isField && venueMatch) {
-                    let vIdx = parseInt(venueMatch[1]);
+                
+                const curVMatch = savedJob.ename.match(/[\(（]场地(\d+)[\)）]/);
+                if (isField && curVMatch) {
+                    let vIdx = parseInt(curVMatch[1]);
                     let totalV = savedJob.totalVenues || 2;
                     let perVenueCount = Math.ceil(rawEntries.length / totalV);
                     let startIdx = (vIdx - 1) * perVenueCount;
@@ -4229,13 +4286,28 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                 maxPerHeat = settings.limit || 15;
                 totalHeats = Math.ceil(processList.length / maxPerHeat) || 1;
 
+                // 3. 计算时间指针
                 let currentPointer = 0;
-                if (isField) {
-                    currentPointer = fType === 'high' ? fieldHighPointer : (fType === 'long' ? fieldLongPointer : fieldThrowPointer);
+                let baseKey = `${savedJob.jobKey.split('_')[0]}_${cleanEventName}_${gender}`;
+
+                if (isFun) {
+                    currentPointer = 0; // 趣味直接从 0 分钟起排
+                } else if (isField) {
+                    let activeTrackPointer = fType === 'high' ? fieldHighPointer : (fType === 'long' ? fieldLongPointer : fieldThrowPointer);
+                    if (curVMatch) {
+                        if (venueStartMap[baseKey] !== undefined) {
+                            currentPointer = venueStartMap[baseKey]; // 场地2同步场地1
+                        } else {
+                            venueStartMap[baseKey] = activeTrackPointer;
+                            currentPointer = activeTrackPointer;
+                        }
+                    } else {
+                        currentPointer = activeTrackPointer;
+                    }
                 } else {
                     currentPointer = trackPointer;
                 }
-                
+
                 let singleDuration = parseFloat(eventCfg?.duration) || 5;
                 let heatsArray = Array.from({length: totalHeats}, () => []);
                 
@@ -4304,25 +4376,28 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                             totalLanes: settings.type === 'sprint' ? maxPerHeat : 0, 
                             estTime: heatEstTimeStr, 
                             timeIndex: heatTimeIndexValue, 
-                            isField: isField
+                            isField: isField ? 1 : 0
                         });
                     });
                 });
 
+                // 4. 累加时间指针（趣味不累加）
                 let jobMins = parseInt(savedJob.minutes) || 5;
-                if (isField) {
-                    // 🌟 场地 2、3 与场地 1 同时开赛，不重复增加时间偏移量
-                    let vMatch = savedJob.ename.match(/ \(场地(\d+)\)/);
-                    if (!vMatch || vMatch[1] === '1') {
-                        if (fType === 'high') fieldHighPointer += jobMins;
-                        else if (fType === 'long') fieldLongPointer += jobMins;
-                        else fieldThrowPointer += jobMins;
+                if (!isFun) {
+                    if (isField) {
+                        // 重新匹配一次，防止上方逻辑串线
+                        let postMatch = savedJob.ename.match(/[\(（]场地(\d+)[\)）]/);
+                        if (!postMatch || postMatch[1] === '1') {
+                            if (fType === 'high') fieldHighPointer += jobMins;
+                            else if (fType === 'long') fieldLongPointer += jobMins;
+                            else fieldThrowPointer += jobMins;
+                        }
+                    } else {
+                        trackPointer += jobMins;
                     }
-                } else {
-                    trackPointer += jobMins;
                 }
-            });
-        });
+            }); // 🌟 结束内层 forEach
+        }); // 🌟 结束外层 Object.keys.forEach
 
         renderScheduleResult();
     };
