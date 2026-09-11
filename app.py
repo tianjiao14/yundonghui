@@ -1049,31 +1049,51 @@ def get_data_admin():
 
 @app.route('/api/save_relay_legs', methods=['POST'])
 def save_relay_legs():
-    if session.get('user_role') != 'team':
-        return jsonify({"status": "error", "msg": "权限不足"}), 403
+    current_role = session.get('user_role')
+    # 🌟 允许领队(team)以及管理员(admin)均可保存接力棒次
+    if current_role not in ['team', 'admin']:
+        return jsonify({"status": "error", "msg": "登录会话已超时，请刷新页面重新登录代表队账号！"}), 401
         
     data = request.json or {}
     team_id = data.get('team_id')
-    event_name = data.get('event_name')
-    gender = data.get('gender')
-    legs = data.get('legs')
+    event_name = data.get('event_name', '')
+    gender = data.get('gender', '')
+    legs = data.get('legs', {})
+    
+    # 领队只能保存本班棒次（管理员不受限）
+    if current_role == 'team' and str(team_id) != str(session.get('team_id')):
+        return jsonify({"status": "error", "msg": "越权操作：只能提交本班队伍的接力棒次！"}), 403        
+    data = request.json or {}
+    team_id = data.get('team_id')
+    event_name = data.get('event_name', '')
+    gender = data.get('gender', '')
+    legs = data.get('legs', {})
+    
+    clean_core = re.sub(r'[\(（].*?[\)）]', '', event_name).replace('*', '×').replace('x', '×').strip()
     
     conn = get_db_connection()
     c = conn.cursor()
     try:
         c.execute("BEGIN IMMEDIATE")
-        c.execute("UPDATE registrations SET relay_leg = '' WHERE team_id=? AND event_name=? AND gender=?", (team_id, event_name, gender))
+        c.execute("""
+            UPDATE registrations 
+            SET relay_leg = '' 
+            WHERE team_id = ? 
+              AND (gender = ? OR ? = '' OR gender = '混合')
+              AND (event_name LIKE ? OR event_name = ?)
+        """, (team_id, gender, gender, f"%{clean_core}%", event_name))
         for leg_num, reg_id in legs.items():
             if reg_id:
                 c.execute("UPDATE registrations SET relay_leg = ? WHERE id = ?", (str(leg_num), int(reg_id)))
+                
         conn.commit()
-        return jsonify({"status": "success"})
+        return jsonify({"status": "success", "msg": "接力棒次保存成功！"})
     except Exception as e:
         conn.rollback()
+        import traceback; traceback.print_exc()
         return jsonify({"status": "error", "msg": str(e)})
     finally:
         conn.close()
-
 @app.route('/api/save_config', methods=['POST'])
 def save_config():
     data = request.json or {}

@@ -763,7 +763,7 @@ function selectRole(role) {
                 eName.includes('铁饼')
             );
 
-            if (isHighJump) 
+            if (isHighJump) {
                 if (normalTable) normalTable.classList.add('hidden');
                 if (controlBar) controlBar.classList.add('hidden');
                 if (highJumpPanel) highJumpPanel.classList.remove('hidden');
@@ -872,7 +872,7 @@ function selectRole(role) {
             }
 
             const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn !== undefined ? p.checkedIn : (p.checked || 0)));
-            const isAbsent = (checkState === 2);
+            const isAbsent = (checkState === 2) || (p.score && (p.score.includes('弃权') || p.score.includes('DNS')));
 
             html += `
             <tr class="border-b border-gray-100 athlete-row-heat-${currentHeat} ${isAbsent ? 'bg-red-50/50' : 'bg-white'}">

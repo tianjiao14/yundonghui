@@ -1443,6 +1443,23 @@ case 10:
                 const baseStart = unitType === 'AM' ? amStartMins : pmStartMins;
                 
                 let unitJobs = window.manualScheduleMap[unitKey] || [];
+                unitJobs.sort((a, b) => {
+                    const getCategoryRank = (job) => {
+                        const clean = job.ename.replace(" (预赛)", "").replace(" (决赛)", "").replace(/[\(（]场地\d+[\)）]/, "").trim();
+                        const cfg = db.events.find(e => e.name === clean || e.name === job.ename) || {};
+                        const isFun = (cfg.type === '趣味项目' || cfg.type === '趣味' || String(cfg.isFun) === 'true' || String(cfg.is_fun) === '1' || job.isFun === true || String(job.isFun) === 'true');
+                        if (isFun) return 3; 
+                        const isField = (cfg.type === '田赛' || job.isField === true || String(job.isField) === 'true');
+                        if (isField) return 2; 
+                        return 1; 
+                    };
+
+                    const rankA = getCategoryRank(a);
+                    const rankB = getCategoryRank(b);
+                    if (rankA !== rankB) return rankA - rankB;
+                    return 0; 
+                });
+
                 let trackPointer = 0; 
                 let fieldHighPointer = 0; 
                 let fieldLongPointer = 0; 

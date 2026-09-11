@@ -63,7 +63,7 @@
             <span>退出</span>
         </a>
     </div>
-
+<div id="deadlineNotice" class="hidden"></div>
     <!-- 1. 录入/修改单名学生面板 -->
     <div class="card p-4 space-y-4 border-2 border-blue-100">
         <div class="text-sm font-black text-gray-800 border-b pb-2 flex items-center justify-between">
@@ -128,13 +128,12 @@
                 <span class="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-mono">🎽</span>
                 <span>接力赛棒次排定</span>
             </span>
-            <span class="text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">各棒次必须选不同队员</span>
-        </div>
+                   </div>
         <div id="relayContentArea" class="space-y-4">
             <!-- 动态生成接力项目和 1~4 棒下拉选择框 -->
         </div>
         <button onclick="saveAllRelayLegs()" id="btnSaveRelay" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-2.5 rounded-xl shadow transition active:scale-95 text-xs flex items-center justify-center gap-1">
-            <span>💾 保存并锁定接力棒次</span>
+            <span>💾 保存并提交接力棒次</span>
         </button>
     </div>
     <!-- 3. 底部吸底一键最终提交栏 -->
@@ -172,11 +171,59 @@
                 document.getElementById('displayTeamName').innerText = loginTeamName || currentTeam?.name || "未知代表队";
                 document.getElementById('displayGroupName').innerText = `组别属性：${currentGroup ? currentGroup.name : '未分化'}`;
                 
-                // 从后端读取本班已有的报名，直接载入到前端暂存池中方便继续修改
+                checkDeadlineControl(data.config);
                 loadExistingMembers();
             });
         };
+        let isRegistrationClosed = false;
+        function checkDeadlineControl(config) {
+            if (!config || !config.regDeadline) return;
+            
+            const deadlineTime = new Date(config.regDeadline.replace('T', ' ')).getTime();
+            const nowTime = new Date().getTime();
+            
+            if (nowTime > deadlineTime) {
+                isRegistrationClosed = true;
+                
+                // 1. 展示醒目提示
+                const noticeEl = document.getElementById('deadlineNotice');
+                if (noticeEl) {
+                    noticeEl.className = "card p-3 bg-amber-50 border-amber-300 text-amber-900 mb-4";
+                    noticeEl.innerHTML = `
+                        <div class="flex items-center justify-between text-xs font-bold">
+                            <span class="flex items-center gap-1.5">
+                                <span>⏳</span>
+                                <span>报名通道已截止（名单已锁定）</span>
+                            </span>
+                            <span class="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full shadow-xs">
+                                🎽 接力棒次仍可调整
+                            </span>
+                        </div>
+                    `;
+                }
 
+                // 2. 锁定学生录入表单
+                const inputName = document.getElementById('stuName');
+                if (inputName) {
+                    inputName.disabled = true;
+                    inputName.placeholder = "报名已截止，无法添加";
+                }
+                const btnAdd = document.getElementById('btnAddAthlete');
+                if (btnAdd) {
+                    btnAdd.disabled = true;
+                    btnAdd.className = "w-full py-3 bg-gray-300 text-gray-500 rounded-xl font-bold cursor-not-allowed";
+                    btnAdd.innerText = "🔒 报名已截止";
+                }
+
+                // 3. 锁定底部批量提交按钮
+                const btnSubmitAll = document.getElementById('btnSubmitAll');
+                if (btnSubmitAll) {
+                    btnSubmitAll.disabled = true;
+                    btnSubmitAll.className = "bg-gray-300 text-gray-500 font-bold px-6 py-3 rounded-xl cursor-not-allowed text-sm";
+                    btnSubmitAll.innerText = "🔒 名单已锁定";
+                }
+            }
+        }
        function loadExistingMembers() {
     fetch('/api/team_members/' + loginTeamId)
         .then(r => r.json())
@@ -188,8 +235,12 @@
                     aggregated[key] = { name: row.name, gender: row.gender, events: [], relay_legs: {} };
                 }
                 aggregated[key].events.push(row.event_name);
+                
+                // 🌟 核心：清洗去除所有括号、预赛/决赛后缀及统一乘号，作为通用的棒次键名
                 if (row.relay_leg) {
-                    aggregated[key].relay_legs[row.event_name] = String(row.relay_leg);
+                    const cleanKey = row.event_name.replace(/[\(（].*?[\)）]/g, '').replace(/[xX*]/g, '×').trim();
+                    aggregated[key].relay_legs[cleanKey] = String(row.relay_leg);
+                    aggregated[key].relay_legs[row.event_name] = String(row.relay_leg); // 保底双写
                 }
             });
             draftAthletes = Object.values(aggregated);
@@ -198,7 +249,6 @@
         });
 }
 
-        // 渲染暂存列表
         function renderDraftList() {
             const listDiv = document.getElementById('draftList');
             listDiv.innerHTML = '';
@@ -206,15 +256,24 @@
             document.getElementById('bottomCount').innerText = draftAthletes.length;
 
             if (draftAthletes.length === 0) {
-                listDiv.innerHTML = '<div class="text-center text-gray-400 py-8 text-xs font-bold">📂 暂存列表为空，请在上方添加学生</div>';
+                listDiv.innerHTML = '<div class="text-center text-gray-400 py-8 text-xs font-bold">📂 暂存列表为空</div>';
                 return;
             }
 
             draftAthletes.forEach((p, idx) => {
                 const isEditing = (idx === editingIndex);
+                
+                // 截止后不提供修改和删除按钮
+                const actionBtns = isRegistrationClosed ? `
+                    <span class="text-[11px] text-gray-400 font-bold bg-white border px-2 py-1 rounded">已锁定</span>
+                ` : `
+                    <button onclick="startEdit(${idx})" class="text-blue-600 text-xs font-bold bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition">修改</button>
+                    <button onclick="deleteDraft(${idx})" class="text-red-500 text-xs font-bold bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition">删除</button>
+                `;
+
                 listDiv.innerHTML += `
-                    <div class="p-3 rounded-xl border flex justify-between items-center transition ${isEditing ? 'bg-blue-50/80 border-blue-400 shadow-sm' : 'bg-slate-50 border-slate-100'}" onclick="startEdit(${idx})">
-                        <div class="flex-1 cursor-pointer">
+                    <div class="p-3 rounded-xl border flex justify-between items-center transition ${isEditing ? 'bg-blue-50/80 border-blue-400 shadow-sm' : 'bg-slate-50 border-slate-100'}">
+                        <div class="flex-1 ${isRegistrationClosed ? '' : 'cursor-pointer'}" onclick="${isRegistrationClosed ? '' : `startEdit(${idx})`}">
                             <div class="font-black text-gray-800 text-sm flex items-center gap-1.5">
                                 <span>${p.name}</span>
                                 <span class="text-xs font-bold ${p.gender==='男'?'text-blue-500':'text-pink-500'}">${p.gender==='男'?'🏃‍♂️ 男':'🏃‍♀️ 女'}</span>
@@ -223,8 +282,7 @@
                             <div class="text-[11px] text-gray-500 font-bold mt-1 bg-white border px-2 py-0.5 rounded-md inline-block">${p.events.join('、')}</div>
                         </div>
                         <div class="flex gap-2 items-center" onclick="event.stopPropagation()">
-                            <button onclick="startEdit(${idx})" class="text-blue-600 text-xs font-bold bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition">修改</button>
-                            <button onclick="deleteDraft(${idx})" class="text-red-500 text-xs font-bold bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition">删除</button>
+                            ${actionBtns}
                         </div>
                     </div>`;
             });
@@ -419,13 +477,12 @@
                 else el.classList.remove('disabled');
             });
         }
-// 🌟 1. 扫描本班报名并渲染接力棒次配置面板
         function renderRelaySection() {
             const relayCard = document.getElementById('relayCard');
             const container = document.getElementById('relayContentArea');
             if (!relayCard || !container) return;
 
-            // 识别接力项目：4x100、4×100 或含“接力”
+            // 识别接力项目
             const relayEvents = db.events.filter(e => 
                 e.isRelay || e.name.includes('接力') || e.name.includes('4×') || e.name.includes('4x') || e.name.includes('4*')
             );
@@ -451,36 +508,47 @@
 
             activeRelayGroups.forEach(grp => {
                 const isFull = grp.members.length >= 4;
+                const membersJsonStr = encodeURIComponent(JSON.stringify(grp.members.map(m => m.name)));
+
                 html += `
-                <div class="bg-gray-50/80 p-3 rounded-xl border border-gray-200 relay-task-group" data-event="${grp.eventName}" data-gender="${grp.gender}">
+                <div class="bg-gray-50/80 p-3 rounded-xl border border-gray-200 relay-task-group" data-event="${grp.eventName}" data-gender="${grp.gender}" data-members="${membersJsonStr}">
                     <div class="flex justify-between items-center mb-2.5 pb-1 border-b border-gray-200">
                         <span class="font-black text-xs text-gray-800 flex items-center gap-1">
                             <span>🚩</span> ${grp.eventName} (${grp.gender}生组)
                         </span>
                         <span class="text-[10px] font-bold ${isFull ? 'text-emerald-600 bg-emerald-50' : 'text-orange-500 bg-orange-50'} px-2 py-0.5 rounded-md">
-                            ${isFull ? `报名人数: ${grp.members.length}人` : `⚠️ 仅报 ${grp.members.length}人 (需满4人)`}
+                            ${isFull ? `报选人数: ${grp.members.length}人` : `⚠️ 仅报 ${grp.members.length}人 (需满4人)`}
                         </span>
                     </div>
                     <div class="grid grid-cols-2 gap-2">`;
 
                 for (let leg = 1; leg <= 4; leg++) {
-                    // 默认匹配原存棒次（如果已有）
                     let currentSelectedName = '';
-                    const savedLegMember = grp.members.find(m => m.relay_legs && m.relay_legs[grp.eventName] == leg);
+                    const cleanEvt = grp.eventName.replace(/[\(（].*?[\)）]/g, '').replace(/[xX*]/g, '×').trim();
+
+                    // 🌟 多维匹配已保存的棒次（无论是纯项目名还是带预赛决赛的项目名）
+                    const savedLegMember = grp.members.find(m => {
+                        if (!m.relay_legs) return false;
+                        return String(m.relay_legs[cleanEvt]) === String(leg) || 
+                               String(m.relay_legs[grp.eventName]) === String(leg) ||
+                               Object.entries(m.relay_legs).some(([k, v]) => {
+                                   const kClean = k.replace(/[\(（].*?[\)）]/g, '').replace(/[xX*]/g, '×').trim();
+                                   return kClean === cleanEvt && String(v) === String(leg);
+                               });
+                    });
+
                     if (savedLegMember) {
                         currentSelectedName = savedLegMember.name;
-                    } else if (grp.members[leg - 1]) {
-                        currentSelectedName = grp.members[leg - 1].name;
                     }
 
                     html += `
                         <div class="bg-white p-2 rounded-lg border border-gray-100 shadow-2xs">
                             <label class="text-[10px] font-black text-indigo-700 block mb-1">第 ${leg} 棒</label>
-                            <select class="w-full border rounded-md p-1 text-xs font-bold text-gray-700 bg-gray-50 outline-none relay-leg-select" data-leg="${leg}">
+                            <select class="w-full border rounded-md p-1.5 text-xs font-bold text-gray-700 bg-gray-50 outline-none relay-leg-select" 
+                                    data-leg="${leg}" 
+                                    data-selected="${currentSelectedName}"
+                                    onchange="handleRelaySelectChange(this)">
                                 <option value="">-- 请指定队员 --</option>
-                                ${grp.members.map(m => `
-                                    <option value="${m.name}" ${m.name === currentSelectedName ? 'selected' : ''}>${m.name}</option>
-                                `).join('')}
                             </select>
                         </div>`;
                 }
@@ -489,78 +557,168 @@
             });
 
             container.innerHTML = html;
+
+            // 初始刷新所有接力组的互斥选项
+            document.querySelectorAll('.relay-task-group').forEach(grpEl => {
+                refreshRelayGroupSelects(grpEl);
+            });
         }
 
-        // 🌟 2. 校验并提交保存接力棒次
-        function saveAllRelayLegs() {
-    const taskGroups = document.querySelectorAll('.relay-task-group');
-    if (taskGroups.length === 0) return;
+        // 🌟 改进2：某棒选中改变时，触发组内互斥过滤
+        function handleRelaySelectChange(selectEl) {
+            selectEl.dataset.selected = selectEl.value;
+            const groupEl = selectEl.closest('.relay-task-group');
+            if (groupEl) {
+                refreshRelayGroupSelects(groupEl);
+            }
+        }
 
-    fetch('/api/team_members/' + loginTeamId)
-        .then(r => r.json())
-        .then(teamDbRows => {
-            let promises = [];
-            let hasError = false;
+        // 🌟 动态重构当前接力组下 1~4 棒的下拉列表选项，排除已被其他棒次选中的人
+        function refreshRelayGroupSelects(groupEl) {
+            const allMembers = JSON.parse(decodeURIComponent(groupEl.dataset.members || '[]'));
+            const selects = Array.from(groupEl.querySelectorAll('.relay-leg-select'));
 
-            for (let grpEl of taskGroups) {
-                const eventName = grpEl.dataset.event;
-                const gender = grpEl.dataset.gender;
-                const selects = grpEl.querySelectorAll('.relay-leg-select');
+            // 收集当前各个棒次已经选中的人
+            const chosenMap = {};
+            selects.forEach(sel => {
+                const leg = sel.dataset.leg;
+                chosenMap[leg] = sel.value || sel.dataset.selected || '';
+            });
 
-                let chosenNames = [];
-                let legsPayload = {};
+            // 重新刷新每个棒次的 <option>
+            selects.forEach(sel => {
+                const currentLeg = sel.dataset.leg;
+                const myCurrentValue = chosenMap[currentLeg];
 
-                selects.forEach(sel => {
-                    const leg = sel.dataset.leg;
-                    const name = sel.value;
-                    if (name) {
-                        chosenNames.push(name);
-                        const matchedRow = teamDbRows.find(r => r.name === name && r.event_name === eventName && r.gender === gender);
-                        if (matchedRow) {
-                            legsPayload[leg] = matchedRow.id;
-                        }
+                let optionsHtml = '<option value="">-- 请指定队员--</option>';
+                allMembers.forEach(name => {
+                    // 如果这个名字被其他棒次占用了，当前棒次就不显示他！
+                    const isTakenByOtherLeg = Object.entries(chosenMap).some(([otherLeg, otherName]) => {
+                        return otherLeg !== currentLeg && otherName === name;
+                    });
+
+                    if (!isTakenByOtherLeg) {
+                        const isSelected = (name === myCurrentValue);
+                        optionsHtml += `<option value="${name}" ${isSelected ? 'selected' : ''}>${name}</option>`;
                     }
                 });
 
-                const uniqueChosen = new Set(chosenNames);
-                if (chosenNames.length < 4) {
-                    alert(`⚠️ 【${eventName} (${gender})】尚未选满 4 个棒次！请补全队员。`);
-                    hasError = true;
-                    break;
-                }
-                if (uniqueChosen.size < chosenNames.length) {
-                    alert(`⚠️ 【${eventName} (${gender})】棒次出现重复队员！每人只能跑一棒。`);
-                    hasError = true;
-                    break;
-                }
+                sel.innerHTML = optionsHtml;
+                sel.value = myCurrentValue;
+            });
+        }
 
-                const p = fetch('/api/save_relay_legs', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        team_id: loginTeamId,
-                        event_name: eventName,
-                        gender: gender,
-                        legs: legsPayload
-                    })
-                }).then(res => res.json());
+       // 🌟 保存接力棒次（终极高容错与动态诊断版）
+        function saveAllRelayLegs() {
+            const taskGroups = document.querySelectorAll('.relay-task-group');
+            if (taskGroups.length === 0) return;
 
-                promises.push(p);
+            const btnSave = document.getElementById('btnSaveRelay');
+            const originalBtnHtml = btnSave ? btnSave.innerHTML : '';
+            if (btnSave) {
+                btnSave.innerHTML = '<span>⏳ 正在保存棒次...</span>';
+                btnSave.disabled = true;
             }
 
-            if (hasError || promises.length === 0) return;
+            fetch('/api/team_members/' + loginTeamId)
+                .then(r => r.json())
+                .then(teamDbRows => {
+                    let promises = [];
+                    let savedEventNames = [];
 
-            Promise.all(promises).then(results => {
-                const allOk = results.every(r => r.status === 'success');
-                if (allOk) {
-                    alert("🎉 全班接力赛棒次已成功保存锁定！\n赛程检录表将立即同步此棒次名单。");
-                    loadExistingMembers();
-                } else {
-                    alert("❌ 棒次保存未全部完成，请检查网络重试！");
-                }
-            });
-        });
-}
+                    for (let grpEl of taskGroups) {
+                        const eventName = grpEl.dataset.event;
+                        const gender = grpEl.dataset.gender;
+                        const selects = grpEl.querySelectorAll('.relay-leg-select');
+
+                        let chosenNames = [];
+                        let legsPayload = {};
+
+                        selects.forEach(sel => {
+                            const leg = sel.dataset.leg;
+                            const name = sel.value ? sel.value.trim() : '';
+                            if (name) {
+                                chosenNames.push(name);
+                                
+                                // 🌟 深度清洗与强壮匹配：只抓取姓名和接力关键词
+                                const matchedRow = teamDbRows.find(r => {
+                                    const rName = (r.name || '').trim();
+                                    const rEvt = (r.event_name || '').replace(/[xX*]/g, '×');
+                                    const isSameName = (rName === name);
+                                    const isRelayEvt = (rEvt.includes('接力') || rEvt.includes('4×') || rEvt.includes('4*'));
+                                    const isGenderMatch = (!gender || !r.gender || r.gender === gender || r.gender === '混合');
+                                    return isSameName && isRelayEvt && isGenderMatch;
+                                });
+
+                                if (matchedRow) {
+                                    legsPayload[leg] = matchedRow.id;
+                                }
+                            }
+                        });
+
+                        // 如果该接力组领队完全没排（0人选择），静默跳过，允许先排其他组
+                        if (chosenNames.length === 0) {
+                            continue;
+                        }
+
+                        // 如果选了人但没选满 4 人，提醒领队
+                        if (chosenNames.length < 4) {
+                            alert(`⚠️ 【${eventName} (${gender}生组)】当前仅选择了 ${chosenNames.length} 个棒次！\n请选满第 1 至第 4 棒全部队员后再保存。`);
+                            if (btnSave) { btnSave.innerHTML = originalBtnHtml; btnSave.disabled = false; }
+                            return;
+                        }
+
+                        // 检查是否有未能匹配数据库记录的队员
+                        if (Object.keys(legsPayload).length < 4) {
+                            alert(`⚠️ 【${eventName}】有队员未能与数据库报名名单对齐，请先点击底部的【🚀 确认并提交全队名单】确保全员入库！`);
+                            if (btnSave) { btnSave.innerHTML = originalBtnHtml; btnSave.disabled = false; }
+                            return;
+                        }
+
+                        // 封装提交请求
+                        const p = fetch('/api/save_relay_legs', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                team_id: loginTeamId,
+                                event_name: eventName,
+                                gender: gender,
+                                legs: legsPayload
+                            })
+                        }).then(res => res.json());
+
+                        promises.push(p);
+                        savedEventNames.push(`${eventName}(${gender})`);
+                    }
+
+                    if (promises.length === 0) {
+                        alert("💡 当前未指定任何有效棒次。请为第 1~4 棒分别选定队员！");
+                        if (btnSave) { btnSave.innerHTML = originalBtnHtml; btnSave.disabled = false; }
+                        return;
+                    }
+
+                    Promise.all(promises).then(results => {
+                        if (btnSave) { btnSave.innerHTML = originalBtnHtml; btnSave.disabled = false; }
+                        
+                        const failed = results.find(r => r.status !== 'success');
+                        if (failed) {
+                            alert("❌ 保存失败：" + (failed.msg || "数据库响应异常"));
+                        } else {
+                            alert(`🎉 恭喜！以下接力赛棒次已成功提交并锁定：\n• ${savedEventNames.join('\n• ')}\n\n赛程检录系统已实时同步最新棒次名单！`);
+                            loadExistingMembers(); // 重新拉取以固化界面显示
+                        }
+                    }).catch(err => {
+                        if (btnSave) { btnSave.innerHTML = originalBtnHtml; btnSave.disabled = false; }
+                        console.error("保存棒次网络异常:", err);
+                        alert("❌ 网络传输错误，请检查网络后重试！");
+                    });
+                })
+                .catch(err => {
+                    if (btnSave) { btnSave.innerHTML = originalBtnHtml; btnSave.disabled = false; }
+                    console.error("获取队伍信息失败:", err);
+                    alert("❌ 无法连接服务器获取队员名单，请刷新页面重试！");
+                });
+        }
     </script>
 {% endif %}
 </body>
