@@ -955,37 +955,88 @@ def get_events():
 def get_statistics():
     conn = get_db_connection() 
     c = conn.cursor()
-    group_stats = c.execute("""
-        SELECT group_name, gender, COUNT(DISTINCT name) as count 
-        FROM registrations 
-        WHERE group_name IS NOT NULL AND name != ''
-        GROUP BY group_name, gender
-    """).fetchall()
-    event_stats = c.execute("""
-        SELECT event_name, COUNT(*) as count 
-        FROM registrations 
-        WHERE event_name != ''
-        GROUP BY event_name
-    """).fetchall()
-    team_engagement = c.execute("""
-        SELECT team_name, COUNT(DISTINCT name) as athlete_count 
-        FROM registrations 
-        GROUP BY team_name 
-        ORDER BY athlete_count DESC 
-        LIMIT 5
-    """).fetchall()
-    total_athletes = c.execute("SELECT COUNT(DISTINCT team_name || name) FROM registrations WHERE name != ''").fetchone()[0]
-    total_participations = c.execute("SELECT COUNT(*) FROM registrations WHERE event_name != ''").fetchone()[0]
-    
-    conn.close()
-    return jsonify({
-        "group_gender": [dict(r) for r in group_stats],
-        "events": [dict(r) for r in event_stats],
-        "top_teams": [dict(r) for r in team_engagement], 
-        "total_athletes": total_athletes,
-        "total_participations": total_participations
-    })
+    try:
+        # 1. 组别与性别人数（排除决赛重复记录）
+        group_stats = c.execute("""
+            SELECT group_name, gender, COUNT(DISTINCT name) as count 
+            FROM registrations 
+            WHERE group_name IS NOT NULL AND name != ''
+              AND event_name NOT LIKE '%决赛%'
+            GROUP BY group_name, gender
+        """).fetchall()
 
+        # 2. 读取所有原始报名记录（剔除决赛），在 Python 端进行项目名清洗归一化
+        all_regs = c.execute("""
+            SELECT event_name, group_name, gender 
+            FROM registrations 
+            WHERE event_name != '' AND group_name != ''
+              AND event_name NOT LIKE '%决赛%'
+        """).fetchall()
+
+        events_map = {}
+        event_group_map = {}
+
+        for r in all_regs:
+            raw_e = r['event_name']
+            g_name = r['group_name']
+            gen = r['gender']
+
+            # 🌟 统一清洗项目名：去除 (预赛)、(场地1) 等，统一成纯项目名（如 100米）
+            core_e = re.sub(r'[\(（].*?[\)）]', '', raw_e).strip()
+            if not core_e:
+                core_e = raw_e
+
+            # 项目总人数计数
+            events_map[core_e] = events_map.get(core_e, 0) + 1
+
+            # 项目 + 组别 + 性别 计数
+            eg_key = (core_e, g_name, gen)
+            event_group_map[eg_key] = event_group_map.get(eg_key, 0) + 1
+
+        # 整理输出格式
+        event_stats = [{"event_name": k, "count": v} for k, v in events_map.items()]
+        # 按人数降序排序
+        event_stats.sort(key=lambda x: x['count'], reverse=True)
+
+        event_group_stats = [
+            {"event_name": k[0], "group_name": k[1], "gender": k[2], "count": v}
+            for k, v in event_group_map.items()
+        ]
+
+        # 班级活跃度
+        team_engagement = c.execute("""
+            SELECT team_name, COUNT(DISTINCT name) as athlete_count 
+            FROM registrations 
+            WHERE event_name NOT LIKE '%决赛%'
+            GROUP BY team_name 
+            ORDER BY athlete_count DESC 
+            LIMIT 5
+        """).fetchall()
+
+        total_athletes = c.execute("""
+            SELECT COUNT(DISTINCT team_name || name) 
+            FROM registrations 
+            WHERE name != '' AND event_name NOT LIKE '%决赛%'
+        """).fetchone()[0] or 0
+
+        total_participations = sum(events_map.values())
+        
+        return jsonify({
+            "group_gender": [dict(r) for r in group_stats],
+            "events": event_stats,
+            "event_group_details": event_group_stats,
+            "top_teams": [dict(r) for r in team_engagement], 
+            "total_athletes": total_athletes,
+            "total_participations": total_participations
+        })
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({
+            "group_gender": [], "events": [], "event_group_details": [],
+            "top_teams": [], "total_athletes": 0, "total_participations": 0
+        })
+    finally:
+        conn.close()
 @app.route('/api/get_data')
 def get_data_admin():
     conn = get_db_connection()
@@ -1624,10 +1675,14 @@ def check_and_auto_publish_finals(g_name, event_name, gender):
             try: top_n = int(cfg['qualify_count'])
             except: top_n = 8
 
+        track_lanes = 8
+        if cfg and 'limit_count' in cfg.keys() and cfg['limit_count']:
+            try: track_lanes = int(cfg['limit_count'])
+            except: track_lanes = 8
+
         clean_gender = '女' if '女' in gender else ('男' if '男' in gender else gender)
         final_event_name = f"{clean_core} (决赛)"
 
-        # 2. 提取预赛有效成绩（直接使用与成绩公告完全一致的数据源）
         query = """
             SELECT DISTINCT r.name, r.team_name, r.bib, r.team_id, 
                    IFNULL(r.score, s.score) as score
@@ -1687,7 +1742,7 @@ def check_and_auto_publish_finals(g_name, event_name, gender):
             6: [3, 4, 2, 5, 1, 6],
             4: [2, 3, 1, 4]
         }
-        lane_order = lane_presets.get(len(finalists), list(range(1, len(finalists) + 1)))
+        lane_order = lane_presets.get(track_lanes, [4, 5, 3, 6, 2, 7, 1, 8])
 
         # 6. 读取既定决赛赛程时间槽位
         dummy_meta = c.execute("""
@@ -1919,12 +1974,20 @@ def direct_publish_announcement_finals():
               AND (event_name LIKE ? || '%决赛%' OR event_name = ?)
         """, (g_name, actual_g_name, g_name[:2], clean_gender, clean_gender, clean_core, final_event_name))
 
+        # 🌟 查询该项目配置的每组人数/跑道数限制
+        cfg_row = c.execute("SELECT limit_count FROM cfg_events WHERE name=? OR name LIKE ?", 
+                            (clean_core, f"%{clean_core}%")).fetchone()
+        track_lanes = 8
+        if cfg_row and cfg_row['limit_count']:
+            try: track_lanes = int(cfg_row['limit_count'])
+            except: track_lanes = 8
+
         lane_presets = {
             8: [4, 5, 3, 6, 2, 7, 1, 8],
             6: [3, 4, 2, 5, 1, 6],
             4: [2, 3, 1, 4]
         }
-        lane_order = lane_presets.get(len(qualifiers), list(range(1, len(qualifiers) + 1)))
+        lane_order = lane_presets.get(track_lanes, [4, 5, 3, 6, 2, 7, 1, 8])
 
         for idx, q in enumerate(qualifiers):
             assigned_lane = str(lane_order[idx] if idx < len(lane_order) else (idx + 1))

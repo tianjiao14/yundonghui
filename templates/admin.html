@@ -807,6 +807,24 @@
             </div>
         </div>
     </div>
+<!-- 🌟 项目组别报名人数明细弹窗 -->
+<div id="eventDetailModal" class="fixed inset-0 bg-black/50 backdrop-blur-xs hidden z-[110] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-gray-100 overflow-hidden transform transition-all">
+        <div class="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 text-white flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <span class="text-xl">🏃</span>
+                <h3 class="font-black text-base tracking-wide" id="modalEventName">项目名称</h3>
+            </div>
+            <button onclick="closeEventDetailModal()" class="text-white/80 hover:text-white font-bold text-xl leading-none">&times;</button>
+        </div>
+        <div class="p-4 max-h-[60vh] overflow-y-auto" id="modalEventContent">
+            <!-- 动态填充各组别人数 -->
+        </div>
+        <div class="p-3 bg-gray-50 border-t border-gray-100 text-right">
+            <button onclick="closeEventDetailModal()" class="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold transition">关 闭</button>
+        </div>
+    </div>
+</div>
 <div id="step-9" class="step-panel h-full hidden p-6 flex flex-col overflow-hidden">
     <div class="flex flex-wrap justify-between items-center mb-4 shrink-0 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
         <div class="flex items-center gap-3">
@@ -1411,7 +1429,28 @@ case 10:
     break;
         }
     }
+// 🌟 单击沙盘卡片，自动平滑滚动定位到下方对应检录表并高亮提醒
+    window.scrollToScheduleCard = function(gName, eName, gen) {
+        const anchorId = `rc_card_${gName}_${eName}_${gen}`.replace(/\s+/g, '_');
+        const targetCard = document.getElementById(anchorId);
+        const scrollContainer = document.getElementById('scheduleOutput');
 
+        if (!targetCard) {
+            console.log("未找到对应检录表:", anchorId);
+            return;
+        }
+
+        // 平滑滚动居中定位
+        targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // 呼吸脉冲高亮 1.5 秒，方便一眼看到
+        targetCard.classList.remove('border-gray-300');
+        targetCard.classList.add('border-blue-500', 'ring-4', 'ring-blue-300', 'shadow-2xl');
+        setTimeout(() => {
+            targetCard.classList.remove('border-blue-500', 'ring-4', 'ring-blue-300', 'shadow-2xl');
+            targetCard.classList.add('border-gray-300');
+        }, 1500);
+    };
     window.manualScheduleMap = JSON.parse(localStorage.getItem('manual_schedule_map')) || {};
     window.renderManualScheduleGrid = function() {
         const grid = document.getElementById('manualScheduleGrid');
@@ -1556,7 +1595,8 @@ case 10:
                     const timeTip = `${jobMins}分`;
 
                     return `
-                        <div class="draggable-job flex items-center justify-between text-white text-xs px-2.5 py-2 rounded-lg shadow-xs font-bold relative group cursor-grab active:cursor-grabbing hover:opacity-90 ${badgeColor}"
+                        <div onclick="scrollToScheduleCard('${job.gname}', '${job.ename}', '${job.gender}')"
+                             class="draggable-job flex items-center justify-between text-white text-xs px-2.5 py-2 rounded-lg shadow-xs font-bold relative group cursor-pointer active:scale-98 hover:opacity-95 transition ${badgeColor}"
                              draggable="true" data-jobkey="${job.jobKey}" data-gname="${job.gname}" data-ename="${job.ename}" data-gender="${job.gender}" data-minutes="${jobMins}" data-isfield="${isField}" data-isfun="${isFun}" data-totalvenues="${job.totalVenues||1}">
                             <div class="truncate pr-2 flex items-center gap-1.5 pointer-events-none">
                                 <span class="bg-black/20 px-1.5 py-0.5 rounded text-[10px] font-mono shadow-inner tracking-wider">${startTime}</span>
@@ -2430,9 +2470,10 @@ function selectView(m, id, n) {
                
                 const estTime = items[0].estTime || '未设定时间'; 
                 const displayTime = window.formatScheduleTime(estTime);
+                const cardAnchorId = `rc_card_${gName}_${eName}_${gen}`.replace(/\s+/g, '_');
 
                 let html = `
-                <div class="rc-card break-inside-avoid bg-white p-4 rounded shadow-md text-black border-2 border-gray-300 mb-4">
+                <div id="${cardAnchorId}" class="rc-card break-inside-avoid bg-white p-4 rounded shadow-md text-black border-2 border-gray-300 mb-4 transition-all duration-500">
                     <div class="flex justify-between items-center mb-1">
                         <span class="text-sm font-black text-black-800 bg-blue-50 px-2 py-0.5 border border-blue-300 rounded">⏱️ 比赛时间：<span style="font-size:16px;">${displayTime}</span></span>
                     </div>
@@ -3582,19 +3623,100 @@ function exportWord() {
             </div>`).join('');
     }
 
+    let currentEventGroupDetails = [];
+
     function loadStatistics() {
         fetch('/api/get_statistics').then(r => r.json()).then(data => {
+            currentEventGroupDetails = data.event_group_details || [];
+
+            // 1. 组别/性别人数统计表
             const groupBody = document.getElementById('statsGroupBody');
-            let groupHtml = data.group_gender.map(r => `<tr class="border-b"> <td class="p-2 font-bold">${r.group_name}</td> <td class="p-2 text-center">${r.gender}</td> <td class="p-2 text-right font-mono text-blue-600">${r.count} 人</td> </tr>`).join('');
+            let groupHtml = data.group_gender.map(r => `
+                <tr class="border-b"> 
+                    <td class="p-2 font-bold">${r.group_name}</td> 
+                    <td class="p-2 text-center">${r.gender}</td> 
+                    <td class="p-2 text-right font-mono text-blue-600 font-bold">${r.count} 人</td> 
+                </tr>
+            `).join('');
             groupHtml += `
                 <tr class="bg-blue-50 border-t-2 border-blue-200"> <td class="p-2 font-bold text-blue-800" colspan="2">👥 全场总报名人数</td> <td class="p-2 text-right font-mono font-bold text-blue-900">${data.total_athletes} 人</td> </tr>
                 <tr class="bg-orange-50 border-t border-orange-200"> <td class="p-2 font-bold text-orange-800" colspan="2">🏃 全场总参加人次</td> <td class="p-2 text-right font-mono font-bold text-orange-900">${data.total_participations} 人次</td> </tr>`;
             groupBody.innerHTML = groupHtml;
 
+            // 2. 项目报名分布卡片（绑定点击下钻查看各组别人数）
             const eventCont = document.getElementById('statsEventContainer');
-            eventCont.innerHTML = data.events.map(e => `<div class="bg-gray-50 border p-3 rounded text-center"> <div class="text-xs text-gray-500 mb-1 truncate">${e.event_name}</div> <div class="text-xl font-bold text-purple-700">${e.count}</div> </div>`).join('');
+            eventCont.innerHTML = data.events.map(e => `
+                <div onclick="showEventGroupDetails('${e.event_name}', ${e.count})" 
+                     title="点击查看各组别分布"
+                     class="bg-white border-2 border-purple-100 hover:border-purple-400 p-3 rounded-xl text-center cursor-pointer shadow-xs hover:shadow-md transition-all active:scale-95 group select-none">
+                    <div class="text-xs text-gray-500 mb-1 truncate font-bold group-hover:text-purple-700">${e.event_name}</div>
+                    <div class="text-2xl font-black text-purple-700 font-mono">${e.count}</div>
+                    <div class="text-[10px] text-purple-400 mt-1 bg-purple-50 rounded py-0.5 font-bold group-hover:bg-purple-600 group-hover:text-white transition">
+                        查看各组 ➔
+                    </div>
+                </div>
+            `).join('');
         });
     }
+
+    // 🌟 弹窗渲染：显示当前项目的各组别报名人数
+    window.showEventGroupDetails = function(eventName, totalCount) {
+        document.getElementById('modalEventName').innerText = `${eventName} (${totalCount}人)`;
+        const content = document.getElementById('modalEventContent');
+
+        // 筛选出属于该项目的组别明细
+        const rows = currentEventGroupDetails.filter(r => r.event_name === eventName);
+
+        if (rows.length === 0) {
+            content.innerHTML = '<div class="text-center py-8 text-gray-400 text-xs font-bold">暂无该项目的组别分布数据</div>';
+        } else {
+            // 按组别聚合男女
+            const groupMap = {};
+            rows.forEach(r => {
+                if (!groupMap[r.group_name]) {
+                    groupMap[r.group_name] = { total: 0, male: 0, female: 0, mixed: 0 };
+                }
+                groupMap[r.group_name].total += r.count;
+                if (r.gender === '男') groupMap[r.group_name].male += r.count;
+                else if (r.gender === '女') groupMap[r.group_name].female += r.count;
+                else groupMap[r.group_name].mixed += r.count;
+            });
+
+            let html = `
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead class="bg-gray-100 text-gray-600 border-b">
+                        <tr>
+                            <th class="p-2.5 text-left">组别</th>
+                            <th class="p-2.5 text-center">男</th>
+                            <th class="p-2.5 text-center">女</th>
+                            <th class="p-2.5 text-right">小计</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+            `;
+
+            Object.keys(groupMap).sort().forEach(gName => {
+                const item = groupMap[gName];
+                html += `
+                    <tr class="hover:bg-purple-50/30 transition">
+                        <td class="p-2.5 font-black text-gray-800">${gName}</td>
+                        <td class="p-2.5 text-center font-mono font-bold text-blue-600">${item.male > 0 ? item.male : '-'}</td>
+                        <td class="p-2.5 text-center font-mono font-bold text-pink-600">${item.female > 0 ? item.female : '-'}</td>
+                        <td class="p-2.5 text-right font-mono font-black text-purple-700">${item.total} 人</td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table>`;
+            content.innerHTML = html;
+        }
+
+        document.getElementById('eventDetailModal').classList.remove('hidden');
+    };
+
+    window.closeEventDetailModal = function() {
+        document.getElementById('eventDetailModal').classList.add('hidden');
+    };
 
     function updateAdminPoint(id, inputEl) {
         const val = inputEl.value; inputEl.style.backgroundColor = '#fef3c7';
@@ -4575,30 +4697,28 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                         const hasScore = Boolean(a.score && String(a.score).trim() !== '');
                         const state = parseInt(a.checked_in || 0);
                         
-                        let style = 'bg-white text-gray-500 border-gray-200';
+                        let style = 'bg-gray-100 text-gray-500 border-gray-200';
                         let icon = '○';
                         let nameClass = '';
 
                         if (hasScore) {
-                            style = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold';
+                            style = 'bg-emerald-50 text-emerald-700 border-emerald-200 font-bold';
                             icon = '🏁';
                         } else if (state === 1) {
-                            style = 'bg-blue-100 text-blue-800 border-blue-300 font-bold';
+                            style = 'bg-blue-50 text-blue-700 border-blue-200 font-bold';
                             icon = '✓';
                         } else if (state === 2) {
-                            style = 'bg-red-100 text-red-700 border-red-200 font-bold';
+                            style = 'bg-red-50 text-red-600 border-red-200 font-bold';
                             icon = '✕';
-                            nameClass = 'line-through opacity-70';
+                            nameClass = 'line-through opacity-60';
                         }
 
                         return `
-                            <span onclick="toggleAthleteCheckin(${a.id}, ${state === 1 ? 2 : (state === 2 ? 0 : 1)})" 
-                                  title="点击可循环切换: 到位 ✓ / 弃权 ✕ / 复位"
-                                  class="cursor-pointer inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border transition select-none ${style}">
+                            <span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border select-none cursor-default ${style}">
                                 <span>${icon}</span>
                                 <span class="${nameClass}">${a.name}</span>
                                 ${state === 2 ? '<span class="text-[9px] text-red-500 font-bold">[弃权]</span>' : ''}
-                                ${hasScore ? `<b>(${a.score})</b>` : ''}
+                                ${hasScore ? `<b class="font-mono">(${a.score})</b>` : ''}
                             </span>
                         `;
                     }).join(' ');

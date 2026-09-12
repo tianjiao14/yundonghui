@@ -402,17 +402,29 @@ function selectRole(role) {
                 const unitKey = `${dayNum}_${ampm}`; 
 
                 if (!units[unitKey]) {
-                    units[unitKey] = { day: dayNum, ampm: ampm, track: {}, field: {} };
+                    // 🌟 增加 fun (趣味项目) 独立分类
+                    units[unitKey] = { day: dayNum, ampm: ampm, track: {}, field: {}, fun: {} };
                 }
 
                 const heatKey = `${item.timeIndex}_${item.groupName}_${item.eventName}_${item.gender}_${item.heat}`;
-                const category = item.isField ? 'field' : 'track';
+                
+                // 🌟 判定大项类别：优先识别趣味，其次田赛，其余为径赛
+                const eName = item.eventName || '';
+                const isFun = item.is_fun === '1' || item.isFun === true || item.type === 'fun' || 
+                              ['足球', '篮球', '投篮', '蛙跳', '跳绳', '趣味', '拔河', '毛毛虫', '沙包', '毽'].some(k => eName.includes(k));
+                
+                let category = 'track';
+                if (isFun) {
+                    category = 'fun';
+                } else if (item.isField) {
+                    category = 'field';
+                }
 
                 if (!units[unitKey][category][heatKey]) {
                     units[unitKey][category][heatKey] = {
                         timeStr: timeStr, timeIdx: item.timeIndex, groupName: item.groupName, 
                         eventName: item.eventName, gender: item.gender, heat: item.heat, 
-                        isField: item.isField, athletes: []
+                        isField: item.isField, category: category, athletes: []
                     };
                 }
                 units[unitKey][category][heatKey].athletes.push(item);
@@ -436,7 +448,12 @@ function selectRole(role) {
     const renderHeatCard = (group, elementId) => {
         group.athletes.sort((a,b) => parseInt(a.lane||0) - parseInt(b.lane||0));
         const realTime = formatRealDate(group.timeStr);
-        const typeColor = group.isField ? 'orange' : 'blue';
+        let typeColor = 'blue';
+        if (group.category === 'fun') {
+            typeColor = 'purple';
+        } else if (group.isField) {
+            typeColor = 'orange';
+        }
         const isStarter = (currentRole === 'starter');
 
         const totalCount = group.athletes.length;
@@ -572,35 +589,57 @@ function selectRole(role) {
                     }
                 }
 
-                html += `
+               html += `
                 <div class="mb-6 bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
                     <h3 class="text-base font-black text-emerald-900 bg-emerald-100 p-3 border-b-2 border-emerald-400 flex items-center gap-2">
                         📅 ${dateTitle} 比赛单元
                     </h3>
                     
-                    <div class="flex flex-col md:flex-row bg-gray-50 p-3 gap-4">
-                        <div class="flex-1">
-                            <div class="font-black text-blue-800 border-b-2 border-blue-200 pb-1.5 mb-3 flex items-center gap-1.5">
-                                <span>🏃</span> 径赛检录区
+                    <div class="bg-gray-50 p-3 space-y-4">
+                        <!-- 上半部：左右两栏（径赛 vs 田赛） -->
+                        <div class="flex flex-col md:flex-row gap-4">
+                            <!-- 1. 径赛检录区 -->
+                            <div class="flex-1">
+                                <div class="font-black text-blue-800 border-b-2 border-blue-200 pb-1.5 mb-3 flex items-center gap-1.5">
+                                    <span>🏃</span> 径赛检录区
+                                </div>
+                                <div class="space-y-3">
+                                    ${Object.keys(unit.track).length === 0 ? '<div class="text-xs text-gray-400 font-bold p-2 text-center bg-white rounded-lg border border-dashed">本单元无径赛项目</div>' : ''}
+                                    ${Object.keys(unit.track).sort((a,b) => {
+                                        const ta = unit.track[a], tb = unit.track[b];
+                                        if (ta.timeIdx !== tb.timeIdx) return ta.timeIdx - tb.timeIdx;
+                                        return (ta.timeStr || '').localeCompare(tb.timeStr || '');
+                                    }).map((k, i) => renderHeatCard(unit.track[k], `track_${uIdx}_${i}`)).join('')}
+                                </div>
                             </div>
-                            <div class="space-y-3">
-                                ${Object.keys(unit.track).length === 0 ? '<div class="text-xs text-gray-400 font-bold p-2 text-center">本单元无径赛项目</div>' : ''}
-                                ${Object.keys(unit.track).sort((a,b) => {
-    const ta = unit.track[a], tb = unit.track[b];
-    if (ta.timeIdx !== tb.timeIdx) return ta.timeIdx - tb.timeIdx;
-    return (ta.timeStr || '').localeCompare(tb.timeStr || '');
-}).map((k, i) => renderHeatCard(unit.track[k], `track_${uIdx}_${i}`)).join('')}
-                            </div>
+
+                            <!-- 2. 田赛检录区（起点发令角色下自动隐藏） -->
+                            ${currentRole === 'starter' ? '' : `
+                            <div class="flex-1">
+                                <div class="font-black text-orange-800 border-b-2 border-orange-200 pb-1.5 mb-3 flex items-center gap-1.5">
+                                    <span>🎯</span> 田赛检录区
+                                </div>
+                                <div class="space-y-3">
+                                    ${Object.keys(unit.field).length === 0 ? '<div class="text-xs text-gray-400 font-bold p-2 text-center bg-white rounded-lg border border-dashed">本单元无田赛项目</div>' : ''}
+                                    ${Object.keys(unit.field).sort((a,b) => unit.field[a].timeIdx - unit.field[b].timeIdx).map((k, i) => renderHeatCard(unit.field[k], `field_${uIdx}_${i}`)).join('')}
+                                </div>
+                            </div>`}
                         </div>
 
+                        <!-- 3. 下半部：趣味项目检录区（单独横跨整栏显示） -->
                         ${currentRole === 'starter' ? '' : `
-                        <div class="flex-1">
-                            <div class="font-black text-orange-800 border-b-2 border-orange-200 pb-1.5 mb-3 flex items-center gap-1.5 mt-2 md:mt-0">
-                                <span>🎯</span> 田赛检录区
+                        <div class="pt-2 border-t border-gray-200">
+                            <div class="font-black text-purple-800 border-b-2 border-purple-200 pb-1.5 mb-3 flex items-center justify-between">
+                                <span class="flex items-center gap-1.5">
+                                    <span>🎈</span> 趣味项目检录区
+                                </span>
+                                <span class="text-[11px] font-normal text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-100">
+                                    集体参与 · 独立检录
+                                </span>
                             </div>
-                            <div class="space-y-3">
-                                ${Object.keys(unit.field).length === 0 ? '<div class="text-xs text-gray-400 font-bold p-2 text-center">本单元无田赛项目</div>' : ''}
-                                ${Object.keys(unit.field).sort((a,b) => unit.field[a].timeIdx - unit.field[b].timeIdx).map((k, i) => renderHeatCard(unit.field[k], `field_${uIdx}_${i}`)).join('')}
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                ${Object.keys(unit.fun).length === 0 ? '<div class="col-span-full text-xs text-gray-400 font-bold p-3 text-center bg-white rounded-lg border border-dashed">本单元无趣味项目</div>' : ''}
+                                ${Object.keys(unit.fun).sort((a,b) => unit.fun[a].timeIdx - unit.fun[b].timeIdx).map((k, i) => renderHeatCard(unit.fun[k], `fun_${uIdx}_${i}`)).join('')}
                             </div>
                         </div>`}
                     </div>

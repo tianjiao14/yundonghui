@@ -84,7 +84,7 @@
                 <button class="acc-header" onclick="toggleAcc('panel-startlist')">
                     <div class="flex items-center gap-2">
                         <span class="text-purple-500 text-lg">🏃</span>
-                        <span>后续参赛名单 (决赛出线)</span>
+                        <span>后续参赛名单</span>
                     </div>
                     <span class="text-gray-400 text-sm">▼</span>
                 </button>
@@ -290,7 +290,22 @@
                 }
             });
 
-            const eventNames = Array.from(eventSet).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+            const eventNames = Array.from(eventSet).sort((a, b) => {
+                // 1. 提取基础项目名（去除预赛/决赛标记）
+                const baseA = a.replace(/[\(（].*?[\)）]/g, '').trim();
+                const baseB = b.replace(/[\(（].*?[\)）]/g, '').trim();
+
+                // 2. 如果是同一个基础项目（如 100米），强制预赛排前面，决赛排后面
+                if (baseA === baseB) {
+                    const isPrelimA = a.includes('预赛');
+                    const isPrelimB = b.includes('预赛');
+                    if (isPrelimA && !isPrelimB) return -1; // a 是预赛，排前面
+                    if (!isPrelimA && isPrelimB) return 1;  // b 是预赛，排前面
+                }
+
+                // 3. 不同项目之间按常规字典序排列
+                return baseA.localeCompare(baseB, 'zh-CN');
+            });
 
             list.innerHTML = eventNames.map(eName => `
                 <li class="p-4 flex justify-between items-center hover:bg-slate-50 cursor-pointer transition group" 
@@ -328,16 +343,20 @@
             `).join('');
         }
 
-        function goToEventDetail(eventName, isFinalsList) {
+        function goToEventDetail(eventName, isFinalsList, isSilent = false) {
             document.getElementById('detEventName').innerText = eventName;
             document.getElementById('detHeatLabel').innerHTML = isFinalsList ? '✨ 晋级决赛检录名单' : '🏅 综合成绩公告';
             const contentArea = document.getElementById('detContentArea');
-            contentArea.innerHTML = `
-                <div class="flex flex-col items-center justify-center py-20 text-slate-400">
-                    <svg class="animate-spin h-8 w-8 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    <span class="font-bold">正在同步成绩矩阵与纪录档案...</span>
-                </div>`;
-            switchView('view-event-detail');
+
+            // 🌟 核心：只有首次点击才显示全屏加载中，后台静默刷新绝不展示 loading，杜绝闪屏！
+            if (!isSilent) {
+                contentArea.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-20 text-slate-400">
+                        <svg class="animate-spin h-8 w-8 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span class="font-bold">正在同步成绩矩阵与纪录档案...</span>
+                    </div>`;
+                switchView('view-event-detail');
+            }
 
             let coreMatchName = eventName.replace('决赛', '').replace('预赛', '').replace('()', '').replace('（）', '').trim();
             if (coreMatchName.startsWith('女') && !coreMatchName.startsWith('女子')) coreMatchName = coreMatchName.replace('女', '女子');
@@ -362,8 +381,9 @@
             })
             .then(r => r.json())
             .then(data => {
-                if(data.length === 0) {
-                    contentArea.innerHTML = '<div class="p-10 text-center text-slate-400 font-medium">该项目暂无编排数据</div>'; return;
+                if(!data || data.length === 0) {
+                    contentArea.innerHTML = '<div class="p-10 text-center text-slate-400 font-medium">该项目暂无编排数据</div>'; 
+                    return;
                 }
 
                 const uniqueGroups = [...new Set(data.map(i => i.group_name).filter(Boolean))];
@@ -418,14 +438,53 @@
                         const currentGroupName = groupData[0].group_name;
                         const currentGender = groupData[0].gender;
 
-                        // 分组标题栏
+                        // 统计成绩状态
+                        const isRealScore = (scoreStr) => {
+                            if (!scoreStr) return false;
+                            const s = String(scoreStr).trim();
+                            if (s === '' || s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || s.includes('DNF')) return false;
+                            return parseTimeVal(s) > 0;
+                        };
+
+                        const validAthletes = groupData.filter(i => {
+                            const isDummy = !i.name || i.name.includes('待定') || i.team_name === '预赛出线';
+                            const isAbsent = (i.checked_in == 2) || (i.score && (i.score.includes('弃权') || i.score.includes('DNS')));
+                            return !isDummy && !isAbsent;
+                        });
+
+                        const totalCount = validAthletes.length;
+                        const scoredCount = validAthletes.filter(i => isRealScore(i.score)).length;
+
+                        // 状态徽标
+                        let statusDotHtml = '';
+                        if (totalCount > 0 && scoredCount >= totalCount) {
+                            statusDotHtml = `
+                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                                    <span>全部完赛</span>
+                                </span>`;
+                        } else if (scoredCount > 0) {
+                            statusDotHtml = `
+                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300">
+                                    <span class="relative flex h-2 w-2">
+                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                    </span>
+                                    <span>部分成绩更新中 (${scoredCount}/${totalCount})</span>
+                                </span>`;
+                        }
+
+                        // 组别卡片
                         html += `
-                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 mb-4 overflow-hidden">
-                            <div class="px-4 py-3.5 bg-gradient-to-r from-slate-50 to-white flex justify-between items-center cursor-pointer hover:bg-slate-50 transition" onclick="document.getElementById('${contentId}').classList.toggle('hidden')">
-                                <span class="font-extrabold text-slate-700 text-[15px]">🏢 ${groupKey}</span>
-                                <span class="text-blue-500 bg-blue-50 text-[11px] font-bold px-2.5 py-1 rounded-full">展开/折叠</span>
+                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 mb-3 overflow-hidden grp-card-container" data-groupkey="${groupKey}">
+                            <div class="px-4 py-3.5 bg-white hover:bg-slate-50 flex justify-between items-center cursor-pointer transition select-none" onclick="document.getElementById('${contentId}').classList.toggle('hidden')">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="font-extrabold text-slate-800 text-[14px]">🏢 ${groupKey}</span>
+                                    ${statusDotHtml}
+                                </div>
+                                <span class="text-blue-500 bg-blue-50 text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0">展开/折叠</span>
                             </div>
-                            <div id="${contentId}" class="hidden transition-all duration-300">`;
+                            <div id="${contentId}" class="grp-content-box hidden transition-all duration-300">`;
 
                         if (isFinalsList) {
                             const heats = {};
@@ -474,13 +533,6 @@
                                 });
                                 html += `</tbody></table>`;
                             });
-
-                            const isRealScore = (scoreStr) => {
-                                if (!scoreStr) return false;
-                                const s = String(scoreStr).trim();
-                                if (s === '' || s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || s.includes('DNF')) return false;
-                                return parseTimeVal(s) > 0;
-                            };
 
                             const scored = groupData.filter(i => isRealScore(i.score));
                             const abandoned = groupData.filter(i => !isRealScore(i.score) && (String(i.score).includes('弃权') || i.checked_in == 2 || String(i.score).includes('DNS')));
@@ -563,8 +615,37 @@
                         }
                         html += `</div></div>`; 
                     });
+
+                    // 🌟 记录更新前用户展开的卡片与滚动条
+                    const openedCardKeys = Array.from(document.querySelectorAll('.grp-card-container'))
+                        .filter(el => {
+                            const box = el.querySelector('.grp-content-box');
+                            return box && !box.classList.contains('hidden');
+                        })
+                        .map(el => el.dataset.groupkey);
+                    const currentScrollY = contentArea.scrollTop;
+
+                    // 写入最新 DOM
                     contentArea.innerHTML = html;
+
+                    // 恢复之前展开的组别与滚动位置
+                    openedCardKeys.forEach(key => {
+                        const targetCard = Array.from(document.querySelectorAll('.grp-card-container')).find(el => el.dataset.groupkey === key);
+                        if (targetCard) {
+                            const box = targetCard.querySelector('.grp-content-box');
+                            if (box) box.classList.remove('hidden');
+                        }
+                    });
+                    if (isSilent) {
+                        contentArea.scrollTop = currentScrollY;
+                    }
+                }).catch(err => {
+                    console.error("加载成绩失败:", err);
+                    contentArea.innerHTML = '<div class="p-10 text-center text-red-500 font-medium">成绩提取失败，请检查网络后重试</div>';
                 });
+            }).catch(err => {
+                console.error("加载编排数据失败:", err);
+                contentArea.innerHTML = '<div class="p-10 text-center text-red-500 font-medium">编排数据连接异常</div>';
             });
         }
 
@@ -788,6 +869,17 @@
                 `).join('');
             });
         }
+setInterval(() => {
+    const detailPanel = document.getElementById('view-event-detail');
+    if (detailPanel && !detailPanel.classList.contains('hidden')) {
+        const curEvt = document.getElementById('detEventName')?.innerText;
+        const isFinals = document.getElementById('detHeatLabel')?.innerText.includes('晋级');
+        if (curEvt && curEvt !== '--') {
+            // 第三个参数传 true，实现无感静默更新，不跳动、不闪屏
+            goToEventDetail(curEvt, isFinals, true);
+        }
+    }
+}, 8000);
     </script>
 </body>
 </html>
