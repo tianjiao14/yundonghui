@@ -63,6 +63,32 @@
             <span>退出</span>
         </a>
     </div>
+<!-- 领队、教练、联系电话信息卡片 -->
+<div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 my-3">
+    <div class="flex justify-between items-center mb-3">
+        <div class="flex items-center gap-1.5">
+            <span class="text-base">📋</span>
+            <span class="font-black text-slate-800 text-sm">带队人员信息</span>
+        </div>
+        <button onclick="saveTeamStaff()" class="bg-indigo-600 active:scale-95 text-white font-bold text-xs px-3 py-1.5 rounded-lg shadow-sm transition">
+            💾 保存带队信息
+        </button>
+    </div>
+    <div class="grid grid-cols-3 gap-2">
+        <div>
+            <label class="text-[11px] font-bold text-slate-500 block mb-1">领队姓名</label>
+            <input type="text" id="bmLeaderInput" placeholder="如: 张老师" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-bold outline-none focus:bg-white focus:border-indigo-500">
+        </div>
+        <div>
+            <label class="text-[11px] font-bold text-slate-500 block mb-1">教练姓名</label>
+            <input type="text" id="bmCoachInput" placeholder="如: 李老师" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-bold outline-none focus:bg-white focus:border-indigo-500">
+        </div>
+        <div>
+            <label class="text-[11px] font-bold text-slate-500 block mb-1">联系电话</label>
+            <input type="tel" id="bmPhoneInput" placeholder="手机号" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-mono font-bold outline-none focus:bg-white focus:border-indigo-500">
+        </div>
+    </div>
+</div>
 <div id="deadlineNotice" class="hidden"></div>
     <!-- 1. 录入/修改单名学生面板 -->
     <div class="card p-4 space-y-4 border-2 border-blue-100">
@@ -719,6 +745,41 @@
                     alert("❌ 无法连接服务器获取队员名单，请刷新页面重试！");
                 });
         }
+// 1. 初始化时将后台存储的领队、教练、电话填充入框
+function loadCurrentTeamStaff() {
+    fetch('/api/get_data').then(r => r.json()).then(data => {
+        const myTeamId = "{{ user_team_id }}";
+        const myTeam = (data.teams || []).find(t => String(t.id) === String(myTeamId));
+        if (myTeam) {
+            if (document.getElementById('bmLeaderInput')) document.getElementById('bmLeaderInput').value = myTeam.leader || '';
+            if (document.getElementById('bmCoachInput')) document.getElementById('bmCoachInput').value = myTeam.coach || '';
+            if (document.getElementById('bmPhoneInput')) document.getElementById('bmPhoneInput').value = myTeam.phone || '';
+        }
+    });
+}
+
+// 2. 领队端保存带队人员
+function saveTeamStaff() {
+    const leader = document.getElementById('bmLeaderInput').value.trim();
+    const coach = document.getElementById('bmCoachInput').value.trim();
+    const phone = document.getElementById('bmPhoneInput').value.trim();
+    
+    fetch('/api/save_team_staff', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            team_id: "{{ user_team_id }}",
+            leader: leader,
+            coach: coach,
+            phone: phone
+        })
+    }).then(r => r.json()).then(res => {
+        alert(res.msg);
+    });
+}
+
+// 页面加载完成后触发回显
+window.addEventListener('DOMContentLoaded', loadCurrentTeamStaff);
     </script>
 {% endif %}
 </body>

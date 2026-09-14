@@ -510,32 +510,42 @@
                 </span>
                 <span class="text-[10px] bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded font-bold" id="teamBadgeCount">0 队</span>
             </div>
-            <div class="p-3 bg-gray-50 border-b border-gray-100 grid grid-cols-1 sm:grid-cols-4 gap-2 items-end shrink-0">
-                <div>
-                    <label class="text-[10px] font-bold text-gray-500 block mb-0.5">所属组别</label>
-                    <select id="teamGroupSelect" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500 font-bold text-gray-700"></select>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-gray-500 block mb-0.5">代表队名称</label>
-                    <input type="text" id="teamName" placeholder="如: 高一1班" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500 font-bold">
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-gray-500 block mb-0.5">领队/教练</label>
-                    <input type="text" id="teamLeader" placeholder="选填" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500">
-                </div>
-                <button onclick="addTeam()" class="bg-purple-600 text-white font-bold py-1.5 rounded text-xs hover:bg-purple-700 transition active:scale-95 shadow-xs">
-                    ➕ 添加代表队
-                </button>
-            </div>
+            <div class="p-3 bg-gray-50 border-b border-gray-100 grid grid-cols-1 sm:grid-cols-6 gap-2 items-end shrink-0">
+    <div>
+        <label class="text-[10px] font-bold text-gray-500 block mb-0.5">所属组别</label>
+        <select id="teamGroupSelect" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500 font-bold text-gray-700"></select>
+    </div>
+    <div>
+        <label class="text-[10px] font-bold text-gray-500 block mb-0.5">代表队名称</label>
+        <input type="text" id="teamName" placeholder="如: 高一1班" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500 font-bold">
+    </div>
+    <div>
+        <label class="text-[10px] font-bold text-gray-500 block mb-0.5">领队姓名</label>
+        <input type="text" id="teamLeader" placeholder="选填" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500">
+    </div>
+    <div>
+        <label class="text-[10px] font-bold text-gray-500 block mb-0.5">教练姓名</label>
+        <input type="text" id="teamCoach" placeholder="选填" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500">
+    </div>
+    <div>
+        <label class="text-[10px] font-bold text-gray-500 block mb-0.5">联系电话</label>
+        <input type="text" id="teamPhone" placeholder="手机号码" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500 font-mono">
+    </div>
+    <button onclick="addTeam()" class="bg-purple-600 text-white font-bold py-1.5 rounded text-xs hover:bg-purple-700 transition active:scale-95 shadow-xs">
+        ➕ 添加代表队
+    </button>
+</div>
             <div class="flex-1 overflow-y-auto custom-scrollbar">
                 <table class="fixed-table text-left text-xs">
     <thead class="sticky top-0 bg-gray-100 shadow-xs z-10">
         <tr>
-            <th style="width: 40px" class="text-center">序号</th>
-            <th style="width: 160px" class="text-left pl-3">所属组别</th>
+            <th style="width: 35px" class="text-center">序号</th>
+            <th style="width: 150px" class="text-left pl-2">所属组别</th>
             <th class="text-left pl-2">代表队名称</th>
-            <th style="width: 110px" class="text-center">领队/教练</th>
-            <th style="width: 100px" class="text-center">操作</th>
+            <th style="width: 120px" class="text-center">领队</th>
+            <th style="width: 120px" class="text-center">教练</th>
+            <th style="width: 115px" class="text-center">电话</th>
+            <th style="width: 80px" class="text-center">操作</th>
         </tr>
     </thead>
     <tbody id="teamListBody"></tbody>
@@ -622,9 +632,12 @@
             <button onclick="calculateEventTimeBudget()" class="flex-1 sm:flex-none bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-100 transition">🔄 刷新</button>
             <button onclick="clearManualSchedule()" class="flex-1 sm:flex-none bg-white border text-red-500 px-2 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 transition">🗑️ 清空</button>
             <button onclick="window.print()" class="flex-1 sm:flex-none bg-blue-100 text-blue-700 px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-200 transition">🖨️ 打印</button>
-            <button onclick="exportWord()" class="flex-1 sm:flex-none bg-blue-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-xs transition">📥 Word</button>
             <button onclick="syncScheduleToCloud()" class="flex-1 sm:flex-none bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700 shadow-xs transition">☁️ 发布</button>
-            <button onclick="checkAndPublishRelayLegs()" class="w-full sm:w-auto bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-xs transition">🎽 发布棒次</button>
+            <button onclick="checkAndPublishRelayLegs()" class="w-full sm:w-auto bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-xs transition">🎽 发布棒</button>
+            <button onclick="window.location.href='/api/export_handbook_word'" 
+        class="flex-1 sm:flex-none bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-purple-700 shadow-xs transition flex items-center gap-1">
+    📘 导出秩序册 Word
+</button>
         </div>
     </div>
 
@@ -1451,7 +1464,17 @@ case 10:
             targetCard.classList.add('border-gray-300');
         }, 1500);
     };
-    window.manualScheduleMap = JSON.parse(localStorage.getItem('manual_schedule_map')) || {};
+    window.manualScheduleMap = {};
+
+// 封装统一保存沙盘函数（自动落库 + 本地兜底）
+window.syncSandtableToServer = function() {
+    localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
+    fetch('/api/save_sandtable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ map: window.manualScheduleMap })
+    }).catch(e => console.warn("沙盘离线同步失败，已保存在本地缓存", e));
+};
     window.renderManualScheduleGrid = function() {
         const grid = document.getElementById('manualScheduleGrid');
         if (!grid) return;
@@ -1798,6 +1821,7 @@ case 10:
             calculateEventTimeBudget();
         }
     };
+window.syncSandtableToServer();
 
     window.clearManualSchedule = function() {
         if(confirm("确定要全部推倒重排，清空日程盘吗？")) {
@@ -1833,15 +1857,26 @@ case 10:
         }
     }
 
-    function addTeam() { 
+   function addTeam() { 
         const n = document.getElementById('teamName').value.trim();
         const gid = document.getElementById('teamGroupSelect').value; 
         const leader = document.getElementById('teamLeader').value.trim();
+        const coach = document.getElementById('teamCoach').value.trim();
+        const phone = document.getElementById('teamPhone').value.trim();
         
         if(n && gid) { 
-            db.teams.push({id: Date.now(), groupId: gid, name: n, leader: leader}); 
+            db.teams.push({
+                id: Date.now(), 
+                groupId: gid, 
+                name: n, 
+                leader: leader,
+                coach: coach,
+                phone: phone
+            }); 
             document.getElementById('teamName').value = ''; 
             document.getElementById('teamLeader').value = '';
+            document.getElementById('teamCoach').value = '';
+            document.getElementById('teamPhone').value = '';
             renderAll(); 
             saveData(true); 
         } else {
@@ -1888,27 +1923,27 @@ case 10:
             const groupName = grp ? grp.name : '-';
             const leaderName = t.leader || '';
 
-            return `
+           return `
             <tr class="border-b hover:bg-purple-50/30 transition text-center h-9">
                 <td class="text-gray-400 font-mono text-[11px]">${i + 1}</td>
-                <td class="text-left font-bold text-gray-600 pl-3 text-xs" title="${groupName}">
+                <td class="text-left font-bold text-gray-700 pl-2 text-xs whitespace-nowrap" title="${groupName}">
                     ${groupName}
                 </td>
-                <td class="text-left font-black text-gray-800 text-xs pl-2">
+                <td class="text-left font-black text-gray-800 text-xs pl-2 truncate">
                     ${t.name}
                 </td>
                 <td class="text-center text-xs">
-                    ${leaderName ? `<span class="font-bold text-gray-700 bg-gray-100 px-2 py-0.5 rounded">${leaderName}</span>` : '<span class="text-gray-300 text-[11px] italic">未填写</span>'}
+                    ${t.leader ? `<span class="font-bold text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">${t.leader}</span>` : '<span class="text-gray-300">-</span>'}
                 </td>
-                <td class="text-center">
-                    <button class="text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded text-[11px] font-bold mr-1 transition active:scale-95" 
-                            onclick="editTeamItem(${t.id})">
-                        编辑
-                    </button>
-                    <button class="text-red-500 hover:text-red-700 font-bold text-[11px] px-1 py-0.5 hover:bg-red-50 rounded" 
-                            onclick="deleteTeamItem(${t.id})">
-                        删除
-                    </button>
+                <td class="text-center text-xs">
+                    ${t.coach ? `<span class="font-bold text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">${t.coach}</span>` : '<span class="text-gray-300">-</span>'}
+                </td>
+                <td class="text-center text-xs font-mono font-medium text-gray-600 whitespace-nowrap">
+                    ${t.phone || '-'}
+                </td>
+                <td class="text-center whitespace-nowrap">
+                    <button class="text-blue-600 hover:text-blue-800 font-bold text-[11px] mr-1" onclick="editTeamItem(${t.id})">编辑</button>
+                    <button class="text-red-500 hover:text-red-700 font-bold text-[11px]" onclick="deleteTeamItem(${t.id})">删除</button>
                 </td>
             </tr>`;
         }).join('');
@@ -1934,37 +1969,32 @@ function editTeamItem(teamId) {
     if (!team) return;
     document.getElementById('teamName').value = team.name;
     document.getElementById('teamLeader').value = team.leader || '';
+    document.getElementById('teamCoach').value = team.coach || '';
+    document.getElementById('teamPhone').value = team.phone || '';
     
     const teamGroupSel = document.getElementById('teamGroupSelect');
-    if (teamGroupSel) {
-        teamGroupSel.value = team.groupId || team.group_id;
-    }
+    if (teamGroupSel) teamGroupSel.value = team.groupId || team.group_id;
+
     const addBtn = document.querySelector('button[onclick="addTeam()"]');
     if (addBtn) {
         addBtn.innerText = "💾 保存修改";
         addBtn.className = "bg-emerald-600 text-white font-bold py-1.5 rounded text-xs hover:bg-emerald-700 transition active:scale-95 shadow-xs";
         addBtn.onclick = function() {
-            const newName = document.getElementById('teamName').value.trim();
-            const newGid = document.getElementById('teamGroupSelect').value;
-            const newLeader = document.getElementById('teamLeader').value.trim();
+            team.name = document.getElementById('teamName').value.trim();
+            team.groupId = document.getElementById('teamGroupSelect').value;
+            team.group_id = team.groupId;
+            team.leader = document.getElementById('teamLeader').value.trim();
+            team.coach = document.getElementById('teamCoach').value.trim();
+            team.phone = document.getElementById('teamPhone').value.trim();
 
-            if (!newName || !newGid) {
-                alert("队名和组别不能为空！");
-                return;
-            }
-
-            team.name = newName;
-            team.groupId = newGid;
-            team.group_id = newGid;
-            team.leader = newLeader;
-
-            // 还原按钮
             addBtn.innerText = "➕ 添加代表队";
             addBtn.className = "bg-purple-600 text-white font-bold py-1.5 rounded text-xs hover:bg-purple-700 transition active:scale-95 shadow-xs";
             addBtn.onclick = addTeam;
 
             document.getElementById('teamName').value = '';
             document.getElementById('teamLeader').value = '';
+            document.getElementById('teamCoach').value = '';
+            document.getElementById('teamPhone').value = '';
 
             renderAll();
             saveData(true);
@@ -2981,9 +3011,24 @@ function exportWord() {
                 if(document.getElementById('cfgMaxTotal')) document.getElementById('cfgMaxTotal').value = data.config.maxTotal || 20;
                 if(document.getElementById('cfgRegDeadline')) document.getElementById('cfgRegDeadline').value = data.config.regDeadline || '';
             }
-          
+          if (data.config && data.config.manual_schedule_map) {
+                try {
+                    window.manualScheduleMap = JSON.parse(data.config.manual_schedule_map);
+                } catch(e) {
+                    window.manualScheduleMap = JSON.parse(localStorage.getItem('manual_schedule_map')) || {};
+                }
+            } else {
+                window.manualScheduleMap = JSON.parse(localStorage.getItem('manual_schedule_map')) || {};
+            }
             if (data.groups) { db.groups = data.groups; }
-            if (data.teams) { db.teams = data.teams; }
+            if (data.teams) {
+    db.teams = data.teams.map(t => ({
+        ...t,
+        coach: t.coach || '',
+        phone: t.phone || '',
+        leader: t.leader || ''
+    }));
+}
             if (data.athletes) { db.athletes = data.athletes; }
             if (data.schedule) { db.schedule = data.schedule; }  
            if (data.events && data.events.length > 0) {
@@ -4068,6 +4113,7 @@ fetch('/api/batch_save_events', { method: 'POST', headers: { 'Content-Type': 'ap
             };
         });
     };
+window.syncSandtableToServer();
 
     window.generateSchedule = function() {
         if(!confirm("⚡ 确定要执行一键智能编排吗？\n注意：这将会把全场所有项目按照竞赛科学原则排入沙盘中！")) return;
@@ -4188,7 +4234,7 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                 });
             });
         });
-
+window.syncSandtableToServer();
         allJobs.sort((a,b) => {
             if (a.weight !== b.weight) return a.weight - b.weight;
             if (a.coreEvt !== b.coreEvt) return a.coreEvt.localeCompare(b.coreEvt, 'zh-CN'); 
