@@ -2508,9 +2508,20 @@ def force_sync_and_upgrade_db():
         checked_in INTEGER DEFAULT 0
     )''')
     
-    for col, t in [("total_lanes", "INTEGER DEFAULT 8"), ("est_time", "TEXT DEFAULT ''"), ("time_index", "INTEGER DEFAULT 0"), ("is_field", "INTEGER DEFAULT 0"), ("score", "TEXT DEFAULT ''"), ("checked_in", "INTEGER DEFAULT 0")]:
-        try: c.execute(f"ALTER TABLE start_list ADD COLUMN {col} {t}")
-        except Exception: pass
+   # 规范缩进后的完整片段：
+    for col, t in [
+        ("total_lanes", "INTEGER DEFAULT 8"),
+        ("est_time", "TEXT DEFAULT ''"),
+        ("time_index", "INTEGER DEFAULT 0"),
+        ("is_field", "INTEGER DEFAULT 0"),
+        ("score", "TEXT DEFAULT ''"),
+        ("checked_in", "INTEGER DEFAULT 0"),
+        ("is_started", "INTEGER DEFAULT 0")
+    ]:
+        try:
+            c.execute(f"ALTER TABLE start_list ADD COLUMN {col} {t}")
+        except Exception:
+            pass
 
     try: c.execute("ALTER TABLE registrations ADD COLUMN attempts_json TEXT DEFAULT ''")
     except Exception: pass
