@@ -65,7 +65,7 @@
                 <button onclick="selectRole('starter')" class="w-full max-w-sm bg-gradient-to-r from-amber-500 to-orange-600 text-white p-5 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1.5 ring-2 ring-orange-400 ring-offset-2">
                     <span class="text-3xl">🚩</span>
                     <span class="text-lg font-black tracking-widest">起点发令裁判入口</span>
-                    <span class="text-[11px] text-orange-100 font-medium">核验上道选手，向终点发车推送</span>
+                    <span class="text-[11px] text-orange-100 font-medium">核验上道选手，向终点发令推送</span>
                 </button>
 
                <button onclick="selectRole('timing')" class="w-full max-w-sm bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1">
@@ -202,7 +202,23 @@
             </div> 
         </div>
     </div>
-<script>
+
+<div id="newHeatModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full border-4 border-amber-500 overflow-hidden transform transition-all text-center p-6 space-y-4">
+        <div class="text-5xl">🚀</div>
+        <div class="space-y-1">
+            <span class="bg-amber-100 text-amber-800 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider">起点已发令</span>
+            <h3 class="text-xl font-black text-gray-900 pt-2" id="modalHeatInfo">---</h3>
+            <p class="text-xs text-gray-400 font-mono" id="modalHeatTime">--:--:--</p>
+        </div>
+        <p class="text-xs text-amber-700 font-bold bg-amber-50 p-2.5 rounded-xl">
+            ⚡ 请终点裁判准备计时，选手冲线后立即录入！
+        </p>
+        <button onclick="acceptNewHeatAndLoad()" class="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white py-3 rounded-xl font-black text-base shadow-lg hover:from-amber-600 hover:to-orange-700 active:scale-95 transition">
+            👉 立即载入本科成绩录入
+        </button>
+    </div>
+</div><script>
     function login() {
         const user = document.getElementById('username').value.trim();
         const pwd = document.getElementById('pwd').value;
@@ -299,7 +315,14 @@ function selectRole(role) {
             document.getElementById('headerTitle').innerHTML = '📝 检录长终端';
             document.getElementById('checkinSection').classList.remove('hidden');
             document.getElementById('timingSection').classList.add('hidden');
-            starterPollingTimer = setInterval(loadCheckinSchedule, 5000);
+            if (starterPollingTimer) clearInterval(starterPollingTimer);
+starterPollingTimer = setInterval(() => {
+    // 如果裁判当前正按着屏幕或焦点在输入框/正在点击按钮，跳过本次自动拉取
+    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'BUTTON')) {
+        return;
+    }
+    loadCheckinSchedule(true); // 传入 isSilent 标记
+}, 10000);
             loadCheckinSchedule();
         } else if (role === 'timing') {
             document.getElementById('headerTitle').innerHTML = '⏱️ 终点计时终端 (径赛)';
@@ -315,7 +338,7 @@ function selectRole(role) {
 
             const list = document.getElementById('athleteList');
             if (list) {
-                list.innerHTML = '<tr><td colspan="4" class="p-16 text-center text-gray-400 font-bold text-sm">⏳ 跑道空闲，等待起点裁判发车推送...</td></tr>';
+                list.innerHTML = '<tr><td colspan="4" class="p-16 text-center text-gray-400 font-bold text-sm">⏳ 跑道空闲，等待起点裁判发令推送...</td></tr>';
             }
 
             pollActiveHeat();
@@ -490,12 +513,12 @@ function selectRole(role) {
                         if (isAlreadyPushed) {
                             return `
                                 <button disabled class="bg-gray-200 text-gray-400 border border-gray-300 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1 select-none">
-                                    <span>🏁</span> <span>已发车</span>
+                                    <span>🏁</span> <span>已发令</span>
                                 </button>
                             `;
                         } else if (!isAllChecked) {
                             return `
-                                <button disabled title="需检录完毕后发车" 
+                                <button disabled title="需检录完毕后发令" 
                                         class="bg-gray-100 border border-gray-300 text-gray-400 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1">
                                     <span>🔒</span> <span>等待检录(${handledCount}/${totalCount})</span>
                                 </button>
@@ -511,7 +534,7 @@ function selectRole(role) {
                             return `
                                 <button onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this)" 
                                         class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-black shadow-md flex items-center gap-1 transition active:scale-95 animate-bounce">
-                                    <span>🚀</span> <span>发车推送</span>
+                                    <span>🚀</span> <span>发令推送</span>
                                 </button>
                             `;
                         }
@@ -1066,7 +1089,7 @@ function setCheckinStatus(startId, targetStatus) {
     window.isTrackBusy = false;
 
     function pushHeatToFinish(gName, eName, gen, heat, btn) {
-        if (!confirm(`确认要推送【${gName} ${gen}·${eName} 第${heat}组】上道发车吗？\n推送后该组将锁定为“已发车”，终点裁判将立即收到此组信号！`)) return;
+        if (!confirm(`确认要推送【${gName} ${gen}·${eName} 第${heat}组】上道发令吗？\n推送后该组将锁定为“已发令”，终点裁判将立即收到此组信号！`)) return;
 
         btn.disabled = true;
         btn.innerHTML = `<span>⏳</span><span>校验跑道中...</span>`;
@@ -1080,20 +1103,50 @@ function setCheckinStatus(startId, targetStatus) {
         .then(res => {
             if (res.status === 'success') {
                 btn.className = "bg-gray-200 text-gray-400 border border-gray-300 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1 select-none";
-                btn.innerHTML = `<span>🏁</span><span>已发车</span>`;
+                btn.innerHTML = `<span>🏁</span><span>已发令</span>`;
                 loadCheckinSchedule(); // 立即静默拉取更新全场状态
             } else {
-                alert(res.msg || "发车失败");
+                alert(res.msg || "发令失败");
                 btn.disabled = false;
-                btn.innerHTML = `<span>🚀</span><span>发车推送</span>`;
+                btn.innerHTML = `<span>🚀</span><span>发令推送</span>`;
             }
         })
         .catch(err => {
             btn.disabled = false;
-            btn.innerHTML = `<span>🚀</span><span>发车推送</span>`;
+            btn.innerHTML = `<span>🚀</span><span>发令推送</span>`;
             alert("网络异常，未能成功通知终点！");
         });
     }
+
+    let lastNotifiedHeatKey = null;
+
+    function playStartBeep() {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+            
+            const playTone = (freq, start, duration) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, start);
+                gain.gain.setValueAtTime(0.3, start);
+                gain.gain.exponentialRampToValueAtTime(0.01, start + duration);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(start);
+                osc.stop(start + duration);
+            };
+
+            const now = ctx.currentTime;
+            playTone(880, now, 0.15);         // 高音 A5
+            playTone(1320, now + 0.18, 0.3);  // 超高音 E6
+        } catch (e) {
+            console.log("音频播放被拦截或不支持", e);
+        }
+    }
+
     function pollActiveHeat() {
         if (currentRole !== 'timing') return;
 
@@ -1108,13 +1161,40 @@ function setCheckinStatus(startId, targetStatus) {
                     currentActiveHeatData = res.data;
                     notice.classList.remove('hidden');
                     info.innerText = `${res.data.group_name} ${res.data.gender}子 · ${res.data.event_name} (第 ${res.data.heat} 组)`;
-                    timeEl.innerText = `${res.data.push_time} 起点发车`;
+                    timeEl.innerText = `${res.data.push_time} 起点发令`;
+
+                    // 构造本组唯一 key
+                    const currentHeatKey = `${res.data.group_name}_${res.data.event_name}_${res.data.gender}_${res.data.heat}_${res.data.push_time}`;
+                    if (currentHeatKey !== lastNotifiedHeatKey && !res.is_finished) {
+                        lastNotifiedHeatKey = currentHeatKey;
+                        playStartBeep();
+
+                        // 2. 手机硬件震动提醒（长震-停-长震）
+                        if (window.navigator && window.navigator.vibrate) {
+                            window.navigator.vibrate([200, 100, 200]);
+                        }
+
+                        // 3. 弹出全屏醒目提醒弹窗
+                        const modal = document.getElementById('newHeatModal');
+                        document.getElementById('modalHeatInfo').innerText = `${res.data.group_name} ${res.data.gender}组 · ${res.data.event_name} (第 ${res.data.heat} 组)`;
+                        document.getElementById('modalHeatTime').innerText = `发令时刻：${res.data.push_time}`;
+                        if (modal) modal.classList.remove('hidden');
+                    }
                 } else {
                     notice.classList.add('hidden');
+                    const modal = document.getElementById('newHeatModal');
+                    if (modal) modal.classList.add('hidden');
                 }
             })
             .catch(() => {});
     }
+
+    // 🌟 弹窗确认按钮：关闭弹窗并直接载入录入界面
+    window.acceptNewHeatAndLoad = function() {
+        const modal = document.getElementById('newHeatModal');
+        if (modal) modal.classList.add('hidden');
+        switchToActiveHeat();
+    };
 
 function switchToActiveHeat() {
         if (!currentActiveHeatData) return;
@@ -1138,7 +1218,7 @@ function switchToActiveHeat() {
         if (selEvent) selEvent.value = event_name;
 
         const list = document.getElementById('athleteList');
-        list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-blue-500 font-bold animate-pulse">正在载入已发车道次...</td></tr>';
+        list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-blue-500 font-bold animate-pulse">正在载入已发令道次...</td></tr>';
 
         fetch('/api/get_event_start_list?_t=' + Date.now(), {
             method: 'POST',
@@ -1172,7 +1252,7 @@ function switchToActiveHeat() {
             }, 100);
         })
         .catch(err => {
-            console.error("加载发车组次失败:", err);
+            console.error("加载发令组次失败:", err);
             list.innerHTML = '<tr><td colspan="4" class="p-12 text-center text-red-500 font-bold">加载名单失败，请检查网络后重试</td></tr>';
         });
     }
@@ -1328,7 +1408,7 @@ function initFieldAthletesData(data) {
     }; 
 
     window.clearAllPushRecords = function() {
-        if(!confirm("确定要清空本设备上的所有【已发车】记录吗？\n(仅当管理员重新编排赛程后，且按钮显示异常时才需要执行此操作)")) return;
+        if(!confirm("确定要清空本设备上的所有【已发令】记录吗？\n(仅当管理员重新编排赛程后，且按钮显示异常时才需要执行此操作)")) return;
         
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
@@ -1339,7 +1419,7 @@ function initFieldAthletesData(data) {
         }
         keysToRemove.forEach(k => localStorage.removeItem(k));
         
-        alert("✅ 本地发车记录已清空！将为您重新加载最新赛程。");
+        alert("✅ 本地发令记录已清空！将为您重新加载最新赛程。");
         loadCheckinSchedule();
     };
 

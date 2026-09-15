@@ -869,17 +869,31 @@
                 `).join('');
             });
         }
-setInterval(() => {
+let pollTimer = null;
+
+function triggerSilentUpdate() {
+    // 🌟 标签页切到后台或手机熄屏/切回主屏幕时，直接跳过请求
+    if (document.hidden) return;
+
     const detailPanel = document.getElementById('view-event-detail');
     if (detailPanel && !detailPanel.classList.contains('hidden')) {
         const curEvt = document.getElementById('detEventName')?.innerText;
         const isFinals = document.getElementById('detHeatLabel')?.innerText.includes('晋级');
         if (curEvt && curEvt !== '--') {
-            // 第三个参数传 true，实现无感静默更新，不跳动、不闪屏
             goToEventDetail(curEvt, isFinals, true);
         }
     }
-}, 8000);
+}
+
+// 🌟 1. 轮询间隔从 8000ms 调整为 15000ms (15秒)
+pollTimer = setInterval(triggerSilentUpdate, 15000);
+
+// 🌟 2. 页面可见性监听：当学生切回浏览器时立即拉取一次最新成绩
+document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+        triggerSilentUpdate();
+    }
+});
     </script>
 </body>
 </html>

@@ -446,110 +446,136 @@
             </div>
         </div>
 
-        <div id="step-1" class="step-panel h-full flex flex-col p-3 md:p-6 overflow-y-auto lg:overflow-hidden hidden">
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 shrink-0 bg-white p-3 rounded-xl border border-gray-200 shadow-xs">
+        <div id="step-1" class="step-panel h-full flex flex-col p-2 md:p-6 overflow-y-auto lg:overflow-hidden hidden">
+    <!-- 顶部操作栏 -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2.5 shrink-0 bg-white p-3 rounded-xl border border-gray-200 shadow-xs">
         <div>
-            <h2 class="text-lg md:text-xl font-black text-gray-800 flex items-center gap-1.5">
+            <h2 class="text-base md:text-xl font-black text-gray-800 flex items-center gap-1.5">
                 <span>🏫</span> <span>参赛单位配置中心</span>
             </h2>
-            <p class="text-[11px] text-gray-400"></p>
         </div>
         <div class="flex items-center gap-2 w-full sm:w-auto">
             <button onclick="window.location.href='/api/export_teams'" class="flex-1 sm:flex-none bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100 transition flex items-center justify-center gap-1">
-                📥 导出/下载模板
+                📥 导出模板
             </button>
             <button onclick="document.getElementById('teamCsvUpload').click()" class="flex-1 sm:flex-none bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 transition flex items-center justify-center gap-1">
-                📤 批量导入代表队
+                📤 批量导入
             </button>
             <input type="file" id="teamCsvUpload" class="hidden" accept=".csv" onchange="uploadTeamsCSV(this)">
         </div>
     </div>
 
-    <div class="flex-1 flex flex-col lg:flex-row gap-4 min-h-0 overflow-y-auto lg:overflow-hidden">
-        <div class="w-full lg:w-1/3 bg-white rounded-xl border border-indigo-200 flex flex-col shadow-xs overflow-hidden">
-            <div class="p-3 bg-indigo-50/70 border-b border-indigo-100 flex justify-between items-center shrink-0">
+    <!-- 核心两栏容器：大屏左右分布，小屏折叠自适应 -->
+    <div class="flex-1 flex flex-col lg:flex-row gap-3 min-h-0 overflow-y-auto lg:overflow-hidden">
+        
+        <!-- 🏷️ 1. 组别管理卡片（移动端平时折叠，点击标题栏展开/收起） -->
+        <div class="w-full lg:w-1/3 bg-white rounded-xl border border-indigo-200 flex flex-col shadow-xs overflow-hidden shrink-0">
+            <!-- 卡片头部（移动端充当手风琴开关） -->
+            <div class="p-3 bg-indigo-50/70 border-b border-indigo-100 flex justify-between items-center cursor-pointer lg:cursor-default select-none" onclick="toggleGroupSectionMobile()">
                 <span class="font-black text-xs text-indigo-900 flex items-center gap-1">
-                    <span>🏷️</span> 组别管理
+                    <span>🏷️</span> 组别管理 
+                    <span class="lg:hidden text-[10px] text-indigo-600 font-normal" id="groupToggleTip">(点击展开)</span>
                 </span>
                 <span class="text-[10px] bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded font-bold" id="groupBadgeCount">0 组</span>
             </div>
-            <div class="p-3 bg-gray-50 border-b border-gray-100 flex gap-2 items-end shrink-0">
-                <div class="flex-1">
-                    <label class="text-[10px] font-bold text-gray-500 block mb-0.5">组别名称</label>
-                    <input type="text" id="groupName" placeholder="如: 高中组 / 初中组" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-indigo-500 font-bold">
-                </div>
-                <div class="w-20">
-                    <label class="text-[10px] font-bold text-gray-500 block mb-0.5">编号前缀</label>
-                    <input type="text" id="groupPrefix" placeholder="如: 1" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-indigo-500 text-center font-mono font-bold">
-                </div>
-                <button onclick="addGroup()" class="bg-indigo-600 text-white font-bold px-3 py-1.5 rounded text-xs hover:bg-indigo-700 transition shrink-0 active:scale-95 shadow-xs">
-                    ➕ 添加
-                </button>
-            </div>
 
-            <!-- 组别列表 -->
-            <div class="flex-1 overflow-y-auto custom-scrollbar">
-              <table class="w-full text-left text-xs border-collapse">
-    <thead class="sticky top-0 bg-gray-100 shadow-xs z-10 text-gray-600">
-        <tr class="border-b h-9">
-            <th style="width: 30px" class="text-center">序号</th>
-            <th class="text-left pl-2">组别名称</th>
-            <th style="width: 45px" class="text-center">前缀</th>
-            <th style="width: 155px" class="text-center">操作</th>
-        </tr>
-    </thead>
-    <tbody id="groupListBody" class="divide-y divide-gray-100"></tbody>
-</table>
+            <!-- 移动端可折叠内容区（大屏lg常显，小屏移动端默认隐藏） -->
+            <div id="groupContentWrapper" class="hidden lg:flex flex-col flex-1 overflow-hidden">
+                <!-- 添加组别输入区 -->
+                <div class="p-2.5 bg-gray-50 border-b border-gray-100 flex gap-2 items-end shrink-0">
+                    <div class="flex-1">
+                        <label class="text-[10px] font-bold text-gray-500 block mb-0.5">组别名称</label>
+                        <input type="text" id="groupName" placeholder="如: 高中组" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-indigo-500 font-bold">
+                    </div>
+                    <div class="w-16">
+                        <label class="text-[10px] font-bold text-gray-500 block mb-0.5">前缀</label>
+                        <input type="text" id="groupPrefix" placeholder="1" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-indigo-500 text-center font-mono font-bold">
+                    </div>
+                    <button onclick="addGroup()" class="bg-indigo-600 text-white font-bold px-3 py-1.5 rounded text-xs hover:bg-indigo-700 transition shrink-0 active:scale-95 shadow-xs">
+                        ➕ 添加
+                    </button>
+                </div>
+                <!-- 组别表格 -->
+                <div class="flex-1 overflow-y-auto custom-scrollbar max-h-48 lg:max-h-full">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead class="sticky top-0 bg-gray-100 shadow-xs z-10 text-gray-600">
+                            <tr class="border-b h-8">
+                                <th style="width: 30px" class="text-center">序</th>
+                                <th class="text-left pl-2">组别名称</th>
+                                <th style="width: 40px" class="text-center">前缀</th>
+                                <th style="width: 140px" class="text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="groupListBody" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
-        <div class="w-full lg:w-2/3 bg-white rounded-xl border border-purple-200 flex flex-col shadow-xs overflow-hidden">
+        <!-- 🚩 2. 代表队管理卡片（移动端默认主体展示） -->
+        <div class="w-full lg:w-2/3 bg-white rounded-xl border border-purple-200 flex flex-col shadow-xs overflow-hidden flex-1">
             <div class="p-3 bg-purple-50/70 border-b border-purple-100 flex justify-between items-center shrink-0">
-                <span class="font-black text-xs text-purple-900 flex items-center gap-1">
-                    <span>🚩</span> 代表队管理
+                <span class="font-black text-xs text-purple-900 flex items-center gap-1.5">
+                    <span>🚩</span> 代表队列表
                 </span>
-                <span class="text-[10px] bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded font-bold" id="teamBadgeCount">0 队</span>
+                <div class="flex items-center gap-2">
+                    <!-- 移动端添加代表队折叠开关 -->
+                    <button onclick="toggleAddTeamMobile()" class="lg:hidden text-[10px] bg-purple-600 text-white px-2 py-0.5 rounded font-bold active:scale-95 transition" id="btnAddTeamToggle">
+                        ➕ 添加新队伍
+                    </button>
+                    <span class="text-[10px] bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded font-bold" id="teamBadgeCount">0 队</span>
+                </div>
             </div>
-            <div class="p-3 bg-gray-50 border-b border-gray-100 grid grid-cols-1 sm:grid-cols-6 gap-2 items-end shrink-0">
-    <div>
-        <label class="text-[10px] font-bold text-gray-500 block mb-0.5">所属组别</label>
-        <select id="teamGroupSelect" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500 font-bold text-gray-700"></select>
-    </div>
-    <div>
-        <label class="text-[10px] font-bold text-gray-500 block mb-0.5">代表队名称</label>
-        <input type="text" id="teamName" placeholder="如: 高一1班" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500 font-bold">
-    </div>
-    <div>
-        <label class="text-[10px] font-bold text-gray-500 block mb-0.5">领队姓名</label>
-        <input type="text" id="teamLeader" placeholder="选填" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500">
-    </div>
-    <div>
-        <label class="text-[10px] font-bold text-gray-500 block mb-0.5">教练姓名</label>
-        <input type="text" id="teamCoach" placeholder="选填" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500">
-    </div>
-    <div>
-        <label class="text-[10px] font-bold text-gray-500 block mb-0.5">联系电话</label>
-        <input type="text" id="teamPhone" placeholder="手机号码" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500 font-mono">
-    </div>
-    <button onclick="addTeam()" class="bg-purple-600 text-white font-bold py-1.5 rounded text-xs hover:bg-purple-700 transition active:scale-95 shadow-xs">
-        ➕ 添加代表队
-    </button>
-</div>
+
+            <!-- 添加代表队表单（移动端平时折叠，点击“➕ 添加新队伍”后滑出；大屏常显） -->
+            <div id="teamAddFormWrapper" class="hidden lg:grid p-3 bg-gray-50 border-b border-gray-100 grid-cols-1 sm:grid-cols-6 gap-2 items-end shrink-0 transition-all">
+                <div>
+                    <label class="text-[10px] font-bold text-gray-500 block mb-0.5">所属组别</label>
+                    <select id="teamGroupSelect" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500 font-bold text-gray-700"></select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-500 block mb-0.5">代表队名称</label>
+                    <input type="text" id="teamName" placeholder="如: 高一1班" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500 font-bold">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-500 block mb-0.5">领队</label>
+                    <input type="text" id="teamLeader" placeholder="选填" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-500 block mb-0.5">教练</label>
+                    <input type="text" id="teamCoach" placeholder="选填" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-500 block mb-0.5">电话</label>
+                    <input type="text" id="teamPhone" placeholder="手机号" class="w-full border p-1.5 rounded text-xs bg-white outline-none focus:border-purple-500 font-mono">
+                </div>
+                <button onclick="addTeam()" class="bg-purple-600 text-white font-bold py-1.5 rounded text-xs hover:bg-purple-700 transition active:scale-95 shadow-xs">
+                    ➕ 保存添加
+                </button>
+            </div>
+
+            <!-- 代表队列表主体（桌面端显示宽表格，移动端使用紧凑信息卡片） -->
             <div class="flex-1 overflow-y-auto custom-scrollbar">
-                <table class="fixed-table text-left text-xs">
-    <thead class="sticky top-0 bg-gray-100 shadow-xs z-10">
-        <tr>
-            <th style="width: 35px" class="text-center">序号</th>
-            <th style="width: 150px" class="text-left pl-2">所属组别</th>
-            <th class="text-left pl-2">代表队名称</th>
-            <th style="width: 120px" class="text-center">领队</th>
-            <th style="width: 120px" class="text-center">教练</th>
-            <th style="width: 115px" class="text-center">电话</th>
-            <th style="width: 80px" class="text-center">操作</th>
-        </tr>
-    </thead>
-    <tbody id="teamListBody"></tbody>
-</table>
+                <!-- 桌面端表格 -->
+                <div class="hidden md:block">
+                    <table class="fixed-table text-left text-xs">
+                        <thead class="sticky top-0 bg-gray-100 shadow-xs z-10">
+                            <tr>
+                                <th style="width: 35px" class="text-center">序</th>
+                                <th style="width: 130px" class="text-left pl-2">所属组别</th>
+                                <th class="text-left pl-2">代表队名称</th>
+                                <th style="width: 100px" class="text-center">领队</th>
+                                <th style="width: 100px" class="text-center">教练</th>
+                                <th style="width: 110px" class="text-center">电话</th>
+                                <th style="width: 80px" class="text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="teamListBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- 移动端专属紧凑卡片列表容器 -->
+                <div id="teamListMobile" class="md:hidden p-2 space-y-2"></div>
             </div>
         </div>
 
@@ -632,6 +658,7 @@
             <button onclick="calculateEventTimeBudget()" class="flex-1 sm:flex-none bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-100 transition">🔄 刷新</button>
             <button onclick="clearManualSchedule()" class="flex-1 sm:flex-none bg-white border text-red-500 px-2 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 transition">🗑️ 清空</button>
             <button onclick="window.print()" class="flex-1 sm:flex-none bg-blue-100 text-blue-700 px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-200 transition">🖨️ 打印</button>
+            <button onclick="checkAthleteScheduleConflicts()" class="flex-1 sm:flex-none bg-rose-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-700 shadow-xs active:scale-95 transition flex items-center gap-1">⚠️ 兼项冲突检测</button>
             <button onclick="syncScheduleToCloud()" class="flex-1 sm:flex-none bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700 shadow-xs transition">☁️ 发布</button>
             <button onclick="checkAndPublishRelayLegs()" class="w-full sm:w-auto bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-xs transition">🎽 发布棒</button>
             <button onclick="window.location.href='/api/export_handbook_word'" 
@@ -641,8 +668,11 @@
         </div>
     </div>
 
-    <div class="shrink-0 lg:flex-1 flex flex-col lg:flex-row gap-2.5 overflow-hidden min-h-0 mb-2.5 no-print">
-        <div class="w-full lg:w-1/3 bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden shadow-xs shrink-0 transition-all duration-300">
+    <!-- 🌟 电脑端(lg及以上)三栏并排(25% + 25% + 50%)；移动端保持原有全宽流式堆叠 -->
+    <div class="flex-1 flex flex-col lg:flex-row gap-2.5 min-h-0 overflow-y-auto lg:overflow-hidden print:overflow-visible print:block">
+        
+        <!-- 1. 待排项目池：移动端全宽自适应，电脑端占 25% (lg:w-1/4) -->
+        <div class="w-full lg:w-1/4 bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden shadow-xs shrink-0 transition-all duration-300 no-print">
             <div class="p-2.5 bg-gray-50 border-b font-black text-xs text-gray-700 flex justify-between items-center cursor-pointer select-none" onclick="togglePoolMobile()">
                 <span class="flex items-center gap-1">📦 待排项目池 <span class="lg:hidden text-[10px] text-blue-600 font-normal" id="poolToggleTip">(点击展开)</span></span>
                 <span id="unscheduledCount" class="bg-indigo-100 text-indigo-800 text-[10px] px-2 py-0.5 rounded-full font-bold">0项</span>
@@ -650,30 +680,30 @@
             <div id="timeBudgetContainer" class="hidden lg:block flex-1 overflow-y-auto p-2 space-y-2 bg-gray-50/50 custom-scrollbar max-h-48 lg:max-h-full"></div>
         </div>
 
-        <!-- 运动会沙盘区域 -->
-        <div class="w-full lg:w-2/3 bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden shadow-xs shrink-0 lg:flex-1 transition-all duration-300">
-    <div class="p-2.5 bg-gray-50 border-b font-black text-xs text-gray-700 shrink-0 flex justify-between items-center cursor-pointer select-none" onclick="toggleGridMobile()">
-        <span class="flex items-center gap-1">
-            📅 运动会沙盘 
-            <span class="lg:hidden text-[10px] text-blue-600 font-normal" id="gridToggleTip">(点击展开)</span>
-        </span>
-        <span class="text-[10px] text-gray-400 font-bold hidden sm:inline">可在此任意拖拽微调排序</span>
-    </div>
-    <div id="manualScheduleGrid" class="hidden lg:block flex-1 overflow-y-auto p-2.5 space-y-3 bg-gray-100 custom-scrollbar max-h-[50vh] lg:max-h-full"></div>
-</div>
-    </div>
+        <!-- 2. 运动会沙盘区域：移动端全宽自适应，电脑端占 25% (lg:w-1/4) -->
+        <div class="w-full lg:w-1/4 bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden shadow-xs shrink-0 transition-all duration-300 no-print">
+            <div class="p-2.5 bg-gray-50 border-b font-black text-xs text-gray-700 shrink-0 flex justify-between items-center cursor-pointer select-none" onclick="toggleGridMobile()">
+                <span class="flex items-center gap-1">
+                    📅 运动会沙盘 
+                    <span class="lg:hidden text-[10px] text-blue-600 font-normal" id="gridToggleTip">(点击展开)</span>
+                </span>
+                <span class="text-[10px] text-gray-400 font-bold hidden xl:inline">可拖拽微调</span>
+            </div>
+            <div id="manualScheduleGrid" class="hidden lg:block flex-1 overflow-y-auto p-2.5 space-y-3 bg-gray-100 custom-scrollbar max-h-[50vh] lg:max-h-full"></div>
+        </div>
 
-    <div class="flex-1 min-h-0 bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col shadow-xs print:h-auto print:border-none print:overflow-visible print:block">
-    <div class="p-2.5 bg-gray-50 border-b font-bold text-xs text-gray-700 flex justify-between items-center shrink-0 no-print">
-        <span class="flex items-center gap-1.5 font-black text-gray-800">
-            <span>📑</span> <span>检录表预览</span>
-        </span>
-        <span id="scheduleStatus" class="text-blue-700 font-mono font-black text-xs">0人次</span>
-    </div>
-    <div class="flex-1 overflow-x-auto overflow-y-auto p-3 bg-white custom-scrollbar" id="scheduleOutput"></div>
+        <!-- 3. 检录表预览：移动端全宽，电脑端占 50% (lg:w-2/4) -->
+        <div class="w-full lg:w-2/4 flex-1 min-h-0 bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col shadow-xs print:w-full print:h-auto print:border-none print:overflow-visible print:block">
+            <div class="p-2.5 bg-gray-50 border-b font-bold text-xs text-gray-700 flex justify-between items-center shrink-0 no-print">
+                <span class="flex items-center gap-1.5 font-black text-gray-800">
+                    <span>📑</span> <span>检录表预览</span>
+                </span>
+                <span id="scheduleStatus" class="text-blue-700 font-mono font-black text-xs">0人次</span>
+            </div>
+            <div class="flex-1 overflow-x-auto overflow-y-auto p-3 bg-white custom-scrollbar" id="scheduleOutput"></div>
+        </div>
 </div>
 </div>
-
        <div id="step-5" class="step-panel h-full flex flex-col hidden p-6 overflow-hidden">
             <h2 class="text-2xl font-bold text-gray-800 mb-4 shrink-0 flex items-center gap-2 no-print">📊 成绩管理 & 决赛编排</h2>
             
@@ -835,6 +865,28 @@
         </div>
         <div class="p-3 bg-gray-50 border-t border-gray-100 text-right">
             <button onclick="closeEventDetailModal()" class="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold transition">关 闭</button>
+        </div>
+    </div>
+</div>
+<!-- 兼项冲突检测结果弹窗 -->
+<div id="conflictModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden z-[120] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-gray-100 overflow-hidden flex flex-col max-h-[85vh]">
+        <div class="bg-gradient-to-r from-rose-600 to-red-600 p-4 text-white flex justify-between items-center shrink-0">
+            <div class="flex items-center gap-2">
+                <span class="text-xl">⚠️</span>
+                <h3 class="font-black text-base tracking-wide">运动员兼项赛程冲突排查报告</h3>
+            </div>
+            <button onclick="closeConflictModal()" class="text-white/80 hover:text-white font-bold text-2xl leading-none">&times;</button>
+        </div>
+        <div class="p-3 bg-amber-50 border-b border-amber-200 text-xs text-amber-800 font-bold flex justify-between items-center shrink-0">
+            <span>💡 预警规则：同一单元内，同一名选手兼项比赛间隔小于 <b>40分钟</b>。</span>
+            <span id="conflictSummaryCount" class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-black"></span>
+        </div>
+        <div class="p-4 overflow-y-auto flex-1 space-y-3 custom-scrollbar" id="conflictModalContent">
+            <!-- 动态生成冲突列表 -->
+        </div>
+        <div class="p-3 bg-gray-50 border-t border-gray-100 flex justify-end shrink-0">
+            <button onclick="closeConflictModal()" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold transition">关 闭</button>
         </div>
     </div>
 </div>
@@ -1396,25 +1448,30 @@
     if (window.innerWidth >= 1024 && typeof renderTeamTree === 'function') renderTeamTree();
     if (typeof renderAthleteList === 'function') renderAthleteList();
     break;
-            case 4:
-                const start = document.getElementById('competition_start_date')?.value;
-                const end = document.getElementById('competition_end_date')?.value;
-                if (start && end) {
-                    const d1 = new Date(start); const d2 = new Date(end);
-                    window.competitionTotalDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
-                    if (isNaN(window.competitionTotalDays) || window.competitionTotalDays < 1) window.competitionTotalDays = 1; 
-                }
-                
-                if (typeof refreshSchOptions === 'function') refreshSchOptions();
-                if (typeof initGroupOrder === 'function') initGroupOrder();
-                if (typeof renderStep5EventDurations === 'function') renderStep5EventDurations(); 
-                if (typeof renderManualScheduleGrid === 'function') renderManualScheduleGrid();
-                if (db && db.schedule && db.schedule.length > 0) {
-                    renderScheduleResult();
-                } else {
-                    setTimeout(() => { typeof calculateEventTimeBudget === 'function' && calculateEventTimeBudget(); }, 50);
-                }
-                break;
+           case 4:
+    const start = document.getElementById('competition_start_date')?.value;
+    const end = document.getElementById('competition_end_date')?.value;
+    if (start && end) {
+        const d1 = new Date(start); const d2 = new Date(end);
+        window.competitionTotalDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+        if (isNaN(window.competitionTotalDays) || window.competitionTotalDays < 1) window.competitionTotalDays = 1; 
+    }
+
+    if (typeof renderDailyTimeConfig === 'function') renderDailyTimeConfig();
+    if (typeof refreshSchOptions === 'function') refreshSchOptions();
+    if (typeof initGroupOrder === 'function') initGroupOrder();
+    if (typeof renderStep5EventDurations === 'function') renderStep5EventDurations(); 
+    if (typeof renderManualScheduleGrid === 'function') renderManualScheduleGrid();
+
+    // 🌟 核心：如果后端数据库已有发布的赛程，直接呈现，绝不擅自重排！
+    if (db && db.schedule && db.schedule.length > 0) {
+        renderScheduleResult();
+    } else {
+        if (typeof calculateEventTimeBudget === 'function') {
+            calculateEventTimeBudget();
+        }
+    }
+    break;
             case 5: 
                 if (typeof initResGroupTabs === 'function') initResGroupTabs();
                 break;
@@ -1466,14 +1523,17 @@ case 10:
     };
     window.manualScheduleMap = {};
 
-// 封装统一保存沙盘函数（自动落库 + 本地兜底）
 window.syncSandtableToServer = function() {
+    if (!window.manualScheduleMap || Object.keys(window.manualScheduleMap).length === 0) return Promise.resolve();
     localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
-    fetch('/api/save_sandtable', {
+    return fetch('/api/save_sandtable', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ map: window.manualScheduleMap })
-    }).catch(e => console.warn("沙盘离线同步失败，已保存在本地缓存", e));
+    }).then(r => r.json()).then(res => {
+        console.log("沙盘自动持久化状态:", res.status);
+        return res;
+    }).catch(e => console.warn("沙盘离线同步异常", e));
 };
     window.renderManualScheduleGrid = function() {
         const grid = document.getElementById('manualScheduleGrid');
@@ -1492,12 +1552,12 @@ window.syncSandtableToServer = function() {
                 return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.floor(total%60)).padStart(2,'0')}`;
             };
 
-            html += `
+           html += `
             <div class="bg-white p-3 md:p-4 rounded-xl border border-gray-200 shadow-xs relative space-y-3 mb-3">
                 <div class="inline-block bg-indigo-600 text-white font-black px-3 py-0.5 text-[11px] rounded-full shadow-xs">
                     第 ${d} 比赛天日程
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">`;
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-3 pt-1">`;
 
             ['AM', 'PM'].forEach(unitType => {
                 const unitKey = `Day${d}_${unitType}`;
@@ -1807,21 +1867,26 @@ window.syncSandtableToServer = function() {
         
         recalculateUnitTimelines();
 
-        if (!db.schedule || db.schedule.length === 0 || window.isManualRescheduling) {
+        // 🌟 只要沙盘上有卡片，拖拽变动后强制全量编译赛程
+        if (window.isManualRescheduling || !db.schedule || db.schedule.length === 0 || Object.keys(window.manualScheduleMap).some(k => (window.manualScheduleMap[k]||[]).length > 0)) {
             compileFinalScheduleData();
         } else {
             renderScheduleResult();
         }
     };
 
-    window.removeJobFromUnit = function(unitKey, jobKey) {
+   window.removeJobFromUnit = function(unitKey, jobKey) {
         if(window.manualScheduleMap[unitKey]) {
             window.manualScheduleMap[unitKey] = window.manualScheduleMap[unitKey].filter(item => item.jobKey !== jobKey);
             localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
+            if (typeof window.syncSandtableToServer === 'function') window.syncSandtableToServer();
+            
+            // 🌟 核心：强制全量重算检录表
+            window.isManualRescheduling = true;
             calculateEventTimeBudget();
+            window.isManualRescheduling = false;
         }
     };
-window.syncSandtableToServer();
 
     window.clearManualSchedule = function() {
         if(confirm("确定要全部推倒重排，清空日程盘吗？")) {
@@ -1948,6 +2013,37 @@ window.syncSandtableToServer();
             </tr>`;
         }).join('');
     }
+// 在 renderAll() 函数内，渲染完 teamBody 之后加上：
+const teamListMobile = document.getElementById('teamListMobile');
+if (teamListMobile) {
+    if (!db.teams || db.teams.length === 0) {
+        teamListMobile.innerHTML = '<div class="text-center py-8 text-gray-400 text-xs font-bold">暂无代表队数据</div>';
+    } else {
+        teamListMobile.innerHTML = db.teams.map((t, i) => {
+            const grp = db.groups.find(x => String(x.id) === String(t.groupId || t.group_id));
+            const groupName = grp ? grp.name : '-';
+            return `
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-2.5 flex items-center justify-between text-xs">
+                <div class="min-w-0 pr-2">
+                    <div class="flex items-center gap-1.5">
+                        <span class="font-mono text-gray-400 text-[10px]">${i + 1}</span>
+                        <span class="font-black text-gray-800 text-sm truncate">${t.name}</span>
+                        <span class="bg-purple-100 text-purple-700 text-[9px] px-1.5 py-0.2 rounded font-bold">${groupName}</span>
+                    </div>
+                    <div class="text-[10px] text-gray-500 mt-1 flex items-center gap-2">
+                        <span>领队: ${t.leader || '—'}</span>
+                        <span>教练: ${t.coach || '—'}</span>
+                        <span class="font-mono text-gray-400">${t.phone || ''}</span>
+                    </div>
+                </div>
+                <div class="shrink-0 flex items-center gap-1">
+                    <button onclick="editTeamItem(${t.id})" class="bg-blue-50 text-blue-600 border border-blue-200 px-2 py-1 rounded text-[11px] font-bold">编辑</button>
+                    <button onclick="deleteTeamItem(${t.id})" class="bg-red-50 text-red-600 border border-red-200 px-2 py-1 rounded text-[11px] font-bold">删除</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+}
     const teamGroupSel = document.getElementById('teamGroupSelect');
     if (teamGroupSel) {
         const currentVal = teamGroupSel.value;
@@ -2300,10 +2396,44 @@ function selectView(m, id, n) {
     function exportSystem() { window.location.href='/api/export_system'; }
     function triggerImport() { if(confirm("覆盖当前数据？")) document.getElementById('importFile').click(); }
     function importSystem(input) {
-        if(!input.files[0]) return;
-        const fd=new FormData(); fd.append('file',input.files[0]);
-        fetch('/api/import_system',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{alert(d.msg);location.reload();});
+    if(!input.files[0]) return;
+    const fd = new FormData(); 
+    fd.append('file', input.files[0]);
+    
+    // 弹出轻提示，避免重复点击
+    const btn = document.querySelector('button[onclick="triggerImport()"]');
+    const oldHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳ 恢复中...</span>';
     }
+
+    fetch('/api/import_system', { method: 'POST', body: fd })
+    .then(async r => {
+        if (r.status === 401 || r.status === 403) {
+            alert("⚠️ 权限不足：请先登录管理员账号后再导入备份！");
+            window.location.href = '/admin/login';
+            return;
+        }
+        const res = await r.json();
+        if (res.status === 'success') {
+            alert(res.msg);
+            location.reload();
+        } else {
+            alert("❌ 恢复失败: " + res.msg);
+        }
+    })
+    .catch(err => {
+        alert("网络传输或数据解析错误: " + err.message);
+    })
+    .finally(() => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+        }
+        input.value = ''; 
+    });
+}
 
     function refreshSchOptions() {
         const opts=db.events.map(e=>`<option value="${e.name}">${e.name}</option>`).join('');
@@ -2564,23 +2694,29 @@ function selectView(m, id, n) {
         });
     }
 
-    function syncScheduleToCloud() {
+   function syncScheduleToCloud() {
     if (!db.schedule || db.schedule.length === 0) return alert("请先点击【一键编排】生成数据！");
     if (!confirm("⚠️ 确定要发布当前的最新编排吗？\n\n【注意】：重新编排发布后将开启一场新比赛，所有过往录入的成绩、团体总分以及生成的决赛单将被全部清空重置！")) return;
-    
+
     const btn = document.querySelector('button[onclick="syncScheduleToCloud()"]');
     const oldText = btn.innerText; 
     btn.innerText = "正在发布并同步沙盘..."; 
     btn.disabled = true;
 
-    // 🌟 第一步：先将当前沙盘结构落库
+    // 🌟 核心：先将沙盘存库，确保存成功后再存 start_list
     fetch('/api/save_sandtable', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ map: window.manualScheduleMap })
     })
-    .then(() => {
-        // 🌟 第二步：保存具体的道次赛程
+    .then(r => r.json())
+    .then(sandRes => {
+        if (sandRes.status !== 'success') {
+            throw new Error("沙盘同步失败: " + sandRes.msg);
+        }
+        // 保存到本地 localStorage 双保险
+        localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
+
         return fetch('/api/save_schedule_to_db', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' }, 
@@ -2592,10 +2728,8 @@ function selectView(m, id, n) {
         btn.innerText = oldText; 
         btn.disabled = false; 
         if (res.status === 'success') {
-            alert(res.msg);
+            alert("✅ 编排与沙盘发布成功！已完整保存在数据库中。");
             fetchLatestData();
-            if (typeof initResGroupTabs === 'function') initResGroupTabs();
-            if (typeof initRankPage === 'function') initRankPage();
         } else {
             alert("❌ 发布失败: " + res.msg); 
         }
@@ -2603,7 +2737,7 @@ function selectView(m, id, n) {
     .catch(err => { 
         btn.innerText = oldText; 
         btn.disabled = false; 
-        alert("网络传输错误，请检查后端运行状态"); 
+        alert("操作异常: " + (err.message || "网络传输错误")); 
     });
 }
 
@@ -2823,31 +2957,6 @@ if (eventName.includes('决赛')) {
                 validAthletes.sort((a,b) => !isField ? (parseTimeVal(a.score) - parseTimeVal(b.score)) : (parseTimeVal(b.score) - parseTimeVal(a.score)));
 
                 const myRecords = (groupRecordsData[`${coreMatchName}_${gender}`] || []).filter(r => r.en && parseTimeVal(r.val) > 0);
-                // 🌟🌟🌟 核心：从成绩公告中提取晋级选手，静默同步至决赛 🌟🌟🌟
-                if (actualRound === '预赛') {
-                    const topFinalists = validAthletes.slice(0, topN).map(a => ({
-                        name: a.name,
-                        team_name: a.team_name,
-                        bib: a.bib || ''
-                    }));
-
-                    if (topFinalists.length > 0) {
-                        fetch('/api/direct_publish_announcement_finals', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({
-                                group_name: groupName,
-                                event_name: rawEventName,
-                                gender: gender,
-                                qualifiers: topFinalists
-                            })
-                        }).then(r => r.json()).then(res => {
-                            if (res.status === 'success') {
-                                console.log("✅ 决赛名单已随成绩公告静默发布完成！");
-                            }
-                        });
-                    }
-                }
                 let rowsHtml = ''; let currentRank = 1;
                 validAthletes.forEach((p, idx) => {
                     if (idx > 0 && parseTimeVal(p.score) !== parseTimeVal(validAthletes[idx-1].score)) currentRank = idx + 1;
@@ -3018,15 +3127,35 @@ function exportWord() {
                 if(document.getElementById('cfgMaxFemale')) document.getElementById('cfgMaxFemale').value = data.config.maxFemale || 10;
                 if(document.getElementById('cfgMaxTotal')) document.getElementById('cfgMaxTotal').value = data.config.maxTotal || 20;
                 if(document.getElementById('cfgRegDeadline')) document.getElementById('cfgRegDeadline').value = data.config.regDeadline || '';
-            }
-          if (data.config && data.config.manual_schedule_map) {
-                try {
-                    window.manualScheduleMap = JSON.parse(data.config.manual_schedule_map);
-                } catch(e) {
-                    window.manualScheduleMap = JSON.parse(localStorage.getItem('manual_schedule_map')) || {};
+   
+if (data.config.dailyScheduleTimes) {
+                    try {
+                        window.dailyScheduleTimes = JSON.parse(data.config.dailyScheduleTimes);
+                        localStorage.setItem('daily_schedule_times', JSON.stringify(window.dailyScheduleTimes));
+                    } catch(e) {}
                 }
+            }
+         // 🌟 修复：严密解析后端沙盘，后端有值且非空才覆盖，否则使用本地缓存
+            let serverSandtable = null;
+            if (data.config && data.config.manual_schedule_map) {
+                try {
+                    serverSandtable = typeof data.config.manual_schedule_map === 'string' 
+                        ? JSON.parse(data.config.manual_schedule_map) 
+                        : data.config.manual_schedule_map;
+                } catch(e) {
+                    console.error("解析服务端沙盘失败", e);
+                }
+            }
+
+            if (serverSandtable && Object.keys(serverSandtable).length > 0) {
+                window.manualScheduleMap = serverSandtable;
+                localStorage.setItem('manual_schedule_map', JSON.stringify(serverSandtable));
             } else {
-                window.manualScheduleMap = JSON.parse(localStorage.getItem('manual_schedule_map')) || {};
+                try {
+                    window.manualScheduleMap = JSON.parse(localStorage.getItem('manual_schedule_map')) || {};
+                } catch(e) {
+                    window.manualScheduleMap = {};
+                }
             }
             if (data.groups) { db.groups = data.groups; }
             if (data.teams) {
@@ -3131,76 +3260,7 @@ function exportWord() {
             
             let finalHTML = '';
             
-       // 🌟🌟🌟 终极全自动：只要查看决赛且名单仍是待定，自动从预赛提取前N名并秒级发布入库 🌟🌟🌟
-        const isDummy = data.some(item => !item.name || item.name.includes('待定') || item.name === '预赛晋级选手' || item.team_name === '待定' || item.team_name === '预赛出线');
-        
-        if (isDummy && eventName.includes('决赛')) {
-            const cleanCore = eventName.replace(' (决赛)', '').replace('(决赛)', '').replace('（决赛）', '').trim();
-            const autoLockKey = `${groupName}_${gender}_${cleanCore}`;
-
-            if (!window._finalsAutoLock) window._finalsAutoLock = {};
-
-            if (!window._finalsAutoLock[autoLockKey]) {
-                window._finalsAutoLock[autoLockKey] = true;
-
-                // 尝试匹配预赛名称（兼容空格与中英文括号）
-                const prelimCandidateNames = [`${cleanCore} (预赛)`, `${cleanCore}（预赛）`, `${cleanCore}(预赛)`, cleanCore];
-                
-                fetch('/api/get_event_start_list', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ event_name: prelimCandidateNames[0], group_name: groupName, gender: gender })
-                })
-                .then(r => r.json())
-                .then(prelimData => {
-                    // 严格排除弃权、未参赛，仅保留数字成绩 > 0 的有效选手
-                    const validPrelim = prelimData.filter(i => {
-                        if (!i.score) return false;
-                        const s = String(i.score).trim();
-                        if (s === '' || s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || s.includes('DNF')) return false;
-                        return parseTimeVal(s) > 0;
-                    });
-
-                    if (validPrelim.length > 0) {
-                        validPrelim.sort((a, b) => parseTimeVal(a.score) - parseTimeVal(b.score));
-                        
-                        const activeCfg = db.events.find(e => e.name === cleanCore) || {};
-                        const topN = activeCfg?.qualifyCount || activeCfg?.qualify_count || 8;
-
-                        const topFinalists = validPrelim.slice(0, topN).map(a => ({
-                            name: a.name,
-                            team_name: a.team_name,
-                            bib: a.bib || ''
-                        }));
-
-                        fetch('/api/direct_publish_announcement_finals', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({
-                                group_name: groupName,
-                                event_name: eventName,
-                                gender: gender,
-                                qualifiers: topFinalists
-                            })
-                        })
-                        .then(res => res.json())
-                        .then(pubRes => {
-                            // 延时释放锁并刷新呈现已排定好的真实决赛表
-                            setTimeout(() => {
-                                delete window._finalsAutoLock[autoLockKey];
-                                renderResultSheet();
-                            }, 300);
-                        })
-                        .catch(() => { delete window._finalsAutoLock[autoLockKey]; });
-                    } else {
-                        delete window._finalsAutoLock[autoLockKey];
-                    }
-                })
-                .catch(() => { delete window._finalsAutoLock[autoLockKey]; });
-            }
-        }
-
-                const allScoredItems = data.filter(i => {
+                      const allScoredItems = data.filter(i => {
                 if (!i.score || i.score.includes('弃权') || i.score.includes('DNS')) return false;
                 return parseTimeVal(i.score) > 0;
             });
@@ -4088,7 +4148,7 @@ fetch('/api/batch_save_events', { method: 'POST', headers: { 'Content-Type': 'ap
                 this.classList.remove('bg-indigo-50/80', 'border-indigo-500');
             };
 
-            zone.ondrop = function(e) {
+           zone.ondrop = function(e) {
                 e.preventDefault();
                 this.classList.remove('bg-indigo-50/80', 'border-indigo-500');
                 if (!window.draggedJobElement) return;
@@ -4108,7 +4168,8 @@ fetch('/api/batch_save_events', { method: 'POST', headers: { 'Content-Type': 'ap
                                 gender: jobDiv.dataset.gender,
                                 minutes: parseInt(jobDiv.dataset.minutes) || 0,
                                 isField: (jobDiv.dataset.isfield === 'true'),
-                                isFun: (jobDiv.dataset.isfun === 'true')
+                                isFun: (jobDiv.dataset.isfun === 'true'),
+                                totalVenues: parseInt(jobDiv.dataset.totalvenues) || 1 // 👈 补齐总场地数
                             });
                         }
                     });
@@ -4116,12 +4177,203 @@ fetch('/api/batch_save_events', { method: 'POST', headers: { 'Content-Type': 'ap
 
                 window.manualScheduleMap = newMap;
                 localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
+                if (typeof window.syncSandtableToServer === 'function') window.syncSandtableToServer();
 
+                // 🌟 核心：强制标记重排，确保触发 compileFinalScheduleData 全量重新生成所有组次
+                window.isManualRescheduling = true;
                 calculateEventTimeBudget();
+                window.isManualRescheduling = false;
             };
-        });
+        }); // 👈 补齐：闭合 document.querySelectorAll('.drop-zone').forEach
+    };     // 👈
+
+// 🌟 运动员个人项目兼项冲突检测函数（仅检查田赛和径赛个人项目，过滤趣味和团体/接力，阈值：40分钟）
+window.checkAthleteScheduleConflicts = function() {
+    if (!db.schedule || db.schedule.length === 0) {
+        alert("⚠️ 当前沙盘尚未生成任何赛程，请先点击【⚡ 一键编排】！");
+        return;
+    }
+
+    // 辅助时间解析：将 "第1天上午 08:30" 拆分为 单元标识 + 分钟数
+    const parseUnitAndMinutes = (estTimeStr) => {
+        if (!estTimeStr) return null;
+        const match = estTimeStr.match(/第(\d+)天(上午|下午)?\s*(\d+[:：]\d+)/);
+        if (!match) return null;
+
+        const day = match[1];
+        const ampm = match[2] || "上午";
+        const timePart = match[3].replace('：', ':');
+        const [hh, mm] = timePart.split(':').map(Number);
+        
+        return {
+            unitKey: `第${day}天${ampm}`,
+            totalMins: hh * 60 + mm,
+            timeDisplay: timePart
+        };
     };
-window.syncSandtableToServer();
+
+    // 辅助判断：是否为被排除的项目（趣味项目、接力/团体项目）
+    const isExcludedEvent = (eventName) => {
+        if (!eventName) return true;
+        const cleanName = eventName.replace(" (预赛)", "").replace(" (决赛)", "").replace(/[\(（]场地\d+[\)）]/, "").trim();
+        const cfg = (db.events || []).find(e => e.name === cleanName || e.name === eventName) || {};
+
+        // 1. 过滤趣味项目
+        const isFun = (
+            cfg.type === '趣味项目' || 
+            cfg.type === '趣味' || 
+            String(cfg.isFun) === 'true' || 
+            String(cfg.is_fun) === '1' ||
+            eventName.includes('趣味')
+        );
+        if (isFun) return true;
+
+        // 2. 过滤团体与接力项目
+        const isTeamRelay = (
+            String(cfg.isRelay) === 'true' || 
+            String(cfg.is_relay) === '1' || 
+            eventName.includes('接力') || 
+            eventName.includes('4×') || 
+            eventName.includes('4*') ||
+            eventName.includes('4x') ||
+            eventName.includes('团体') ||
+            eventName.includes('迎面')
+        );
+        if (isTeamRelay) return true;
+
+        return false;
+    };
+
+    // 1. 按“选手唯一标识 (组别_班级_姓名)”聚拢其所有排定的个人比赛项目
+    const athleteEventsMap = {};
+
+    db.schedule.forEach(item => {
+        // 过滤占位待定选手、接力队占位
+        if (!item.name || item.name.includes('待定') || item.name.includes('接力队') || item.teamName === '预赛出线') return;
+        
+        // 核心过滤：不检查趣味项目和团体/接力项目
+        if (isExcludedEvent(item.eventName)) return;
+
+        const athleteName = item.name.trim();
+        const athleteKey = `${item.groupName}#${item.teamName}#${athleteName}`;
+
+        if (!athleteEventsMap[athleteKey]) {
+            athleteEventsMap[athleteKey] = {
+                groupName: item.groupName,
+                teamName: item.teamName,
+                name: athleteName,
+                gender: item.gender,
+                items: []
+            };
+        }
+
+        const timeInfo = parseUnitAndMinutes(item.estTime);
+        if (timeInfo) {
+            athleteEventsMap[athleteKey].items.push({
+                eventName: item.eventName,
+                heat: item.heat,
+                lane: item.lane,
+                isField: item.isField,
+                estTime: item.estTime,
+                unitKey: timeInfo.unitKey,
+                totalMins: timeInfo.totalMins,
+                timeDisplay: timeInfo.timeDisplay
+            });
+        }
+    });
+
+    // 2. 遍历个人兼项选手，比对同一单元内间隔 < 40 分钟的记录
+    const conflictList = [];
+
+    Object.values(athleteEventsMap).forEach(ath => {
+        if (ath.items.length < 2) return; // 单项选手跳过
+
+        // 按比赛单元（如 第1天上午）分组
+        const unitMap = {};
+        ath.items.forEach(it => {
+            if (!unitMap[it.unitKey]) unitMap[it.unitKey] = [];
+            unitMap[it.unitKey].push(it);
+        });
+
+        // 检查同一单元内项目
+        Object.keys(unitMap).forEach(unitKey => {
+            const list = unitMap[unitKey];
+            if (list.length >= 2) {
+                list.sort((a, b) => a.totalMins - b.totalMins);
+
+                for (let i = 0; i < list.length - 1; i++) {
+                    const evt1 = list[i];
+                    const evt2 = list[i + 1];
+                    const diff = evt2.totalMins - evt1.totalMins;
+
+                    if (diff < 40) {
+                        conflictList.push({
+                            athlete: ath,
+                            unitKey: unitKey,
+                            eventA: evt1,
+                            eventB: evt2,
+                            intervalMins: diff
+                        });
+                    }
+                }
+            }
+        });
+    });
+
+    // 3. 渲染检测报告弹窗
+    const content = document.getElementById('conflictModalContent');
+    const countEl = document.getElementById('conflictSummaryCount');
+
+    if (conflictList.length === 0) {
+        countEl.innerText = '0 处冲突';
+        countEl.className = 'bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-black';
+        content.innerHTML = `
+            <div class="py-12 text-center text-emerald-600 space-y-2">
+                <div class="text-4xl">🎉</div>
+                <div class="font-black text-base">个人单项赛程无冲突！</div>
+                <div class="text-xs text-gray-500">全场所有田赛、径赛个人兼项运动员，在同一单元内的项目间隔均已达到 40 分钟以上（已自动过滤趣味与接力团体项目）。</div>
+            </div>`;
+    } else {
+        countEl.innerText = `发现 ${conflictList.length} 处冲突`;
+        countEl.className = 'bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-black';
+
+        content.innerHTML = conflictList.map((c, idx) => `
+            <div class="bg-rose-50/70 border border-rose-200 rounded-xl p-3 text-xs space-y-2 shadow-xs">
+                <div class="flex items-center justify-between border-b border-rose-200/60 pb-1.5">
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-full bg-rose-600 text-white font-mono font-black flex items-center justify-center text-[10px]">${idx + 1}</span>
+                        <span class="font-black text-gray-900 text-sm">${c.athlete.name}</span>
+                        <span class="text-gray-500 font-bold">(${c.athlete.groupName} · ${c.athlete.teamName})</span>
+                    </div>
+                    <span class="font-black text-rose-600 bg-white px-2 py-0.5 rounded border border-rose-200">
+                        间隔仅 ${c.intervalMins} 分钟
+                    </span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-gray-700">
+                    <div class="bg-white p-2 rounded-lg border border-gray-200">
+                        <div class="text-gray-400 text-[10px] font-bold">前置项目 (${c.eventA.isField ? '田赛' : '径赛'})</div>
+                        <div class="font-black text-blue-800">${c.eventA.eventName}</div>
+                        <div class="font-mono text-gray-600 mt-0.5">⏱️ ${c.eventA.unitKey} ${c.eventA.timeDisplay} (第${c.eventA.heat}组)</div>
+                    </div>
+                    <div class="bg-white p-2 rounded-lg border border-gray-200">
+                        <div class="text-gray-400 text-[10px] font-bold">冲突兼项 (${c.eventB.isField ? '田赛' : '径赛'})</div>
+                        <div class="font-black text-orange-800">${c.eventB.eventName}</div>
+                        <div class="font-mono text-gray-600 mt-0.5">⏱️ ${c.eventB.unitKey} ${c.eventB.timeDisplay} (第${c.eventB.heat}组)</div>
+                    </div>
+                </div>
+                <div class="text-[11px] text-gray-400 text-right">
+                    建议：可在上方沙盘中将其中一个个人项目拖拽至其他比赛单元或延后场次[cite: 2, 3]。
+                </div>
+            </div>
+        `).join('');
+    }
+
+    document.getElementById('conflictModal').classList.remove('hidden');
+};
+
+window.closeConflictModal = function() {
+    document.getElementById('conflictModal').classList.add('hidden');
+};
 
     window.generateSchedule = function() {
         if(!confirm("⚡ 确定要执行一键智能编排吗？\n注意：这将会把全场所有项目按照竞赛科学原则排入沙盘中！")) return;
@@ -4242,7 +4494,6 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                 });
             });
         });
-window.syncSandtableToServer();
         allJobs.sort((a,b) => {
             if (a.weight !== b.weight) return a.weight - b.weight;
             if (a.coreEvt !== b.coreEvt) return a.coreEvt.localeCompare(b.coreEvt, 'zh-CN'); 
@@ -4967,14 +5218,23 @@ window.syncSandtableToServer();
     };
 
     window.updateDailyTime = function(day, field, val) {
-        if (!window.dailyScheduleTimes[day]) window.dailyScheduleTimes[day] = {};
-        window.dailyScheduleTimes[day][field] = val;
-        localStorage.setItem('daily_schedule_times', JSON.stringify(window.dailyScheduleTimes));
-        
-        if (typeof calculateEventTimeBudget === 'function') {
-            calculateEventTimeBudget();
-        }
-    };
+    if (!window.dailyScheduleTimes[day]) window.dailyScheduleTimes[day] = {};
+    window.dailyScheduleTimes[day][field] = val;
+    localStorage.setItem('daily_schedule_times', JSON.stringify(window.dailyScheduleTimes));
+    
+    // 🌟 同步保存到数据库，供手机端多设备读取
+    fetch('/api/save_config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            config: { dailyScheduleTimes: JSON.stringify(window.dailyScheduleTimes) }
+        })
+    }).catch(e => console.warn("时间配置同步异常", e));
+
+    if (typeof calculateEventTimeBudget === 'function') {
+        calculateEventTimeBudget();
+    }
+};
 // 渲染移动端横向滑动的班级胶囊栏
 function renderMobileTeamSelector() {
     const container = document.getElementById('mobileTeamSelector');
@@ -5325,19 +5585,33 @@ let rawAnalysisData = {};
             if (finalsTopNBox) finalsTopNBox.classList.add('hidden');
         }
     }
-window.triggerAutoFinalsPublish = function() {
-        const gName = window.curResGroup;
-        const eName = window.curResEvent;
-        const gen = window.curResGender;
-        fetch('/api/trigger_auto_finals', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ group_name: gName, event_name: eName, gender: gen })
-        }).then(r => r.json()).then(res => {
-            alert(res.msg);
-            renderResultSheet();
-        });
-    };
+// 🌟 移动端：折叠/展开组别管理
+window.toggleGroupSectionMobile = function() {
+    if (window.innerWidth >= 1024) return;
+    const wrapper = document.getElementById('groupContentWrapper');
+    const tip = document.getElementById('groupToggleTip');
+    if (!wrapper) return;
+    
+    wrapper.classList.toggle('hidden');
+    wrapper.classList.toggle('flex');
+    if (tip) {
+        tip.innerText = wrapper.classList.contains('hidden') ? '(点击展开)' : '(点击收起)';
+    }
+};
+
+// 🌟 移动端：折叠/展开添加代表队表单
+window.toggleAddTeamMobile = function() {
+    const form = document.getElementById('teamAddFormWrapper');
+    const btn = document.getElementById('btnAddTeamToggle');
+    if (!form) return;
+
+    form.classList.toggle('hidden');
+    if (!form.classList.contains('hidden')) {
+        if (btn) btn.innerText = '收起表单';
+    } else {
+        if (btn) btn.innerText = '➕ 添加新队伍';
+    }
+};
 </script>
 </body>
 </html>
