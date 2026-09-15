@@ -2565,39 +2565,47 @@ function selectView(m, id, n) {
     }
 
     function syncScheduleToCloud() {
-        if (!db.schedule || db.schedule.length === 0) return alert("请先点击【一键编排】生成数据！");
-        if (!confirm("⚠️ 确定要发布当前的最新编排吗？\n\n【注意】：重新编排发布后将开启一场新比赛，所有过往录入的成绩、团体总分以及生成的决赛单将被全部清空重置！")) return;
-        
-        const btn = document.querySelector('button[onclick="syncScheduleToCloud()"]');
-        const oldText = btn.innerText; 
-        btn.innerText = "正在发布并重置数据..."; 
-        btn.disabled = true;
+    if (!db.schedule || db.schedule.length === 0) return alert("请先点击【一键编排】生成数据！");
+    if (!confirm("⚠️ 确定要发布当前的最新编排吗？\n\n【注意】：重新编排发布后将开启一场新比赛，所有过往录入的成绩、团体总分以及生成的决赛单将被全部清空重置！")) return;
+    
+    const btn = document.querySelector('button[onclick="syncScheduleToCloud()"]');
+    const oldText = btn.innerText; 
+    btn.innerText = "正在发布并同步沙盘..."; 
+    btn.disabled = true;
 
-        fetch('/api/save_schedule_to_db', { 
+    // 🌟 第一步：先将当前沙盘结构落库
+    fetch('/api/save_sandtable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ map: window.manualScheduleMap })
+    })
+    .then(() => {
+        // 🌟 第二步：保存具体的道次赛程
+        return fetch('/api/save_schedule_to_db', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' }, 
             body: JSON.stringify(db.schedule) 
-        })
-        .then(r => r.json())
-        .then(res => { 
-            btn.innerText = oldText; 
-            btn.disabled = false; 
-            if (res.status === 'success') {
-                alert(res.msg);
-                // 🌟 同步拉取最新空数据并刷新成绩管理页面
-                fetchLatestData();
-                if (typeof initResGroupTabs === 'function') initResGroupTabs();
-                if (typeof initRankPage === 'function') initRankPage();
-            } else {
-                alert("❌ 发布失败: " + res.msg); 
-            }
-        })
-        .catch(err => { 
-            btn.innerText = oldText; 
-            btn.disabled = false; 
-            alert("网络传输错误，请检查后端运行状态"); 
         });
-    }
+    })
+    .then(r => r.json())
+    .then(res => { 
+        btn.innerText = oldText; 
+        btn.disabled = false; 
+        if (res.status === 'success') {
+            alert(res.msg);
+            fetchLatestData();
+            if (typeof initResGroupTabs === 'function') initResGroupTabs();
+            if (typeof initRankPage === 'function') initRankPage();
+        } else {
+            alert("❌ 发布失败: " + res.msg); 
+        }
+    })
+    .catch(err => { 
+        btn.innerText = oldText; 
+        btn.disabled = false; 
+        alert("网络传输错误，请检查后端运行状态"); 
+    });
+}
 
     function generateFinals() {
         const groupName = window.curResGroup;
