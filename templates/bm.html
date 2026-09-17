@@ -181,16 +181,37 @@
         let db = { groups: [], teams: [], events: [] };
         let draftAthletes = []; // 前端暂存池：[{name: '张三', gender: '男', events: ['100米']}]
         let editingIndex = -1;  // 当前正在编辑的学生索引（-1 为新增）
-
+        let sysLimits = {
+    maxPerPerson: 2,
+    maxPerEvent: 3,
+    maxMale: 10,
+    maxFemale: 10,
+    maxTotal: 20
+};
         window.onload = function() {
             if (!loginTeamId || loginTeamId === "None") return;
             
             fetch('/api/get_data').then(r => r.json()).then(data => {
-                db.groups = data.groups || []; 
-                db.teams = data.teams || [];
-                db.events = (data.events || []).map(e => ({
-                    ...e, isRelay: (String(e.isRelay) === 'true' || String(e.is_relay) === '1' || e.name.includes('接力') || e.name.includes('4x') || e.name.includes('4*'))
-                }));
+    db.groups = data.groups || []; 
+    db.teams = data.teams || [];
+    db.events = (data.events || []).map(e => ({
+        ...e, isRelay: (String(e.isRelay) === 'true' || String(e.is_relay) === '1' || e.name.includes('接力') || e.name.includes('4x') || e.name.includes('4*'))
+    }));
+
+    // 🌟 核心：动态同步管理后台设置的 5 项人数/项目限制参数
+    if (data.config) {
+        sysLimits.maxPerPerson = parseInt(data.config.maxPerPerson) || 2;
+        sysLimits.maxPerEvent = parseInt(data.config.maxPerEvent) || 3;
+        sysLimits.maxMale = parseInt(data.config.maxMale) || 10;
+        sysLimits.maxFemale = parseInt(data.config.maxFemale) || 10;
+        sysLimits.maxTotal = parseInt(data.config.maxTotal) || 20;
+
+        // 更新表单上的提示文案
+        const tipEl = document.getElementById('limitTip');
+        if (tipEl) {
+            tipEl.innerText = `个人竞技项限报 ${sysLimits.maxPerPerson} 项；全队限男 ${sysLimits.maxMale} 人、女 ${sysLimits.maxFemale} 人，总人数上限 ${sysLimits.maxTotal} 人`;
+        }
+    }
 
                 const currentTeam = db.teams.find(t => String(t.id) === String(loginTeamId));
                 const currentGroup = db.groups.find(g => String(g.id) === String(loginGroupId));
@@ -355,30 +376,73 @@
             renderDraftList();
         }
 
-        // 添加或更新到前端暂存池
-        function addOrUpdateToDraft() {
-            const name = document.getElementById('stuName').value.trim();
-            const gender = document.querySelector('input[name="gender"]:checked')?.value;
-            const selected = Array.from(document.querySelectorAll('.chk-box.selected')).map(el => el.dataset.val);
+       function addOrUpdateToDraft() {
+    const name = document.getElementById('stuName').value.trim();
+    const gender = document.querySelector('input[name="gender"]:checked')?.value;
+    const selected = Array.from(document.querySelectorAll('.chk-box.selected')).map(el => el.dataset.val);
 
-            if (!name) return alert('请填写学生姓名！');
-            if (!gender) return alert('请勾选性别！');
-            if (selected.length === 0) return alert('请至少为其选报一个项目！');
+    if (!name) return alert('请填写学生姓名！');
+    if (!gender) return alert('请勾选性别！');
+    if (selected.length === 0) return alert('请至少为其选报一个项目！');
 
-            // 检查重名（如果是新增）
-            if (editingIndex === -1 && draftAthletes.some(p => p.name === name)) {
-                return alert(`列表中已存在名为【${name}】的学生！如需修改请直接在下方列表中点击该学生。`);
-            }
+    const otherAthletes = draftAthletes.filter((_, i) => i !== editingIndex);
 
-            const athleteObj = { name: name, gender: gender, events: selected };
-            if (editingIndex >= 0) {
-                draftAthletes[editingIndex] = athleteObj; // 更新
-            } else {
-                draftAthletes.push(athleteObj); // 新增
-            }
+    // 🌟 1. 判定当前学生是否包含“竞技项目”
+    const hasCompEvent = selected.some(evtName => !isFunEvent(evtName));
 
-            resetForm();
+    // 🌟 2. 只有报了竞技项目的学生，才受全队总人数和男女人数上限约束；纯趣味选手不占用全队指标
+    if (hasCompEvent) {
+        // 统计已有名单中包含竞技项目的人数
+        const compAthletes = otherAthletes.filter(a => a.events.some(e => !isFunEvent(e)));
+        
+        if (editingIndex === -1 && (compAthletes.length + 1) > sysLimits.maxTotal) {
+            return alert(`❌ 报名受限：全队竞技运动员总人数已达上限（最多允许 ${sysLimits.maxTotal} 人）！`);
         }
+
+        if (gender === '男') {
+            const maleCompCount = compAthletes.filter(a => a.gender === '男').length;
+            if (maleCompCount + 1 > sysLimits.maxMale) {
+                return alert(`❌ 报名受限：本队男生竞技人数已达上限（最多允许 ${sysLimits.maxMale} 人）！`);
+            }
+        } else if (gender === '女') {
+            const femaleCompCount = compAthletes.filter(a => a.gender === '女').length;
+            if (femaleCompCount + 1 > sysLimits.maxFemale) {
+                return alert(`❌ 报名受限：本队女生竞技人数已达上限（最多允许 ${sysLimits.maxFemale} 人）！`);
+            }
+        }
+    }
+
+    // 🌟 3. 校验单项每队限报人数：趣味项目与接力项目完全跳过检查
+    for (let evtName of selected) {
+        const evtCfg = db.events.find(e => e.name === evtName);
+        const isRelay = evtCfg && (evtCfg.isRelay || evtName.includes('接力'));
+
+        // 如果是趣味项目，直接跳过，全班全员皆可报
+        if (isFunEvent(evtName) || isRelay) {
+            continue;
+        }
+
+        // 常规单项才统计人数限制
+        const currentEventCount = otherAthletes.filter(a => a.gender === gender && a.events.includes(evtName)).length;
+        if (currentEventCount + 1 > sysLimits.maxPerEvent) {
+            return alert(`❌ 报名受限：项目【${evtName}】本队【${gender}生】名额已满（每队同性别限报 ${sysLimits.maxPerEvent} 人）！`);
+        }
+    }
+
+    // 重名检测
+    if (editingIndex === -1 && draftAthletes.some(p => p.name === name)) {
+        return alert(`列表中已存在名为【${name}】的学生！如需修改请直接在下方列表中点击该学生。`);
+    }
+
+    const athleteObj = { name: name, gender: gender, events: selected };
+    if (editingIndex >= 0) {
+        draftAthletes[editingIndex] = athleteObj;
+    } else {
+        draftAthletes.push(athleteObj);
+    }
+
+    resetForm();
+}
 
         // 从暂存池删除
         function deleteDraft(idx) {
@@ -490,20 +554,37 @@
         }
 
         function checkLimit() {
-            const selectedComps = document.querySelectorAll('.comp-item.selected');
-            let count = 0; 
-            selectedComps.forEach(el => { if (el.dataset.isRelay !== "true") count++; });
-            const max = 2; 
-            document.getElementById('compCount').innerText = `(已选 ${count}/${max})`;
-            document.querySelectorAll('.comp-item').forEach(el => {
-                const isRelay = (el.dataset.isRelay === "true"); 
-                const isSelected = el.classList.contains('selected');
-                if (isRelay) el.classList.remove('disabled'); 
-                else if (count >= max && !isSelected) el.classList.add('disabled'); 
-                else el.classList.remove('disabled');
-            });
+    const selectedComps = document.querySelectorAll('.comp-item.selected');
+    let count = 0; 
+    selectedComps.forEach(el => { if (el.dataset.isRelay !== "true") count++; });
+    
+    // 🌟 动态读取后台设定的每人限报项数
+    const max = sysLimits.maxPerPerson; 
+    const compCountEl = document.getElementById('compCount');
+    if (compCountEl) {
+        compCountEl.innerText = `(已选 ${count}/${max})`;
+    }
+    
+    document.querySelectorAll('.comp-item').forEach(el => {
+        const isRelay = (el.dataset.isRelay === "true"); 
+        const isSelected = el.classList.contains('selected');
+        if (isRelay) {
+            el.classList.remove('disabled'); 
+        } else if (count >= max && !isSelected) {
+            el.classList.add('disabled'); 
+        } else {
+            el.classList.remove('disabled'); 
         }
-        function renderRelaySection() {
+    });
+}
+        function isFunEvent(evtName) {
+    const e = db.events.find(item => item.name === evtName);
+    if (!e) return false;
+    return e.type === '趣味' || e.type === '趣味项目' || 
+           String(e.is_fun) === '1' || String(e.isFun) === 'true' || 
+           String(e.isFun) === '1';
+}
+function renderRelaySection() {
             const relayCard = document.getElementById('relayCard');
             const container = document.getElementById('relayContentArea');
             if (!relayCard || !container) return;

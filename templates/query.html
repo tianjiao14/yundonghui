@@ -3,21 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>{{ title }}</title>
+    <title>成绩查询</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
             background-color: #f8fafc; 
             -webkit-tap-highlight-color: transparent; 
-        }
-        
-        /* 现代 UI 组件库 */
-        .glass-header { 
-            background: rgba(255, 255, 255, 0.9); 
-            backdrop-filter: blur(12px); 
-            -webkit-backdrop-filter: blur(12px); 
-            border-bottom: 1px solid rgba(0,0,0,0.05); 
         }
         
         .modern-card { 
@@ -43,7 +35,6 @@
         }
         .acc-header:active { background: #f8fafc; }
         
-        /* 现代化表格基础样式 */
         .modern-table { width: 100%; text-align: center; font-size: 13px; border-collapse: separate; border-spacing: 0; }
         .modern-table thead { background-color: #f8fafc; }
         .modern-table th { padding: 10px 8px; color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; }
@@ -54,7 +45,6 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* 渐变标题背景 */
         .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #2563eb 100%); }
     </style>
 </head>
@@ -103,9 +93,7 @@
                 </button>
                 <div id="panel-team-score" class="hidden bg-white p-3 border-t border-slate-100">
                     <div class="flex justify-between items-center mb-3 px-1 gap-2">
-            
-                        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 flex-1" id="rankGroupTabs">
-                        </div>
+                        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 flex-1" id="rankGroupTabs"></div>
                         <span class="text-[10px] text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded-full shrink-0" id="rankTime"></span>
                     </div>
                     <div class="overflow-x-auto rounded-xl border border-slate-100">
@@ -239,10 +227,12 @@
                 db.events = data.events || [];
                 db.schedule = data.schedule || []; 
                 
-                if(data.config && data.config.title) document.getElementById('sysTitle').innerText = data.config.title;
+               if(data.config && data.config.title) {
+    document.getElementById('sysTitle').innerText = data.config.title;
+    document.title = data.config.title + " - 成绩查询";
+}
                 
                 renderRankGroupTabs();
-
                 renderRealAnnouncements();
                 renderSubsequentStartLists();
             }).catch(e => console.error("数据连接异常:", e));
@@ -254,15 +244,18 @@
             window.scrollTo(0, 0);
         }
 
+        // 🌟 关键：控制首页所有手风琴面板的展开与折叠
         function toggleAcc(panelId) { 
             const panel = document.getElementById(panelId);
+            if (!panel) return;
             const btn = panel.previousElementSibling;
             panel.classList.toggle('hidden'); 
             
-            const arrow = btn.lastElementChild; 
-            
-            arrow.style.transform = panel.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
-            arrow.style.transition = 'transform 0.2s';
+            const arrow = btn ? btn.lastElementChild : null; 
+            if (arrow) {
+                arrow.style.transform = panel.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+                arrow.style.transition = 'transform 0.2s';
+            }
         }
 
         function parseTimeVal(val) {
@@ -291,19 +284,14 @@
             });
 
             const eventNames = Array.from(eventSet).sort((a, b) => {
-                // 1. 提取基础项目名（去除预赛/决赛标记）
                 const baseA = a.replace(/[\(（].*?[\)）]/g, '').trim();
                 const baseB = b.replace(/[\(（].*?[\)）]/g, '').trim();
-
-                // 2. 如果是同一个基础项目（如 100米），强制预赛排前面，决赛排后面
                 if (baseA === baseB) {
                     const isPrelimA = a.includes('预赛');
                     const isPrelimB = b.includes('预赛');
-                    if (isPrelimA && !isPrelimB) return -1; // a 是预赛，排前面
-                    if (!isPrelimA && isPrelimB) return 1;  // b 是预赛，排前面
+                    if (isPrelimA && !isPrelimB) return -1;
+                    if (!isPrelimA && isPrelimB) return 1;
                 }
-
-                // 3. 不同项目之间按常规字典序排列
                 return baseA.localeCompare(baseB, 'zh-CN');
             });
 
@@ -319,11 +307,6 @@
             `).join('');
         }
 
-        function goToEventDetailWithParams(eventName, groupName, gender, isFinalsList) {
-            window.activeQueryGroup = groupName;
-            window.activeQueryGender = gender;
-            goToEventDetail(eventName, isFinalsList);
-        }
         function renderSubsequentStartLists() {
             const list = document.getElementById('startList');
             if(!db.schedule.length) return;
@@ -348,7 +331,6 @@
             document.getElementById('detHeatLabel').innerHTML = isFinalsList ? '✨ 晋级决赛检录名单' : '🏅 综合成绩公告';
             const contentArea = document.getElementById('detContentArea');
 
-            // 🌟 核心：只有首次点击才显示全屏加载中，后台静默刷新绝不展示 loading，杜绝闪屏！
             if (!isSilent) {
                 contentArea.innerHTML = `
                     <div class="flex flex-col items-center justify-center py-20 text-slate-400">
@@ -373,11 +355,7 @@
             fetch('/api/get_event_start_list', {
                 method: 'POST', 
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    event_name: eventName,
-                    group_name: '',
-                    gender: ''
-                }) 
+                body: JSON.stringify({ event_name: eventName, group_name: '', gender: '' }) 
             })
             .then(r => r.json())
             .then(data => {
@@ -438,24 +416,22 @@
                         const currentGroupName = groupData[0].group_name;
                         const currentGender = groupData[0].gender;
 
-                        // 统计成绩状态
                         const isRealScore = (scoreStr) => {
                             if (!scoreStr) return false;
                             const s = String(scoreStr).trim();
-                            if (s === '' || s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || s.includes('DNF')) return false;
+                            if (s === '' || s === '-' || s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || s.includes('DNF')) return false;
                             return parseTimeVal(s) > 0;
                         };
 
                         const validAthletes = groupData.filter(i => {
                             const isDummy = !i.name || i.name.includes('待定') || i.team_name === '预赛出线';
-                            const isAbsent = (i.checked_in == 2) || (i.score && (i.score.includes('弃权') || i.score.includes('DNS')));
+                            const isAbsent = (String(i.checked_in) === '2') || (i.score && (i.score.includes('弃权') || i.score.includes('DNS')));
                             return !isDummy && !isAbsent;
                         });
 
                         const totalCount = validAthletes.length;
                         const scoredCount = validAthletes.filter(i => isRealScore(i.score)).length;
 
-                        // 状态徽标
                         let statusDotHtml = '';
                         if (totalCount > 0 && scoredCount >= totalCount) {
                             statusDotHtml = `
@@ -474,7 +450,6 @@
                                 </span>`;
                         }
 
-                        // 组别卡片
                         html += `
                         <div class="bg-white rounded-xl shadow-sm border border-slate-200 mb-3 overflow-hidden grp-card-container" data-groupkey="${groupKey}">
                             <div class="px-4 py-3.5 bg-white hover:bg-slate-50 flex justify-between items-center cursor-pointer transition select-none" onclick="document.getElementById('${contentId}').classList.toggle('hidden')">
@@ -534,18 +509,39 @@
                                 html += `</tbody></table>`;
                             });
 
-                            const scored = groupData.filter(i => isRealScore(i.score));
-                            const abandoned = groupData.filter(i => !isRealScore(i.score) && (String(i.score).includes('弃权') || i.checked_in == 2 || String(i.score).includes('DNS')));
+                            // 🌟 1. 严格完赛校验：排查当前组别下是否仍有未完赛道次
+                            const hasUnfinishedRunners = groupData.some(item => {
+                                const s = String(item.score || '').trim();
+                                const isAbandoned = s.includes('弃权') || s.includes('DNS') || String(item.checked_in) === '2';
+                                return !isAbandoned && !isRealScore(s);
+                            });
+                            const isAllHeatsFinished = !hasUnfinishedRunners;
 
-                            if (scored.length > 0 || abandoned.length > 0) {
+                            // 🌟 2. 单次声明过滤列表
+                            const scored = groupData.filter(i => isRealScore(i.score));
+                            const abandoned = groupData.filter(i => !isRealScore(i.score) && (String(i.score || '').includes('弃权') || String(i.checked_in) === '2' || String(i.score || '').includes('DNS')));
+
+                            // 🌟 3. 未全部完赛时，严格锁定综合排名结果，不排第1名也不给q标签
+                            if (roundStatus === '预赛' && !isAllHeatsFinished) {
+                                html += `
+                                <div class="px-4 py-3 font-extrabold text-orange-700 bg-orange-50 border-y border-orange-100 mt-2 flex items-center justify-between">
+                                    <span class="flex items-center gap-2"><span class="text-lg">🏆</span> 综合排名结果</span>
+                                    <span class="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⏳ 预赛进行中</span>
+                                </div>
+                                <div class="p-6 text-center text-slate-500 bg-slate-50/50">
+                                    <div class="text-sm font-bold text-slate-700 mb-1">🏁 尚有小组未完赛</div>
+                                    <div class="text-xs text-slate-400">各小组全部比完后，系统将自动汇总所有道次用时，公布最终总排名及录取名单(q)。</div>
+                                </div>`;
+                            } else if (scored.length > 0 || abandoned.length > 0) {
                                 scored.sort((a,b) => {
                                     const sa = parseTimeVal(a.score); const sb = parseTimeVal(b.score);
                                     return isField ? (sb - sa) : (sa - sb);
                                 });
 
                                 html += `
-                                <div class="px-4 py-3 font-extrabold text-orange-700 bg-orange-50 border-y border-orange-100 mt-2 flex items-center gap-2">
-                                    <span class="text-lg">🏆</span> 综合排名结果
+                                <div class="px-4 py-3 font-extrabold text-orange-700 bg-orange-50 border-y border-orange-100 mt-2 flex items-center justify-between">
+                                    <span class="flex items-center gap-2"><span class="text-lg">🏆</span> 综合排名结果</span>
+                                    <span class="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">✅ 预赛已全部完赛</span>
                                 </div>`;
                                 
                                 let extraColName = roundStatus === '预赛' ? '录取' : '积分';
@@ -568,8 +564,10 @@
 
                                     let extraColHtml = '';
                                     if (roundStatus === '预赛') {
-                                        if (currentRank <= qualifyLimit) {
+                                        if (isAllHeatsFinished && currentRank <= qualifyLimit) {
                                             extraColHtml = '<span class="font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-[14px] font-mono shadow-sm">q</span>';
+                                        } else {
+                                            extraColHtml = '<span class="text-slate-300 font-mono text-xs">--</span>';
                                         }
                                     } else {
                                         let pts = item.points || 0;
@@ -616,7 +614,6 @@
                         html += `</div></div>`; 
                     });
 
-                    // 🌟 记录更新前用户展开的卡片与滚动条
                     const openedCardKeys = Array.from(document.querySelectorAll('.grp-card-container'))
                         .filter(el => {
                             const box = el.querySelector('.grp-content-box');
@@ -625,10 +622,8 @@
                         .map(el => el.dataset.groupkey);
                     const currentScrollY = contentArea.scrollTop;
 
-                    // 写入最新 DOM
                     contentArea.innerHTML = html;
 
-                    // 恢复之前展开的组别与滚动位置
                     openedCardKeys.forEach(key => {
                         const targetCard = Array.from(document.querySelectorAll('.grp-card-container')).find(el => el.dataset.groupkey === key);
                         if (targetCard) {
@@ -680,10 +675,12 @@
 
             loadTeamRank(window.activeRankGroup);
         }
+
         function selectRankGroup(groupName) {
             window.activeRankGroup = groupName;
             renderRankGroupTabs();
         }
+
         function loadTeamRank(groupName) {
             const gName = groupName || window.activeRankGroup;
             const tbody = document.getElementById('rankTableBody');
@@ -869,31 +866,29 @@
                 `).join('');
             });
         }
-let pollTimer = null;
 
-function triggerSilentUpdate() {
-    // 🌟 标签页切到后台或手机熄屏/切回主屏幕时，直接跳过请求
-    if (document.hidden) return;
+        let pollTimer = null;
 
-    const detailPanel = document.getElementById('view-event-detail');
-    if (detailPanel && !detailPanel.classList.contains('hidden')) {
-        const curEvt = document.getElementById('detEventName')?.innerText;
-        const isFinals = document.getElementById('detHeatLabel')?.innerText.includes('晋级');
-        if (curEvt && curEvt !== '--') {
-            goToEventDetail(curEvt, isFinals, true);
+        function triggerSilentUpdate() {
+            if (document.hidden) return;
+
+            const detailPanel = document.getElementById('view-event-detail');
+            if (detailPanel && !detailPanel.classList.contains('hidden')) {
+                const curEvt = document.getElementById('detEventName')?.innerText;
+                const isFinals = document.getElementById('detHeatLabel')?.innerText.includes('晋级');
+                if (curEvt && curEvt !== '--') {
+                    goToEventDetail(curEvt, isFinals, true);
+                }
+            }
         }
-    }
-}
 
-// 🌟 1. 轮询间隔从 8000ms 调整为 15000ms (15秒)
-pollTimer = setInterval(triggerSilentUpdate, 15000);
+        pollTimer = setInterval(triggerSilentUpdate, 15000);
 
-// 🌟 2. 页面可见性监听：当学生切回浏览器时立即拉取一次最新成绩
-document.addEventListener('visibilitychange', function() {
-    if (!document.hidden) {
-        triggerSilentUpdate();
-    }
-});
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                triggerSilentUpdate();
+            }
+        });
     </script>
 </body>
 </html>
