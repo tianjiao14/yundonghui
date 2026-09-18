@@ -730,7 +730,7 @@ def calculate_team_ranking():
     g_name = data.get('group_name')
     
     cache_key = f"rank_{g_name}"
-    cached = get_cached_data(cache_key, ttl_seconds=5)
+    cached = get_cached_data(cache_key, ttl_seconds=30)
     if cached is not None:
         return jsonify(cached)
 
@@ -783,7 +783,7 @@ def calculate_team_ranking():
     try:
         rows = c.execute(sql, (g_name,)).fetchall()
         result = [dict(r) for r in rows]
-        set_cached_data(cache_key, result, ttl_seconds=5)
+        set_cached_data(cache_key, result, ttl_seconds=30.)
         return jsonify(result)
     except Exception:
         return jsonify([])
@@ -1310,7 +1310,7 @@ def get_data_admin():
     
     # 内存缓存键区分管理员与普通终端
     cache_key = f"get_data_{current_role if current_role == 'admin' else 'public'}"
-    cached = get_cached_data(cache_key, ttl_seconds=5)
+    cached = get_cached_data(cache_key, ttl_seconds=20)
     if cached is not None:
         return jsonify(cached)
 
@@ -1373,7 +1373,7 @@ def get_data_admin():
             response_data["config"] = {"title": title_row[0] if title_row else "田径运动会"}
             response_data["athletes"] = []
 
-        set_cached_data(cache_key, response_data, ttl_seconds=5)
+        set_cached_data(cache_key, response_data, ttl_seconds=20)
         return jsonify(response_data)
     except Exception as e:
         return jsonify({"status": "error", "msg": str(e)})
@@ -1925,7 +1925,7 @@ def get_event_start_list():
     group_name = data.get('group_name') or ''
     gender = data.get('gender') or ''
     cache_key = f"startlist_{group_name}_{gender}_{event_name}"
-    cached = get_cached_data(cache_key, ttl_seconds=3)
+    cached = get_cached_data(cache_key, ttl_seconds=20)
     if cached is not None:
         return jsonify(cached)
 
@@ -2019,7 +2019,7 @@ def get_event_start_list():
 
             result.append(item)
 
-        set_cached_data(cache_key, result, ttl_seconds=3)
+        set_cached_data(cache_key, result, ttl_seconds=20)
         return jsonify(result)
     except Exception as e:
         return jsonify({"status": "error", "msg": str(e)})
@@ -3352,4 +3352,4 @@ if __name__ == '__main__':
     
     app.jinja_env.auto_reload = True
     app.config['TEMPLATES_AUTO_RELOAD'] = True
-    serve(app, host='0.0.0.0', port=5000, threads=32)
+    serve(app, host='0.0.0.0', port=5000, threads=64)

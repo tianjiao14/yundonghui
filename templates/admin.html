@@ -3179,14 +3179,14 @@ function exportWord() {
                 if(document.getElementById('cfgMaxTotal')) document.getElementById('cfgMaxTotal').value = data.config.maxTotal || 20;
                 if(document.getElementById('cfgRegDeadline')) document.getElementById('cfgRegDeadline').value = data.config.regDeadline || '';
    
-if (data.config.dailyScheduleTimes) {
+                if (data.config.dailyScheduleTimes) {
                     try {
                         window.dailyScheduleTimes = JSON.parse(data.config.dailyScheduleTimes);
                         localStorage.setItem('daily_schedule_times', JSON.stringify(window.dailyScheduleTimes));
                     } catch(e) {}
                 }
             }
-         // 🌟 修复：严密解析后端沙盘，后端有值且非空才覆盖，否则使用本地缓存
+
             let serverSandtable = null;
             if (data.config && data.config.manual_schedule_map) {
                 try {
@@ -3208,18 +3208,21 @@ if (data.config.dailyScheduleTimes) {
                     window.manualScheduleMap = {};
                 }
             }
+
             if (data.groups) { db.groups = data.groups; }
             if (data.teams) {
-    db.teams = data.teams.map(t => ({
-        ...t,
-        coach: t.coach || '',
-        phone: t.phone || '',
-        leader: t.leader || ''
-    }));
-}
+                db.teams = data.teams.map(t => ({
+                    ...t,
+                    coach: t.coach || '',
+                    phone: t.phone || '',
+                    leader: t.leader || ''
+                }));
+            }
             if (data.athletes) { db.athletes = data.athletes; }
             if (data.schedule) { db.schedule = data.schedule; }  
-           if (data.events && data.events.length > 0) {
+
+            // 🌟 核心优化区域：完全以数据库项目为主，不再把删除的项目从预设池复活
+            if (data.events && data.events.length > 0) {
                 db.events = data.events.map(e => {
                     const rawLimit = e.limit_count !== undefined ? e.limit_count : e.limit;
                     const rawDur = e.duration;
@@ -3238,35 +3241,33 @@ if (data.config.dailyScheduleTimes) {
                         needLane: (String(e.needLane) === 'true' || String(e.need_lane) === '1'),
                         hasPrelim: (String(e.hasPrelim) === 'true' || String(e.has_prelim) === '1'),
                         isRelay: (String(e.isRelay) === 'true' || String(e.is_relay) === '1'),
-                        // 🌟 核心：完整读取数据库中的团体标识
                         isTeam: (String(e.isTeam) === 'true' || String(e.is_team) === '1')
                     };
                 });
 
-                // 同步更新预设池中的数值与团体状态
-                db.events.forEach(savedEvt => {
-                    const presetItem = window.PRESET_MATRIX_POOL.find(p => p.name === savedEvt.name);
-                    if (presetItem) {
-                        presetItem.duration = savedEvt.duration;
-                        presetItem.limit = savedEvt.limit;
-                        presetItem.venueCount = savedEvt.venueCount;
-                        presetItem.isTeam = savedEvt.isTeam; // 👈 同步更新预设池
-                    } else {
-                        window.PRESET_MATRIX_POOL.push({
-                            name: savedEvt.name, type: savedEvt.type, gender: savedEvt.gender || '双性', 
-                            duration: savedEvt.duration, limit: savedEvt.limit, venueCount: savedEvt.venueCount,
-                            hasPrelim: savedEvt.hasPrelim, isRelay: savedEvt.isRelay, needLane: savedEvt.needLane, 
-                            isTeam: savedEvt.isTeam,
-                            isFun: (String(savedEvt.is_fun) === '1' || String(savedEvt.isFun) === 'true'), forceCheck: true 
-                        });
-                    }
-                });
+                // 🌟 用数据库现有配置覆盖前端展示池
+                window.PRESET_MATRIX_POOL = db.events.map(e => ({
+                    name: e.name,
+                    type: e.type,
+                    gender: e.gender || '双性',
+                    duration: e.duration,
+                    limit: e.limit,
+                    venueCount: e.venueCount,
+                    qualifyCount: e.qualifyCount,
+                    hasPrelim: e.hasPrelim,
+                    isRelay: e.isRelay,
+                    needLane: e.needLane,
+                    isTeam: e.isTeam,
+                    isFun: (String(e.is_fun) === '1' || String(e.isFun) === 'true'),
+                    forceCheck: true
+                }));
             }
 
             if (typeof renderAll === 'function') renderAll(); 
             if (typeof renderQRCodes === 'function') renderQRCodes();
             if (typeof renderTeamTree === 'function') renderTeamTree();
             if (typeof renderAthleteList === 'function') renderAthleteList();
+            if (typeof renderEvents === 'function') renderEvents();
         }).catch(e => console.error("加载/同步数据失败:", e));
     };
 
@@ -3957,13 +3958,16 @@ window.PRESET_MATRIX_POOL.push({
         alert(`🎉 项目【${name}】已成功放入矩阵池，请在下方列表核对并点击“保存所有项目配置”！`);
     };
 
-   // 🌟 删除项目函数
-    window.deleteMatrixEvent = function(index) {
-        const item = window.PRESET_MATRIX_POOL[index];
-        if (!confirm(`确定要从项目矩阵中彻底删除【${item.name}】吗？`)) return;
-        window.PRESET_MATRIX_POOL.splice(index, 1);
-        renderEvents();
-    };
+   // 🌟 彻底删除项目
+window.deleteMatrixEvent = function(index) {
+    const item = window.PRESET_MATRIX_POOL[index];
+    if (!confirm(`确定要从系统项目中彻底删除【${item.name}】吗？`)) return;
+    const deletedName = item.name;
+    window.PRESET_MATRIX_POOL.splice(index, 1);
+    db.events = db.events.filter(e => e.name !== deletedName);
+    renderEvents();
+    saveEventMatrixConfig(true); 
+};
 
    function renderEvents() {
         const tbody = document.getElementById('matrixEventBody'); 
