@@ -47,7 +47,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 DB_FILE = os.path.join(DATA_DIR, "sports_data.db")
 ADMIN_PASSWORD = "admin888"
-REFEREE_PASSWORD = "ref888"
+REFEREE_PASSWORD = "ref123"
 
 # 4. 数据库连接基础函数
 def get_db_connection():
@@ -663,18 +663,33 @@ def recalculate_all_points():
 
 @app.route('/api/delete_athlete', methods=['POST'])
 def delete_athlete():
-    if session.get('user_role') not in ['admin', 'team']:
+    current_role = session.get('user_role')
+    if current_role not in ['admin', 'team']:
         return jsonify({"status": "error", "msg": "未授权"}), 401
+    
     data = request.json or {}
     name = data.get('name')
-    team_id = data.get('team_id')
+    
+    # 🌟 安全加固：如果是代表队领队，强制使用 session 中的 team_id，防止越权篡改
+    if current_role == 'team':
+        team_id = session.get('team_id')
+    else:
+        team_id = data.get('team_id')
+
+    if not name or not team_id:
+        return jsonify({"status": "error", "msg": "参数不完整"}), 400
+
     conn = get_db_connection()
     c = conn.cursor()
     c.execute("DELETE FROM registrations WHERE name = ? AND team_id = ?", (name, team_id))
     conn.commit()
     conn.close()
+    
+    # 清理缓存
+    if '_cache_store' in globals():
+        _cache_store.clear()
+        
     return jsonify({"status": "success", "msg": "删除成功"})
-
 @app.route('/api/update_point', methods=['POST'])
 def update_point():
     data = request.json or {}
@@ -1267,6 +1282,7 @@ def get_statistics():
         conn.close()
 
 @app.route('/api/get_data')
+@login_required('admin')
 def get_data_admin():
     cache_key = "global_get_data"
     cached = get_cached_data(cache_key, ttl_seconds=5)
