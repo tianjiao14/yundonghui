@@ -141,7 +141,26 @@ def get_cached_data(cache_key, ttl_seconds=5):
 def set_cached_data(cache_key, data, ttl_seconds=5):
     expire_at = datetime.now().timestamp() + ttl_seconds
     _cache_store[cache_key] = (data, expire_at)
-
+def invalidate_event_cache(event_name, group_name=""):
+    """
+    精准失效受影响的项目和榜单缓存，坚决不清空全局导航等公共静态缓存
+    """
+    if not _cache_store:
+        return
+    # 清洗项目核心名，确保预赛、决赛和原名都能匹配
+    clean_core = re.sub(r"\(.*?\)|（.*?）|决赛|预赛", "", event_name).strip()
+    
+    keys_to_del = []
+    for k in list(_cache_store.keys()):
+        # 1. 失效与该项目相关的道次成绩缓存 (startlist_*)
+        if k.startswith("startlist_") and clean_core in k:
+            keys_to_del.append(k)
+        # 2. 失效对应组别的团体总分排行榜缓存 (rank_*)
+        elif group_name and k == f"rank_{group_name}":
+            keys_to_del.append(k)
+            
+    for k in keys_to_del:
+        _cache_store.pop(k, None)
 # 权限拦截器
 def login_required(role_needed):
     def decorator(f):
@@ -783,7 +802,7 @@ def calculate_team_ranking():
     try:
         rows = c.execute(sql, (g_name,)).fetchall()
         result = [dict(r) for r in rows]
-        set_cached_data(cache_key, result, ttl_seconds=30.)
+        set_cached_data(cache_key, result, ttl_seconds=30)
         return jsonify(result)
     except Exception:
         return jsonify([])
@@ -1225,7 +1244,59 @@ def get_events():
     
     conn.close()
     return jsonify(event_list)
+@app.route('/api/get_query_nav_events', methods=['GET'])
+def get_query_nav_events():
+    cache_key = "query_nav_events"
+    cached = get_cached_data(cache_key, ttl_seconds=60)
+    if cached is not None:
+        return jsonify(cached)
 
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        # 1. 仅提取系统比赛名称
+        title_row = c.execute("SELECT value FROM sys_config WHERE key='title'").fetchone()
+        title = title_row[0] if title_row else "田径运动会"
+
+        # 2. 仅提取组别列表
+        groups = [dict(r) for r in c.execute("SELECT id, name FROM cfg_groups ORDER BY id ASC").fetchall()]
+
+        # 3. 仅提取去重后的赛程项目名（彻底摆脱几十KB的道次明细全表）
+        rows = c.execute("SELECT DISTINCT event_name FROM start_list WHERE event_name != ''").fetchall()
+        
+        all_events = []
+        final_events = []
+        seen = set()
+
+        for r in rows:
+            raw_name = r['event_name']
+            clean_name = re.sub(r'[\(（]场地\d+[\)）]', '', raw_name).strip()
+            if clean_name and clean_name not in seen:
+                seen.add(clean_name)
+                all_events.append(clean_name)
+                if '决赛' in clean_name and '预赛' not in clean_name:
+                    final_events.append(clean_name)
+
+        # 排序规则
+        all_events.sort(key=lambda x: (
+            0 if '预赛' in x else 1,
+            re.sub(r'[\(（].*?[\)）]', '', x)
+        ))
+        final_events.sort()
+
+        result = {
+            "status": "success",
+            "title": title,
+            "groups": groups,
+            "all_events": all_events,
+            "final_events": final_events
+        }
+        set_cached_data(cache_key, result, ttl_seconds=60)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "msg": str(e)})
+    finally:
+        conn.close()
 @app.route('/api/get_statistics')
 def get_statistics():
     conn = get_db_connection() 
@@ -1964,7 +2035,9 @@ def get_event_start_list():
                         r.points, 
                         r.record_bonus
                     FROM registrations r
-                    rows = c.execute(sql, (event_name, group_name, group_name, gender, gender)).fetchall()
+                    WHERE r.event_name = ? 
+                      AND (r.group_name = ? OR ? = '')
+                      AND (r.gender = ? OR ? = '')
                 """
                 rows = c.execute(sql, (event_name, group_name, group_name, gender, gender)).fetchall()
                 return jsonify([dict(r) for r in rows])
@@ -2135,7 +2208,7 @@ def submit_score():
                 """, (gid, group_name, tid, team_name, name, gender, event_name, formatted_score, attempts_json))
             
         conn.commit()
-        _cache_store.clear()
+        invalidate_event_cache(event_name, group_name)
     except Exception as e:
         conn.rollback()
         return jsonify({"status": "error", "msg": str(e)})
@@ -2737,6 +2810,12 @@ def force_sync_and_upgrade_db():
 def get_group_records():
     data = request.json or {}
     g_name = data.get('group_name')
+
+    cache_key = f"group_records_{g_name}"
+    cached = get_cached_data(cache_key, ttl_seconds=300) # 缓存 5 分钟
+    if cached is not None:
+        return jsonify(cached)
+
     conn = get_db_connection()
     c = conn.cursor()
     try:
@@ -2744,10 +2823,10 @@ def get_group_records():
         res = {}
         for r in rows:
             res[f"{r['event_name']}_{r['gender']}"] = json.loads(r['records_json'])
+        set_cached_data(cache_key, res, ttl_seconds=300)
         return jsonify(res)
     finally:
         conn.close()
-
 @app.route('/api/save_group_records', methods=['POST'])
 def save_group_records():
     data = request.json or {}

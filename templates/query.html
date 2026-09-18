@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>成绩查询</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="{{ url_for('static', filename='js/tailwindcss.js') }}"></script>
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
@@ -220,29 +220,51 @@
             const d = new Date();
             document.getElementById('sysDate').innerText = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
             
-            fetch('/api/get_data').then(r => r.json()).then(data => {
-                db.groups = data.groups || [];
-                db.teams = data.teams || [];
-                db.athletes = data.athletes || [];
-                db.events = data.events || [];
-                db.schedule = data.schedule || []; 
-                
-               if(data.config && data.config.title) {
-    document.getElementById('sysTitle').innerText = data.config.title;
-    document.title = data.config.title + " - 成绩查询";
-}
-                
-                renderRankGroupTabs();
-                renderRealAnnouncements();
-                renderSubsequentStartLists();
-            }).catch(e => console.error("数据连接异常:", e));
+            // 🌟 核心防刷：优先读取本手机当前标签页的本地缓存，切页面再回来完全不消耗后端流量
+            const cachedNav = sessionStorage.getItem('query_nav_cache');
+            if (cachedNav) {
+                try {
+                    const data = JSON.parse(cachedNav);
+                    renderWithNavData(data);
+                    return; // 命中手机缓存，直接渲染，不发网络请求！
+                } catch(e) {}
+            }
+
+            // 缓存未命中时，仅请求轻量导航接口（< 1KB）
+            fetch('/api/get_query_nav_events?_t=' + Date.now())
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        sessionStorage.setItem('query_nav_cache', JSON.stringify(data));
+                        renderWithNavData(data);
+                    }
+                })
+                .catch(e => console.error("数据连接异常:", e));
         };
 
-        function switchView(viewId) {
-            document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
-            document.getElementById(viewId).classList.remove('hidden');
-            window.scrollTo(0, 0);
+        function renderWithNavData(data) {
+            if (data.title) {
+                document.getElementById('sysTitle').innerText = data.title;
+                document.title = data.title + " - 成绩查询";
+            }
+            db.groups = data.groups || [];
+            
+            // 渲染导航
+            renderRankGroupTabs();
+            renderRealAnnouncements(data.all_events || []);
+            renderSubsequentStartLists(data.final_events || []);
         }
+
+        function switchView(viewId) {
+    document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+    const target = document.getElementById(viewId);
+    if (target) {
+        target.classList.remove('hidden');
+        const scroller = target.querySelector('main') || target;
+        scroller.scrollTop = 0;
+    }
+    window.scrollTo(0, 0);
+}
 
         // 🌟 关键：控制首页所有手风琴面板的展开与折叠
         function toggleAcc(panelId) { 
@@ -269,32 +291,12 @@
             return parseFloat(s) || 0;
         }
 
-        function renderRealAnnouncements() {
+      function renderRealAnnouncements(eventNames) {
             const list = document.getElementById('resultList');
-            if(!db.schedule || !db.schedule.length) {
-                list.innerHTML = '<li class="p-6 text-center text-slate-400 text-sm">尚未生成赛程数据</li>'; 
+            if (!eventNames || !eventNames.length) {
+                list.innerHTML = '<li class="p-6 text-center text-slate-400 text-sm">尚未排定赛程项目</li>'; 
                 return;
             }
-            const eventSet = new Set();
-            db.schedule.forEach(s => {
-                if (s.eventName) {
-                    const cleanName = s.eventName.replace(/\s*\(场地\d+\)/g, '').replace(/\s*（场地\d+）/g, '').trim();
-                    eventSet.add(cleanName);
-                }
-            });
-
-            const eventNames = Array.from(eventSet).sort((a, b) => {
-                const baseA = a.replace(/[\(（].*?[\)）]/g, '').trim();
-                const baseB = b.replace(/[\(（].*?[\)）]/g, '').trim();
-                if (baseA === baseB) {
-                    const isPrelimA = a.includes('预赛');
-                    const isPrelimB = b.includes('预赛');
-                    if (isPrelimA && !isPrelimB) return -1;
-                    if (!isPrelimA && isPrelimB) return 1;
-                }
-                return baseA.localeCompare(baseB, 'zh-CN');
-            });
-
             list.innerHTML = eventNames.map(eName => `
                 <li class="p-4 flex justify-between items-center hover:bg-slate-50 cursor-pointer transition group" 
                     onclick="goToEventDetail('${eName}', false)">
@@ -307,12 +309,11 @@
             `).join('');
         }
 
-        function renderSubsequentStartLists() {
+        function renderSubsequentStartLists(finalEvents) {
             const list = document.getElementById('startList');
-            if(!db.schedule.length) return;
-            const finalEvents = [...new Set(db.schedule.filter(s => s.eventName.includes('决赛')).map(s => s.eventName))].sort();
-            if(finalEvents.length === 0) {
-                list.innerHTML = '<li class="p-6 text-center text-slate-400 text-sm">暂无产生后续赛次决赛的项目</li>'; return;
+            if (!finalEvents || !finalEvents.length) {
+                list.innerHTML = '<li class="p-6 text-center text-slate-400 text-sm">暂无决赛赛程项目</li>'; 
+                return;
             }
             list.innerHTML = finalEvents.map(eName => `
                 <li class="p-4 flex justify-between items-center hover:bg-purple-50 cursor-pointer transition group" 
