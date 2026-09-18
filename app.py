@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
+from flask_compress import Compress
 import sqlite3
 import json
 from datetime import datetime, timedelta
@@ -14,7 +15,6 @@ from waitress import serve
 import sys
 import threading
 import time
-
 # 1. 动态判断运行环境
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
@@ -31,6 +31,17 @@ app = Flask(
 )
 
 app.secret_key = 'sports_day_secret_key_2026'
+
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 604800
+# 🌟 3. 紧随 app 创建之后配置 Gzip 压缩参数并激活
+app.config['COMPRESS_MIMETYPES'] = [
+    'text/html', 'text/css', 'text/xml', 
+    'application/json', 'application/javascript'
+]
+app.config['COMPRESS_LEVEL'] = 6
+app.config['COMPRESS_MIN_SIZE'] = 500  # 大于 500 字节的响应自动开启压缩
+
+Compress(app)
 
 # 全局内存缓存字典初始化
 _cache_store = {}
@@ -204,6 +215,17 @@ def referee():
 def query_page():
     return render_template('query.html', title="成绩查询")
 # 统一认证 API
+@app.route('/api/check_session', methods=['GET'])
+def check_session():
+    role = session.get('user_role')
+    if role:
+        return jsonify({
+            'status': 'success',
+            'role': role,
+            'team_id': session.get('team_id'),
+            'team_name': session.get('team_name')
+        })
+    return jsonify({'status': 'fail', 'msg': '未登录'})
 @app.route('/api/auth', methods=['POST'])
 def api_auth():
     data = request.json or {}
@@ -1282,9 +1304,12 @@ def get_statistics():
         conn.close()
 
 @app.route('/api/get_data')
-@login_required('admin')
 def get_data_admin():
-    cache_key = "global_get_data"
+    # 1. 允许未登录/裁判/领队拉取，但只给脱敏公开数据
+    current_role = session.get('user_role')
+    
+    # 内存缓存键区分管理员与普通终端
+    cache_key = f"get_data_{current_role if current_role == 'admin' else 'public'}"
     cached = get_cached_data(cache_key, ttl_seconds=5)
     if cached is not None:
         return jsonify(cached)
@@ -1292,8 +1317,8 @@ def get_data_admin():
     conn = get_db_connection()
     c = conn.cursor()    
     try:
-        db_groups = [dict(r) for r in c.execute("SELECT * FROM cfg_groups").fetchall()]
-        db_teams = [dict(r) for r in c.execute("SELECT * FROM cfg_teams").fetchall()]
+        db_groups = [dict(r) for r in c.execute("SELECT id, name, prefix FROM cfg_groups").fetchall()]
+        db_teams = [dict(r) for r in c.execute("SELECT id, group_id, name, leader FROM cfg_teams").fetchall()]
         for t in db_teams: t['groupId'] = t['group_id']
         db_events = [dict(r) for r in c.execute("SELECT * FROM cfg_events").fetchall()]
         
@@ -1316,37 +1341,44 @@ def get_data_admin():
         except Exception as err: 
             print(f"读取编排表异常: {err}")
         
-        raw_regs = c.execute("SELECT * FROM registrations").fetchall()
-        athletes_map = {}
-        for r in raw_regs:
-            key = f"{r['team_id']}_{r['name']}"
-            if key not in athletes_map:
-                athletes_map[key] = { "id": r['id'], "teamId": int(r['team_id']) if r['team_id'] else 0, "name": r['name'], "gender": r['gender'], "bib": r['bib'] or "", "events": [], "relay_legs": {} }
-            
-            athletes_map[key]["events"].append(r['event_name'])
-            try:
-                if 'relay_leg' in r.keys() and r['relay_leg']:
-                    athletes_map[key]["relay_legs"][r['event_name']] = str(r['relay_leg'])
-            except Exception: pass
-            
-        config = {r['key']: r['value'] for r in c.execute("SELECT * FROM sys_config").fetchall()}
-        
+        # 基础公开数据包
         response_data = {
             "status": "success",
             "groups": db_groups, 
             "teams": db_teams, 
             "events": db_events, 
-            "athletes": list(athletes_map.values()), 
-            "config": config, 
             "schedule": db_schedule
         }
+
+        # 🌟 安全加固：只有已登录的管理员，才返回全量选手名单与系统核心敏感配置！
+        if current_role == 'admin':
+            raw_regs = c.execute("SELECT * FROM registrations").fetchall()
+            athletes_map = {}
+            for r in raw_regs:
+                key = f"{r['team_id']}_{r['name']}"
+                if key not in athletes_map:
+                    athletes_map[key] = { "id": r['id'], "teamId": int(r['team_id']) if r['team_id'] else 0, "name": r['name'], "gender": r['gender'], "bib": r['bib'] or "", "events": [], "relay_legs": {} }
+                athletes_map[key]["events"].append(r['event_name'])
+                try:
+                    if 'relay_leg' in r.keys() and r['relay_leg']:
+                        athletes_map[key]["relay_legs"][r['event_name']] = str(r['relay_leg'])
+                except Exception: pass
+            
+            config = {r['key']: r['value'] for r in c.execute("SELECT * FROM sys_config").fetchall()}
+            response_data["athletes"] = list(athletes_map.values())
+            response_data["config"] = config
+        else:
+            # 普通裁判/查询端仅开放公共标题，绝不透传其他系统设置
+            title_row = c.execute("SELECT value FROM sys_config WHERE key='title'").fetchone()
+            response_data["config"] = {"title": title_row[0] if title_row else "田径运动会"}
+            response_data["athletes"] = []
+
         set_cached_data(cache_key, response_data, ttl_seconds=5)
         return jsonify(response_data)
     except Exception as e:
         return jsonify({"status": "error", "msg": str(e)})
     finally:
         conn.close()
-
 @app.route('/api/save_relay_legs', methods=['POST'])
 def save_relay_legs():
     current_role = session.get('user_role')

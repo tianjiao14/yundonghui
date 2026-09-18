@@ -286,6 +286,7 @@
     }
 function selectRole(role) {
         currentRole = role;
+        localStorage.setItem('last_referee_role', role);
         document.getElementById('roleSelection').classList.add('hidden');
         document.getElementById('btnBack').classList.remove('hidden');
 
@@ -1594,6 +1595,28 @@ function initFieldAthletesData(data) {
             })
         });
     }
+// 🌟 页面加载时自动检查是否已经登录过
+document.addEventListener("DOMContentLoaded", function() {
+    fetch('/api/check_session?_t=' + Date.now())
+        .then(r => r.json())
+        .then(res => {
+            // 如果后端确认当前已是裁判或管理员登录状态
+            if (res.status === 'success' && (res.role === 'referee' || res.role === 'admin')) {
+                // 1. 自动隐藏登录框，展开控制台
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('mainConsoleSection').classList.remove('hidden');
+                document.getElementById('bodyWrap').classList.remove('bg-green-800');
+                document.getElementById('bodyWrap').classList.add('console-bg');
+
+                // 2. 尝试读取裁判之前停留的岗位（检录、发令、终点或田赛）
+                const savedRole = localStorage.getItem('last_referee_role') || 'checkin';
+                
+                initConsoleData();
+                selectRole(savedRole); // 自动进入上次所在的岗位界面
+            }
+        })
+        .catch(err => console.log("检查登录态异常:", err));
+});
 // 🌟 裁判手机端极速录入与震动反馈增强
 document.addEventListener('DOMContentLoaded', function() {
     const listContainer = document.getElementById('athleteList');
