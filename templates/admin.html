@@ -342,7 +342,7 @@
 </div>
 
             </div> 
-        </div> <!-- 正好两个闭合：分别闭合 .bg-white 和 #step-0 -->
+        </div> 
 
         <div id="step-2" class="step-panel h-full flex flex-col p-5 overflow-hidden hidden">
             <div class="flex justify-between items-center mb-3 shrink-0">
@@ -570,7 +570,7 @@
                     <table class="fixed-table text-left text-xs">
                         <thead class="sticky top-0 bg-gray-100 shadow-xs z-10">
                             <tr>
-                                <th style="width: 35px" class="text-center">序</th>
+                                <th style="width: 50px" class="text-center">序</th>
                                 <th style="width: 150px" class="text-left pl-2">所属组别</th>
                                 <th class="text-left pl-2">代表队名称</th>
                                 <th style="width: 100px" class="text-center">领队</th>
@@ -849,7 +849,7 @@
             </div>
             <div class="p-2 bg-yellow-50 border-b border-yellow-200 text-sm text-yellow-800 px-6 font-bold flex gap-2 items-center">
                 <span>💡 提示：</span>
-                <span>勾选前方选框，代表该组别【有资格打破该项纪录】。未勾选的纪录在算分时将被自动忽略。</span>
+                <span>勾选前方选框，代表该组别【有资格打破该项纪录】</span>
             </div>
             <div class="p-6 overflow-y-auto flex-1 bg-gray-50" id="recordModalContent">
                 </div>
@@ -954,9 +954,9 @@
     <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shrink-0">
         <div>
             <h2 class="text-xl font-black text-gray-800 flex items-center gap-2">
-                <span>📈</span> <span>全校体能素质分析与单项评估大屏</span>
+                <span>📈</span> <span>全校体能素质分析与单项评估</span>
             </h2>
-            <p class="text-xs text-gray-400 mt-0.5">按具体独立单项精准核算平均水平与极值表现，杜绝跨量程混算</p>
+            <p class="text-xs text-gray-400 mt-0.5"></p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <!-- 1. 年级/组别筛选 -->
@@ -997,7 +997,7 @@
     <div>
         <div class="text-xs font-black text-gray-700 mb-2 flex items-center justify-between">
             <span>🎯 各独立项目水平与极值档案</span>
-            <span class="text-[11px] text-gray-400">径赛用时越短越优，田赛远度数值越大越优</span>
+            <span class="text-[11px] text-gray-400"></span>
         </div>
         <div id="eventMetricsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
     </div>
@@ -3708,12 +3708,19 @@ if (data.config.dailyScheduleTimes) {
         });
     };
 
-    window.exportPasswordsToExcel = function() {
+   window.exportPasswordsToExcel = function() {
         if (currentPassData.length === 0) return alert("请先生成密码数据！");
         let csvContent = "\ufeff组别,代表队名称,登录密码\n";
-        currentPassData.forEach(item => { csvContent += `"${item.group}","${item.team}","${item.password}"\n`; });
+        currentPassData.forEach(item => { 
+            const pwd = String(item.password || '').padStart(6, '0');
+            // 🌟 核心技巧：使用 "\t015177" 强转纯文本，Excel 显示干净且不会丢开头的 0
+            csvContent += `"${item.group}","${item.team}","\t${pwd}"\n`; 
+        });
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `账号密码表(按组别)_${new Date().toLocaleDateString()}.csv`; link.click();
+        const link = document.createElement("a"); 
+        link.href = URL.createObjectURL(blob); 
+        link.download = `账号密码表(按组别)_${new Date().toLocaleDateString()}.csv`; 
+        link.click();
     };
 
     window.publishFinals = function() {
@@ -5408,9 +5415,22 @@ let rawAnalysisData = {};
         const metricsContainer = document.getElementById('eventMetricsContainer');
         let cardHtml = '';
 
-        activeEventNames.forEach(eName => {
+        const formatAnalysisVal = (val, isField) => {
+            if (val === null || val === undefined || val === '' || val <= 0) return '--';
+            const num = parseFloat(val);
+            if (isNaN(num) || num <= 0) return '--';
+            if (isField) return `${num}m`;
+            
+            if (num >= 60) {
+                const m = Math.floor(num / 60);
+                const s = (num % 60).toFixed(2);
+                return `${m}:${s < 10 ? '0' : ''}${s}`;
+            }
+            return `${num}s`;
+        };
+       activeEventNames.forEach(eName => {
             const item = allEvents[eName];
-            const unit = item.is_field ? 'm' : 's';
+            const isField = item.is_field;
 
             // 班级均值覆盖
             let customTeamAvg = null;
@@ -5428,17 +5448,17 @@ let rawAnalysisData = {};
             <div class="bg-white p-3.5 rounded-xl border border-gray-200 shadow-xs hover:shadow-md transition flex flex-col justify-between">
                 <div class="flex items-center justify-between pb-2 border-b border-gray-100">
                     <span class="font-black text-gray-800 text-sm flex items-center gap-1">
-                        <span>${item.is_field ? '🎯' : '🏃'}</span> ${eName}
+                        <span>${isField ? '🎯' : '🏃'}</span> ${eName}
                     </span>
-                    <span class="text-[10px] px-2 py-0.5 rounded font-bold ${item.is_field ? 'bg-orange-50 text-orange-700 border border-orange-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}">
-                        ${item.is_field ? '田赛/远度' : '径赛/用时'}
+                    <span class="text-[10px] px-2 py-0.5 rounded font-bold ${isField ? 'bg-orange-50 text-orange-700 border border-orange-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}">
+                        ${isField ? '田赛/远度' : '径赛/用时'}
                     </span>
                 </div>
 
                 ${customTeamAvg !== null ? `
                     <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-2 my-2 text-center">
                         <span class="text-[10px] text-indigo-700 font-bold block">${selTeam} 班级平均</span>
-                        <span class="font-mono font-black text-indigo-900 text-lg">${customTeamAvg}${unit}</span>
+                        <span class="font-mono font-black text-indigo-900 text-lg">${formatAnalysisVal(customTeamAvg, isField)}</span>
                     </div>
                 ` : ''}
 
@@ -5450,11 +5470,11 @@ let rawAnalysisData = {};
                             <span class="font-normal text-gray-400">${item.male_count}人</span>
                         </div>
                         <div class="font-mono font-black text-blue-700 text-base my-0.5">
-                            ${item.male_avg > 0 ? item.male_avg + unit : '--'}
+                            ${formatAnalysisVal(item.male_avg, isField)}
                         </div>
                         <div class="text-[10px] text-gray-500 flex justify-between border-t border-blue-100/60 pt-1 mt-1">
                             <span>最优极值:</span>
-                            <span class="font-mono font-bold text-blue-800">${item.male_best > 0 ? item.male_best + unit : '--'}</span>
+                            <span class="font-mono font-bold text-blue-800">${formatAnalysisVal(item.male_best, isField)}</span>
                         </div>
                     </div>` : ''}
 
@@ -5465,11 +5485,11 @@ let rawAnalysisData = {};
                             <span class="font-normal text-gray-400">${item.female_count}人</span>
                         </div>
                         <div class="font-mono font-black text-pink-700 text-base my-0.5">
-                            ${item.female_avg > 0 ? item.female_avg + unit : '--'}
+                            ${formatAnalysisVal(item.female_avg, isField)}
                         </div>
                         <div class="text-[10px] text-gray-500 flex justify-between border-t border-pink-100/60 pt-1 mt-1">
                             <span>最优极值:</span>
-                            <span class="font-mono font-bold text-pink-800">${item.female_best > 0 ? item.female_best + unit : '--'}</span>
+                            <span class="font-mono font-bold text-pink-800">${formatAnalysisVal(item.female_best, isField)}</span>
                         </div>
                     </div>` : ''}
                 </div>
@@ -5581,9 +5601,9 @@ let rawAnalysisData = {};
         tableBody.innerHTML = teams.map((t, idx) => {
             const cells = activeEventNames.map(k => {
                 const val = t.scores[k];
-                if (!val) return `<td class="p-2 text-center text-gray-300">--</td>`;
                 const isField = allEvents[k]?.is_field;
-                return `<td class="p-2 text-center font-mono font-bold text-gray-800">${val}${isField ? 'm' : 's'}</td>`;
+                const displayVal = formatAnalysisVal(val, isField);
+                return `<td class="p-2 text-center font-mono font-bold text-gray-800">${displayVal}</td>`;
             }).join('');
 
             return `
