@@ -1103,6 +1103,7 @@ def reset_system():
             msg = "✅ 运动员成绩与积分已全部清空！报名名单、编排与系统设置已完整保留。"
             
         conn.commit()
+        _cache_store.clear()
         return jsonify({"status": "success", "msg": msg})
     except Exception as e:
         conn.rollback()
@@ -1199,6 +1200,7 @@ def import_teams():
                 success_teams += 1
             
         conn.commit()
+        _cache_store.clear()
         return jsonify({"status": "success", "msg": f"✅ 导入成功！共处理 {success_groups} 个新组别，{success_teams} 个代表队！"})
     except Exception as e:
         if 'conn' in locals(): conn.rollback()
@@ -1376,14 +1378,15 @@ def get_statistics():
 
 @app.route('/api/get_data')
 def get_data_admin():
-    # 1. 允许未登录/裁判/领队拉取，但只给脱敏公开数据
     current_role = session.get('user_role')
     
-    # 内存缓存键区分管理员与普通终端
-    cache_key = f"get_data_{current_role if current_role == 'admin' else 'public'}"
-    cached = get_cached_data(cache_key, ttl_seconds=20)
-    if cached is not None:
-        return jsonify(cached)
+    # 🌟 核心修复：管理员后台坚决不走缓存，永远实时读取数据库最新数据！
+    # 仅当未登录或非管理员（如公网查询端、裁判端）拉取时，才走 20 秒内存缓存防刷
+    if current_role != 'admin':
+        cache_key = "get_data_public"
+        cached = get_cached_data(cache_key, ttl_seconds=20)
+        if cached is not None:
+            return jsonify(cached)
 
     conn = get_db_connection()
     c = conn.cursor()    
@@ -1444,7 +1447,9 @@ def get_data_admin():
             response_data["config"] = {"title": title_row[0] if title_row else "田径运动会"}
             response_data["athletes"] = []
 
-        set_cached_data(cache_key, response_data, ttl_seconds=20)
+        if current_role != 'admin':
+            set_cached_data("get_data_public", response_data, ttl_seconds=20)
+            
         return jsonify(response_data)
     except Exception as e:
         return jsonify({"status": "error", "msg": str(e)})
@@ -1569,6 +1574,7 @@ def save_config():
                 c.execute("REPLACE INTO sys_config (key, value) VALUES (?, ?)", (k, str(v)))
                 
         conn.commit()
+        _cache_store.clear()
         return jsonify({"status": "success", "msg": "✅ 配置及参赛单位已全量同步写入数据库！"})
     except Exception as e:
         conn.rollback()
