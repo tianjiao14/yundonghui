@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>{% if user_team_id %}运动会在线报名{% else %}领队报名登录{% endif %}</title>
-    <script src="{{ url_for('static', filename='js/tailwindcss.js') }}"></script>
+   <script src="https://cdn.bootcdn.net/ajax/libs/tailwindcss/3.4.1/tailwind.min.js"></script>
+<script>
+    window.tailwind || document.write('<script src="{{ url_for("static", filename="js/tailwindcss.js") }}"><\/script>');
+</script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
         .card { background: white; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; margin-bottom: 16px; overflow: hidden; }

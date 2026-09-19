@@ -4,8 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>田径运动会管理系统</title>
-    <script src="{{ url_for('static', filename='js/tailwindcss.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/chart.umd.js') }}"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/tailwindcss/3.4.1/tailwind.min.js"></script>
+<script>
+    window.tailwind || document.write('<script src="{{ url_for("static", filename="js/tailwindcss.js") }}"><\/script>');
+</script>
+<script src="https://cdn.bootcdn.net/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+    window.Chart || document.write('<script src="{{ url_for("static", filename="js/chart.umd.js") }}"><\/script>');
+</script>
     <style>
 /* 现代成绩卡片与移动端列表样式 */
 .modern-score-card {
@@ -1129,18 +1135,21 @@
         }
     };
 
-    function handleReset(mode) {
+   function handleReset(mode) {
         const msg = mode === 'all' 
-            ? '⚠️ 确定要完全初始化系统吗？\n所有项目配置、组别、班级、报名名单及成绩将全部被清空！' 
+            ? '⚠️ 确定要完全初始化系统吗？\n所有项目配置、组别、班级、报名名单及沙盘日程将全部被清空！' 
             : '🗑️ 确定要清空所有运动员的现有比赛成绩吗？\n\n【保留】：运动员报名名单、项目设置、组别班级及密码均不会丢失。\n【清空】：仅将录入的比赛成绩、名次和积分归零。';
             
         if (confirm(msg) && confirm('请再次确认此操作！')) {
-            // 🌟 核心修复 1：在向后端发送重置前，彻底粉碎本地浏览器存储的旧沙盘与时间表！
+            // 🌟 1. 彻底清空前端所有全局对象与内存沙盘
             if (mode === 'all') {
-                localStorage.removeItem('manual_schedule_map');
-                localStorage.removeItem('daily_schedule_times');
-                localStorage.removeItem('competition_end_date');
                 window.manualScheduleMap = {};
+                db.schedule = [];
+                db.events = [];
+                db.groups = [];
+                db.teams = [];
+                db.athletes = [];
+                localStorage.clear(); // 强力销毁一切本地残留
             }
 
             fetch('/api/reset_system', {
@@ -1151,11 +1160,8 @@
             .then(r => r.json())
             .then(res => {
                 alert(res.msg);
-                // 再次清空确保万无一失
-                if (mode === 'all') {
-                    localStorage.clear();
-                }
-                location.reload();
+                // 🌟 2. 避免普通刷新复用缓存，通过替换 href 强制纯净重载
+                window.location.href = '/admin?reset=' + Date.now();
             });
         }
     }
@@ -1588,7 +1594,10 @@ window.syncSandtableToServer = function() {
     window.renderManualScheduleGrid = function() {
         const grid = document.getElementById('manualScheduleGrid');
         if (!grid) return;
-        
+        if (!db.groups || db.groups.length === 0 || !db.events || db.events.length === 0) {
+            grid.innerHTML = '<div class="text-center py-16 text-gray-400 font-bold text-xs">📂 暂无赛程日程（系统已初始化）</div>';
+            return;
+        }
         const maxDays = window.competitionTotalDays || 2;
         let html = '';
 

@@ -1085,6 +1085,8 @@ def reset_system():
             c.execute("DELETE FROM cfg_teams")
             c.execute("DELETE FROM cfg_events")
             c.execute("DELETE FROM sqlite_sequence")
+            c.execute("DELETE FROM sys_config")         
+            c.execute("DELETE FROM system_settings")   
             msg = "系统已完成完全初始化，所有配置与数据已重置。"
         else:
             c.execute("""
