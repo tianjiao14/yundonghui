@@ -62,7 +62,7 @@
             </h1>
             <p class="text-xs text-gray-400 mt-0.5" id="displayGroupName">组别属性：正在同步...</p>
         </div>
-        <a href="/api/logout" onclick="return confirm('确定要退出当前领队账号吗？未提交的修改将不会生效')" class="bg-red-50 text-red-600 text-xs font-black px-3 py-2 rounded-xl border border-red-100 flex items-center gap-1 active:scale-95 transition">
+        <a href="/api/logout?from=team" onclick="return confirm('确定要退出当前领队账号吗？未提交的修改将不会生效')" class="bg-red-50 text-red-600 text-xs font-black px-3 py-2 rounded-xl border border-red-100 flex items-center gap-1 active:scale-95 transition">
             <span>退出</span>
         </a>
     </div>
@@ -226,54 +226,62 @@
             });
         };
         let isRegistrationClosed = false;
-        function checkDeadlineControl(config) {
-            if (!config || !config.regDeadline) return;
-            
-            const deadlineTime = new Date(config.regDeadline.replace('T', ' ')).getTime();
-            const nowTime = new Date().getTime();
-            
-            if (nowTime > deadlineTime) {
-                isRegistrationClosed = true;
-                
-                // 1. 展示醒目提示
-                const noticeEl = document.getElementById('deadlineNotice');
-                if (noticeEl) {
-                    noticeEl.className = "card p-3 bg-amber-50 border-amber-300 text-amber-900 mb-4";
-                    noticeEl.innerHTML = `
-                        <div class="flex items-center justify-between text-xs font-bold">
-                            <span class="flex items-center gap-1.5">
-                                <span>⏳</span>
-                                <span>报名通道已截止（名单已锁定）</span>
-                            </span>
-                            <span class="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full shadow-xs">
-                                🎽 接力棒次仍可调整
-                            </span>
-                        </div>
-                    `;
-                }
-
-                // 2. 锁定学生录入表单
-                const inputName = document.getElementById('stuName');
-                if (inputName) {
-                    inputName.disabled = true;
-                    inputName.placeholder = "报名已截止，无法添加";
-                }
-                const btnAdd = document.getElementById('btnAddAthlete');
-                if (btnAdd) {
-                    btnAdd.disabled = true;
-                    btnAdd.className = "w-full py-3 bg-gray-300 text-gray-500 rounded-xl font-bold cursor-not-allowed";
-                    btnAdd.innerText = "🔒 报名已截止";
-                }
-
-                // 3. 锁定底部批量提交按钮
-                const btnSubmitAll = document.getElementById('btnSubmitAll');
-                if (btnSubmitAll) {
-                    btnSubmitAll.disabled = true;
-                    btnSubmitAll.className = "bg-gray-300 text-gray-500 font-bold px-6 py-3 rounded-xl cursor-not-allowed text-sm";
-                    btnSubmitAll.innerText = "🔒 名单已锁定";
-                }
-            }
+       function checkDeadlineControl(config) {
+    if (!config || !config.regDeadline) return;
+    
+    // 兼容所有浏览器的 ISO 8601 格式解析
+    let deadlineStr = config.regDeadline.trim();
+    if (!deadlineStr.includes('T')) {
+        deadlineStr = deadlineStr.replace(' ', 'T');
+    }
+    const deadlineTime = new Date(deadlineStr).getTime();
+    const nowTime = Date.now();
+    
+    if (!isNaN(deadlineTime) && nowTime > deadlineTime) {
+        isRegistrationClosed = true;
+        
+        // 1. 展示醒目红底提示条
+        const noticeEl = document.getElementById('deadlineNotice');
+        if (noticeEl) {
+            noticeEl.className = "card p-3 bg-red-50 border-2 border-red-300 text-red-900 mb-4 block";
+            noticeEl.innerHTML = `
+                <div class="flex items-center justify-between text-xs font-black">
+                    <span class="flex items-center gap-1.5">
+                        <span class="text-base">🔒</span>
+                        <span>报名通道已截止（名单已全面锁定，禁止修改或新增）</span>
+                    </span>
+                    <span class="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded-full shadow-xs">已截止</span>
+                </div>
+            `;
         }
+
+        // 2. 彻底禁用学生录入表单和输入框
+        const inputName = document.getElementById('stuName');
+        if (inputName) {
+            inputName.disabled = true;
+            inputName.placeholder = "报名已截止，无法添加";
+        }
+        document.querySelectorAll('input[name="gender"]').forEach(r => r.disabled = true);
+        
+        const btnAdd = document.getElementById('btnAddAthlete');
+        if (btnAdd) {
+            btnAdd.disabled = true;
+            btnAdd.className = "w-full py-3 bg-gray-300 text-gray-500 rounded-xl font-bold cursor-not-allowed";
+            btnAdd.innerText = "🔒 报名已截止";
+        }
+
+        // 3. 锁定底部批量提交按钮
+        const btnSubmitAll = document.getElementById('btnSubmitAll');
+        if (btnSubmitAll) {
+            btnSubmitAll.disabled = true;
+            btnSubmitAll.className = "bg-gray-300 text-gray-500 font-bold px-6 py-3 rounded-xl cursor-not-allowed text-sm";
+            btnSubmitAll.innerText = "🔒 名单已锁定";
+        }
+
+        // 4. 重新渲染列表，移除所有“修改”和“删除”按钮
+        renderDraftList();
+    }
+}
        function loadExistingMembers() {
     fetch('/api/team_members/' + loginTeamId)
         .then(r => r.json())

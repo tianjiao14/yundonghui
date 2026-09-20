@@ -201,10 +201,14 @@
     #step-8:not(.hidden), #step-9:not(.hidden) { 
         display: block !important; 
         width: 100% !important;
-        body, .flex-1, main, #step-4, #step-5, #step-6, #scheduleOutput, #resultOutput {
         height: auto !important;
         overflow: visible !important;
         position: static !important;
+    }
+
+    body, .flex-1, main, #step-4, #step-5, #step-6, #scheduleOutput, #resultOutput {
+        height: auto !important;
+        overflow: visible !important;
     }
 
     /* 3. 强制解除容器高度限制，防止空白页及长表格被截断 */
@@ -358,10 +362,13 @@
                     <span class="text-xs bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full"></span>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button onclick="saveEventMatrixConfig()" class="px-5 h-8 bg-blue-600 text-white font-black rounded text-xs hover:bg-blue-700 shadow transition flex items-center gap-1">
-                        💾 保存所有项目配置
-                    </button>
-                </div>
+    <button id="btnBatchDelEvents" onclick="batchDeleteMatrixEvents()" class="hidden px-3 h-8 bg-red-600 text-white font-black rounded text-xs hover:bg-red-700 shadow transition flex items-center gap-1">
+        🗑️ 批量删除项目 (<span id="selEventCount">0</span>)
+    </button>
+    <button onclick="saveEventMatrixConfig()" class="px-5 h-8 bg-blue-600 text-white font-black rounded text-xs hover:bg-blue-700 shadow transition flex items-center gap-1">
+        💾 保存所有项目配置
+    </button>
+</div>
             </div>
 
             <div class="bg-blue-50 border border-blue-200 rounded p-3 mb-3 shrink-0 text-xs shadow-sm">
@@ -436,25 +443,29 @@
                     <table class="fixed-table text-left text-xs">
                         <thead class="sticky top-0 z-10 bg-gray-100 shadow-sm font-black border-b border-gray-200">
     <tr class="h-9 text-gray-700">
-        <th style="width: 40px" class="text-center">序号</th>
-        <th style="width: 130px">项目名称</th>
-        <th style="width: 90px">项目类型</th>
-        <th style="width: 80px" class="text-center">每组耗时</th>
-        <th style="width: 80px" class="text-center">每组人数</th>
-        <th style="width: 80px" class="text-center text-orange-600">录取名次</th>
-        <th style="width: 100px" class="text-center">赛次控制</th>
-        <th style="width: 160px" class="text-center text-indigo-700">适用组别</th>
-        <th style="width: 70px" class="text-center text-blue-700">选用</th>
-        <th style="width: 70px" class="text-center text-indigo-700">团体</th>
-        <th style="width: 80px" class="text-center text-amber-700">接力</th>
-        <th style="width: 70px" class="text-center text-purple-700">分道</th>
-        <th style="width: 35px" class="text-center text-teal-700">男</th>
-        <th style="width: 35px" class="text-center text-teal-700">女</th>
-        <th style="width: 35px" class="text-center text-teal-700">混</th>
-        <th style="width: 60px" class="text-center text-orange-700">场地数</th> 
-        <th style="width: 90px" class="text-center text-red-700">趣味项目</th>
-        <th style="width: 60px" class="text-center text-red-600">操作</th>
-    </tr>
+    <th style="width: 35px" class="text-center">
+        <input type="checkbox" id="chkAllEvents" onchange="toggleSelectAllEvents(this)" class="w-3.5 h-3.5 text-blue-600 rounded">
+    </th>
+    <th style="width: 40px" class="text-center">序号</th>
+    <th style="width: 120px">项目名称</th>
+    <th style="width: 80px">项目类型</th>
+    <th style="width: 70px" class="text-center">每组耗时</th>
+    <th style="width: 70px" class="text-center">每组人数</th>
+    <th style="width: 70px" class="text-center text-orange-600">录取名次</th>
+    <th style="width: 90px" class="text-center">赛次控制</th>
+    <th style="width: 150px" class="text-center text-indigo-700">适用组别</th>
+    <th style="width: 60px" class="text-center text-blue-700">选用</th>
+    <th style="width: 60px" class="text-center text-indigo-700">团体</th>
+    <th style="width: 60px" class="text-center text-amber-700">接力</th>
+    <th style="width: 60px" class="text-center text-purple-700">分道</th>
+    <th style="width: 30px" class="text-center text-teal-700">男</th>
+    <th style="width: 30px" class="text-center text-teal-700">女</th>
+    <th style="width: 30px" class="text-center text-teal-700">混</th>
+    <th style="width: 50px" class="text-center text-orange-700">场地</th> 
+    <th style="width: 70px" class="text-center text-red-700">趣味</th>
+    <th style="width: 80px" class="text-center text-gray-700">排序</th>
+    <th style="width: 50px" class="text-center text-red-600">操作</th>
+</tr>
 </thead>
                         <tbody id="matrixEventBody" class="divide-y divide-gray-100"></tbody>
                     </table>
@@ -528,14 +539,18 @@
             </div>
         </div>
 
-        <!-- 🚩 2. 代表队管理卡片（移动端默认主体展示） -->
+        <!-- 🚩 2. 代表队管理卡片（补回此包裹容器） -->
         <div class="w-full lg:w-2/3 bg-white rounded-xl border border-purple-200 flex flex-col shadow-xs overflow-hidden flex-1">
             <div class="p-3 bg-purple-50/70 border-b border-purple-100 flex justify-between items-center shrink-0">
-                <span class="font-black text-xs text-purple-900 flex items-center gap-1.5">
-                    <span>🚩</span> 代表队列表
-                </span>
                 <div class="flex items-center gap-2">
-                    <!-- 移动端添加代表队折叠开关 -->
+                    <span class="font-black text-xs text-purple-900 flex items-center gap-1.5">
+                        <span>🚩</span> 代表队列表
+                    </span>
+                    <button onclick="batchDeleteTeams()" class="hidden text-[10px] bg-red-600 text-white px-2 py-1 rounded font-bold hover:bg-red-700 transition" id="btnBatchDelTeams">
+                        🗑️ 批量删除 (<span id="selTeamCount">0</span>)
+                    </button>
+                </div>
+                <div class="flex items-center gap-2">
                     <button onclick="toggleAddTeamMobile()" class="lg:hidden text-[10px] bg-purple-600 text-white px-2 py-0.5 rounded font-bold active:scale-95 transition" id="btnAddTeamToggle">
                         ➕ 添加新队伍
                     </button>
@@ -543,7 +558,7 @@
                 </div>
             </div>
 
-            <!-- 添加代表队表单（移动端平时折叠，点击“➕ 添加新队伍”后滑出；大屏常显） -->
+            <!-- 添加代表队表单 -->
             <div id="teamAddFormWrapper" class="hidden lg:grid p-3 bg-gray-50 border-b border-gray-100 grid-cols-1 sm:grid-cols-6 gap-2 items-end shrink-0 transition-all">
                 <div>
                     <label class="text-[10px] font-bold text-gray-500 block mb-0.5">所属组别</label>
@@ -570,20 +585,24 @@
                 </button>
             </div>
 
-            <!-- 代表队列表主体（桌面端显示宽表格，移动端使用紧凑信息卡片） -->
+            <!-- 代表队列表主体 -->
             <div class="flex-1 overflow-y-auto custom-scrollbar">
                 <!-- 桌面端表格 -->
                 <div class="hidden md:block">
                     <table class="fixed-table text-left text-xs">
                         <thead class="sticky top-0 bg-gray-100 shadow-xs z-10">
                             <tr>
-                                <th style="width: 50px" class="text-center">序</th>
+                                <th style="width: 35px" class="text-center">
+                                    <input type="checkbox" id="chkAllTeams" onchange="toggleSelectAllTeams(this)" class="w-3.5 h-3.5 text-purple-600 rounded">
+                                </th>
+                                <th style="width: 45px" class="text-center">序</th>
                                 <th style="width: 150px" class="text-left pl-2">所属组别</th>
                                 <th class="text-left pl-2">代表队名称</th>
                                 <th style="width: 100px" class="text-center">领队</th>
                                 <th style="width: 100px" class="text-center">教练</th>
                                 <th style="width: 110px" class="text-center">电话</th>
-                                <th style="width: 80px" class="text-center">操作</th>
+                                <th style="width: 90px" class="text-center">调整顺序</th>
+                                <th style="width: 90px" class="text-center">操作</th>
                             </tr>
                         </thead>
                         <tbody id="teamListBody"></tbody>
@@ -642,7 +661,7 @@
             <div class="flex-1 bg-white border border-gray-200 rounded-xl flex flex-col shadow-xs overflow-hidden">
                 <div class="p-2.5 bg-gray-50 border-b font-bold text-xs text-gray-600 flex justify-between items-center">
                     <span>📋 已报名单</span>
-                    <button onclick="fetchLatestData()" class="text-blue-600 hover:underline flex items-center gap-0.5">🔄 刷新</button>
+                    <button onclick="refreshAthleteView(this)" class="text-blue-600 hover:underline flex items-center gap-0.5 font-bold text-xs">🔄 刷新</button>
                 </div>
                 <div class="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
                     <table class="w-full text-left text-xs border-collapse">
@@ -1394,7 +1413,7 @@ window.saveRegDeadline = function(val) {
         }
     });
 };
-    function saveData(silent = false) {
+   function saveData(silent = false) {
         const getVal = (id, def) => document.getElementById(id) ? document.getElementById(id).value : def;
         const config = {
             title: getVal('cfgTitle', ''),
@@ -1407,10 +1426,27 @@ window.saveRegDeadline = function(val) {
             regDeadline: getVal('cfgRegDeadline', '')
         };
         
+        // 🌟 核心：确保每个代表队都完整封装 leader, coach, phone, groupId
+        const formattedTeams = (db.teams || []).map(t => ({
+            id: t.id,
+            groupId: t.groupId || t.group_id,
+            group_id: t.groupId || t.group_id,
+            name: t.name,
+            leader: t.leader || '',
+            coach: t.coach || '',
+            phone: t.phone || ''
+        }));
+
         fetch('/api/save_config', {
             method: 'POST', 
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ config, groups: db.groups, teams: db.teams, events: db.events, athletes: db.athletes })
+            body: JSON.stringify({ 
+                config, 
+                groups: db.groups, 
+                teams: formattedTeams, 
+                events: db.events, 
+                athletes: db.athletes 
+            })
         }).then(r => r.json())
         .then(d => {
             if (!silent) alert(d.msg);
@@ -2074,10 +2110,12 @@ window.syncSandtableToServer = function() {
         teamBody.innerHTML = db.teams.map((t, i) => {
             const grp = db.groups.find(x => String(x.id) === String(t.groupId || t.group_id));
             const groupName = grp ? grp.name : '-';
-            const leaderName = t.leader || '';
 
-           return `
+            return `
             <tr class="border-b hover:bg-purple-50/30 transition text-center h-9">
+                <td class="text-center">
+                    <input type="checkbox" class="team-item-chk w-3.5 h-3.5 text-purple-600 rounded" value="${t.id}" onchange="onTeamSelectChange()">
+                </td>
                 <td class="text-gray-400 font-mono text-[11px]">${i + 1}</td>
                 <td class="text-left font-bold text-gray-700 pl-2 text-xs whitespace-nowrap" title="${groupName}">
                     ${groupName}
@@ -2093,6 +2131,10 @@ window.syncSandtableToServer = function() {
                 </td>
                 <td class="text-center text-xs font-mono font-medium text-gray-600 whitespace-nowrap">
                     ${t.phone || '-'}
+                </td>
+                <td class="text-center">
+                    <button onclick="moveTeamOrder(${i}, -1)" ${i === 0 ? 'disabled' : ''} class="px-1 py-0.5 bg-gray-100 hover:bg-purple-100 text-purple-700 disabled:opacity-30 rounded font-bold text-[10px]">▲</button>
+                    <button onclick="moveTeamOrder(${i}, 1)" ${i === db.teams.length - 1 ? 'disabled' : ''} class="px-1 py-0.5 bg-gray-100 hover:bg-purple-100 text-purple-700 disabled:opacity-30 rounded font-bold text-[10px]">▼</button>
                 </td>
                 <td class="text-center whitespace-nowrap">
                     <button class="text-blue-600 hover:text-blue-800 font-bold text-[11px] mr-1" onclick="editTeamItem(${t.id})">编辑</button>
@@ -2151,25 +2193,41 @@ if (teamListMobile) {
 function editTeamItem(teamId) {
     const team = db.teams.find(t => String(t.id) === String(teamId));
     if (!team) return;
-    document.getElementById('teamName').value = team.name;
+    
+    document.getElementById('teamName').value = team.name || '';
     document.getElementById('teamLeader').value = team.leader || '';
     document.getElementById('teamCoach').value = team.coach || '';
     document.getElementById('teamPhone').value = team.phone || '';
     
     const teamGroupSel = document.getElementById('teamGroupSelect');
-    if (teamGroupSel) teamGroupSel.value = team.groupId || team.group_id;
+    if (teamGroupSel) {
+        teamGroupSel.value = team.groupId || team.group_id;
+    }
 
-    const addBtn = document.querySelector('button[onclick="addTeam()"]');
+    const addBtn = document.querySelector('button[onclick*="addTeam"]');
     if (addBtn) {
         addBtn.innerText = "💾 保存修改";
         addBtn.className = "bg-emerald-600 text-white font-bold py-1.5 rounded text-xs hover:bg-emerald-700 transition active:scale-95 shadow-xs";
+        
         addBtn.onclick = function() {
-            team.name = document.getElementById('teamName').value.trim();
-            team.groupId = document.getElementById('teamGroupSelect').value;
-            team.group_id = team.groupId;
-            team.leader = document.getElementById('teamLeader').value.trim();
-            team.coach = document.getElementById('teamCoach').value.trim();
-            team.phone = document.getElementById('teamPhone').value.trim();
+            const newName = document.getElementById('teamName').value.trim();
+            const newGid = document.getElementById('teamGroupSelect').value;
+            const newLeader = document.getElementById('teamLeader').value.trim();
+            const newCoach = document.getElementById('teamCoach').value.trim();
+            const newPhone = document.getElementById('teamPhone').value.trim();
+
+            if (!newName) {
+                alert("代表队名称不能为空！");
+                return;
+            }
+
+            // 更新内存中对象的字段
+            team.name = newName;
+            team.groupId = newGid;
+            team.group_id = newGid;
+            team.leader = newLeader;
+            team.coach = newCoach;
+            team.phone = newPhone;
 
             addBtn.innerText = "➕ 添加代表队";
             addBtn.className = "bg-purple-600 text-white font-bold py-1.5 rounded text-xs hover:bg-purple-700 transition active:scale-95 shadow-xs";
@@ -2181,13 +2239,107 @@ function editTeamItem(teamId) {
             document.getElementById('teamPhone').value = '';
 
             renderAll();
-            saveData(true);
+            saveData(true); // 自动落盘保存并同步后端
         };
     }
 
+    const form = document.getElementById('teamAddFormWrapper');
+    if (form && form.classList.contains('hidden')) {
+        form.classList.remove('hidden');
+    }
     document.getElementById('teamLeader').focus();
 }
+// 项目上下移动
+window.moveMatrixEventOrder = function(index, dir) {
+    if (index + dir < 0 || index + dir >= window.PRESET_MATRIX_POOL.length) return;
+    const temp = window.PRESET_MATRIX_POOL[index];
+    window.PRESET_MATRIX_POOL[index] = window.PRESET_MATRIX_POOL[index + dir];
+    window.PRESET_MATRIX_POOL[index + dir] = temp;
+    renderEvents();
+};
 
+// 全选/反选项目
+window.toggleSelectAllEvents = function(master) {
+    document.querySelectorAll('.event-batch-chk').forEach(cb => cb.checked = master.checked);
+    onEventSelectChange();
+};
+
+window.onEventSelectChange = function() {
+    const checked = document.querySelectorAll('.event-batch-chk:checked');
+    const btn = document.getElementById('btnBatchDelEvents');
+    const cnt = document.getElementById('selEventCount');
+    if (btn && cnt) {
+        cnt.innerText = checked.length;
+        if (checked.length > 0) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    }
+};
+
+// 批量删除项目
+window.batchDeleteMatrixEvents = function() {
+    const checkedBoxes = Array.from(document.querySelectorAll('.event-batch-chk:checked'));
+    if (checkedBoxes.length === 0) return;
+    if (!confirm(`⚠️ 确定要批量删除勾选的【${checkedBoxes.length} 个项目】吗？`)) return;
+
+    const indicesToDelete = checkedBoxes.map(cb => parseInt(cb.value)).sort((a, b) => b - a);
+    indicesToDelete.forEach(idx => {
+        const item = window.PRESET_MATRIX_POOL[idx];
+        if (item) {
+            db.events = db.events.filter(e => e.name !== item.name);
+            window.PRESET_MATRIX_POOL.splice(idx, 1);
+        }
+    });
+
+    document.getElementById('chkAllEvents').checked = false;
+    renderEvents();
+    saveEventMatrixConfig(true); // 自动保存
+    onEventSelectChange();
+};
+// 代表队顺序调整
+window.moveTeamOrder = function(index, dir) {
+    if (index + dir < 0 || index + dir >= db.teams.length) return;
+    const temp = db.teams[index];
+    db.teams[index] = db.teams[index + dir];
+    db.teams[index + dir] = temp;
+    renderAll();
+    saveData(true); // 自动落盘到后端
+};
+
+// 全选/反选代表队
+window.toggleSelectAllTeams = function(master) {
+    document.querySelectorAll('.team-item-chk').forEach(cb => cb.checked = master.checked);
+    onTeamSelectChange();
+};
+
+window.onTeamSelectChange = function() {
+    const checked = document.querySelectorAll('.team-item-chk:checked');
+    const btn = document.getElementById('btnBatchDelTeams');
+    const cnt = document.getElementById('selTeamCount');
+    if (btn && cnt) {
+        cnt.innerText = checked.length;
+        if (checked.length > 0) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    }
+};
+
+// 批量删除代表队
+window.batchDeleteTeams = function() {
+    const checked = Array.from(document.querySelectorAll('.team-item-chk:checked')).map(cb => String(cb.value));
+    if (checked.length === 0) return;
+    if (!confirm(`⚠️ 确定要批量删除所选的【${checked.length} 个代表队】吗？`)) return;
+
+    db.teams = db.teams.filter(t => !checked.includes(String(t.id)));
+    document.getElementById('chkAllTeams').checked = false;
+    renderAll();
+    saveData(true);
+    onTeamSelectChange();
+};
 function editGroupItem(groupId) {
     const group = db.groups.find(g => String(g.id) === String(groupId));
     if (!group) return;
@@ -2324,13 +2476,31 @@ window.switchStep = function(stepId) {
     }
     
     function renderTeamTree() {
-        const tree = document.getElementById('teamTree'); tree.innerHTML = '';
-        db.groups.forEach(g => {
-            const d = document.createElement('div'); d.className=`tree-group ${viewMode==='group'&&currentId==g.id?'active-group':''}`;
-            d.innerHTML=`<span>${g.name}</span>`; d.onclick=()=>selectView('group',g.id,g.name); tree.appendChild(d);
-            db.teams.filter(t=>t.groupId==g.id).forEach(t=>{
-                const n=document.createElement('div'); n.className=`tree-team ${viewMode==='team'&&currentId==t.id?'active':''}`;
-                n.innerText=t.name; n.onclick=(e)=>{e.stopPropagation();selectView('team',t.id,t.name);}; tree.appendChild(n);
+        const tree = document.getElementById('teamTree'); 
+        if (!tree) return;
+        tree.innerHTML = '';
+        const sortedGroups = [...(db.groups || [])].sort((a, b) => {
+            return (a.name || '').localeCompare(b.name || '', 'zh-CN', { numeric: true });
+        });
+
+        sortedGroups.forEach(g => {
+            const d = document.createElement('div'); 
+            d.className = `tree-group ${viewMode==='group' && String(currentId)===String(g.id) ? 'active-group' : ''}`;
+            d.innerHTML = `<span>${g.name}</span>`; 
+            d.onclick = () => selectView('group', g.id, g.name); 
+            tree.appendChild(d);
+            const matchedTeams = (db.teams || []).filter(t => String(t.groupId || t.group_id) === String(g.id));
+            matchedTeams.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh-CN', { numeric: true }));
+
+            matchedTeams.forEach(t => {
+                const n = document.createElement('div'); 
+                n.className = `tree-team ${viewMode==='team' && String(currentId)===String(t.id) ? 'active' : ''}`;
+                n.innerText = t.name; 
+                n.onclick = (e) => {
+                    e.stopPropagation();
+                    selectView('team', t.id, t.name);
+                }; 
+                tree.appendChild(n);
             });
         });
     }
@@ -3215,8 +3385,8 @@ function exportWord() {
         const blob = new Blob(['\ufeff' + html], { type: 'application/msword' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `竞赛分组名单_${new Date().toLocaleDateString()}.doc`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
     }
 
-    window.fetchLatestData = function() {
-        fetch('/api/get_data')
+   window.fetchLatestData = function() {
+        fetch('/api/get_data?_t=' + Date.now())
         .then(r => r.json())
         .then(data => {
             if (data.config) {
@@ -3268,7 +3438,6 @@ function exportWord() {
             if (data.athletes) { db.athletes = data.athletes; }
             if (data.schedule) { db.schedule = data.schedule; }  
 
-            // 🌟 核心优化区域：完全以数据库项目为主，不再把删除的项目从预设池复活
             if (data.events && data.events.length > 0) {
                 db.events = data.events.map(e => {
                     const rawLimit = e.limit_count !== undefined ? e.limit_count : e.limit;
@@ -3292,7 +3461,7 @@ function exportWord() {
                     };
                 });
 
-                // 🌟 用数据库现有配置覆盖前端展示池
+                // 用数据库现有配置覆盖前端展示池
                 window.PRESET_MATRIX_POOL = db.events.map(e => ({
                     name: e.name,
                     type: e.type,
@@ -4079,7 +4248,7 @@ window.closeTeamScoreDetailModal = function() {
         { name: "200米", type: "径赛", duration: 3, limit: 8, qualifyCount: 8, hasPrelim: true, isRelay: false, needLane: true, isFun: false },
         { name: "400米", type: "径赛", duration: 4, limit: 8, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: true, isFun: false },
         { name: "800米", type: "径赛", duration: 5, limit: 12, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
-        { name: "1500米", type: "径赛", duration: 8, limit: 20, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
+        { name: "1000米", type: "径赛", duration: 8, limit: 12, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
         { name: "3000米", type: "径赛", duration: 12, limit: 24, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
         { name: "100米栏", type: "径赛", duration: 4, limit: 8, qualifyCount: 8, hasPrelim: true, isRelay: false, needLane: true, isFun: false },
         { name: "110米栏", type: "径赛", duration: 4, limit: 8, qualifyCount: 8, hasPrelim: true, isRelay: false, needLane: true, isFun: false },
@@ -4089,8 +4258,7 @@ window.closeTeamScoreDetailModal = function() {
         { name: "跳远", type: "田赛", duration: 15, limit: 15, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
         { name: "三级跳远", type: "田赛", duration: 15, limit: 15, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
         { name: "铅球", type: "田赛", duration: 15, limit: 15, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false },
-        { name: "实心球", type: "田赛", duration: 15, limit: 15, qualifyCount: 8, hasPrelim: false, isRelay: false, needLane: false, isFun: false }
-    ];
+         ];
 
     window.appendCustomToMatrix = function() {
         const name = document.getElementById('customEventName').value.trim(); 
@@ -4204,7 +4372,10 @@ window.deleteMatrixEvent = function(index) {
 
             const tr = document.createElement('tr'); 
             tr.className = "h-9 hover:bg-blue-50/50 transition-colors text-xs";
-            tr.innerHTML = `
+           tr.innerHTML = `
+                <td class="text-center">
+                    <input type="checkbox" class="event-batch-chk w-3.5 h-3.5 text-blue-600 rounded" value="${index}" onchange="onEventSelectChange()">
+                </td>
                 <td class="text-center font-bold text-gray-400">${index + 1}</td> 
                 <td class="font-black text-gray-800 text-sm">${preset.name}</td> 
                 <td> <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${preset.type.includes('趣味') ? 'bg-amber-100 text-amber-800 border border-amber-300' : (preset.type === '径赛' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-orange-50 text-orange-700 border border-orange-200')}"> ${preset.type} </span> </td> 
@@ -4222,6 +4393,10 @@ window.deleteMatrixEvent = function(index) {
                 <td class="text-center"> <input type="checkbox" id="gen_x_${index}" ${isMixedChecked} class="w-3.5 h-3.5 rounded text-teal-600 border-gray-300 cursor-pointer"> </td>
                 <td class="text-center bg-orange-50/20"> <input type="number" id="ven_${index}" value="${currentVenueCount}" min="1" class="w-10 h-5 border border-orange-300 rounded text-center text-orange-700 font-bold outline-none"> </td> 
                 <td class="text-center bg-red-50/20 text-red-700"> <input type="checkbox" id="fun_${index}" ${isFunChecked} class="w-4 h-4 rounded text-red-600 border-gray-300 cursor-pointer"> </td>
+                <td class="text-center whitespace-nowrap">
+                    <button type="button" onclick="moveMatrixEventOrder(${index}, -1)" ${index === 0 ? 'disabled' : ''} class="px-1 py-0.5 bg-gray-100 hover:bg-blue-100 text-blue-700 disabled:opacity-30 rounded font-bold text-[10px]">▲</button>
+                    <button type="button" onclick="moveMatrixEventOrder(${index}, 1)" ${index === window.PRESET_MATRIX_POOL.length - 1 ? 'disabled' : ''} class="px-1 py-0.5 bg-gray-100 hover:bg-blue-100 text-blue-700 disabled:opacity-30 rounded font-bold text-[10px]">▼</button>
+                </td>
                 <td class="text-center">
                     <button type="button" onclick="deleteMatrixEvent(${index})" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-1.5 py-0.5 rounded text-[11px] font-bold transition active:scale-95">
                         删除
@@ -5860,6 +6035,74 @@ window.toggleAddTeamMobile = function() {
     } else {
         if (btn) btn.innerText = '➕ 添加新队伍';
     }
+};
+window.refreshAthleteView = function(btnEl) {
+    if (btnEl) {
+        btnEl.innerText = "⏳ 正在同步...";
+        btnEl.disabled = true;
+    }
+
+    // 🌟 1. 加上强力防缓存随机数，强迫后端直接查 SQLite 数据库
+    fetch('/api/get_data?_nocache=' + Date.now())
+        .then(r => r.json())
+        .then(data => {
+            if (!data || data.status !== 'success') {
+                throw new Error("获取数据失败");
+            }
+
+            // 🌟 2. 覆盖前端全局数据
+            db.groups = data.groups || [];
+            db.teams = data.teams || [];
+            db.athletes = data.athletes || [];
+
+            // 🌟 3. 重新渲染左侧队伍树
+            renderTeamTree();
+
+            // 🌟 4. 获取当前正在查看的代表队 ID
+            let activeTeamId = currentId || currentSelectedTeamId;
+
+            // 如果当前没选队伍，默认锁定第一个队伍
+            if (!activeTeamId && db.teams.length > 0) {
+                activeTeamId = db.teams[0].id;
+                currentId = activeTeamId;
+                viewMode = 'team';
+            }
+
+            // 🌟 5. 关键：强制按当前队伍重绘报名名单列表与复选框
+            renderAthleteList();
+
+            // 🌟 6. 更新左侧选中的队伍标题与高亮状态
+            const curTeam = db.teams.find(t => String(t.id) === String(activeTeamId));
+            if (curTeam) {
+                const titleEl = document.getElementById('currentViewTitle');
+                if (titleEl) {
+                    titleEl.innerText = curTeam.name;
+                }
+                document.querySelectorAll('.tree-team').forEach(el => el.classList.remove('active'));
+                const activeEl = document.querySelector(`.tree-team[onclick*="${activeTeamId}"]`);
+                if (activeEl) activeEl.classList.add('active');
+            }
+
+            // 🌟 7. 按钮给出生动反馈，提示共同步到多少人
+            if (btnEl) {
+                const currentTeamAthletes = db.athletes.filter(a => String(a.teamId) === String(activeTeamId));
+                btnEl.innerText = `✔ 已同步(${currentTeamAthletes.length}人)`;
+                setTimeout(() => {
+                    btnEl.innerText = "🔄 刷新";
+                    btnEl.disabled = false;
+                }, 1200);
+            }
+        })
+        .catch(err => {
+            console.error("同步失败:", err);
+            if (btnEl) {
+                btnEl.innerText = "❌ 同步失败";
+                setTimeout(() => {
+                    btnEl.innerText = "🔄 刷新";
+                    btnEl.disabled = false;
+                }, 1500);
+            }
+        });
 };
 </script>
 </body>

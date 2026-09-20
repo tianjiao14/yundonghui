@@ -285,8 +285,17 @@ def api_auth():
 
 @app.route('/api/logout')
 def logout():
+    from_role = request.args.get('from', '')
     role = session.get('user_role')
     session.clear()
+    
+    if from_role == 'team':
+        return redirect('/bm')
+    if from_role == 'referee':
+        return redirect('/referee/login')
+    if from_role == 'admin':
+        return redirect('/admin/login')
+
     if role == 'admin':
         return redirect('/admin/login')
     elif role == 'referee':
@@ -1432,7 +1441,7 @@ def get_data_admin():
     c = conn.cursor()    
     try:
         db_groups = [dict(r) for r in c.execute("SELECT id, name, prefix FROM cfg_groups").fetchall()]
-        db_teams = [dict(r) for r in c.execute("SELECT id, group_id, name, leader FROM cfg_teams").fetchall()]
+        db_teams = [dict(r) for r in c.execute("SELECT id, group_id, name, leader, coach, phone FROM cfg_teams").fetchall()]
         for t in db_teams: t['groupId'] = t['group_id']
         db_events = [dict(r) for r in c.execute("SELECT * FROM cfg_events").fetchall()]
         
@@ -1576,7 +1585,7 @@ def save_config():
                     VALUES (?, ?, ?, ?, ?, ?)
                 """, (
                     str(t['id']), str(t.get('groupId') or t.get('group_id')), 
-                    t['name'], t.get('leader', ''), t.get('coach', ''), t.get('phone', '')
+                    t['name'], t.get('leader', '') or '', t.get('coach', '') or '', t.get('phone', '') or ''
                 ))
                   
         if 'events' in data:
@@ -1819,16 +1828,20 @@ def batch_submit_team_athletes():
     try:
         c.execute("BEGIN IMMEDIATE")
         
-        # 1. 报名截止时间校验
+       # 1. 报名截止时间校验
         deadline_row = c.execute("SELECT value FROM sys_config WHERE key='regDeadline'").fetchone()
         if deadline_row and deadline_row[0]:
             try:
-                deadline_str = deadline_row[0].replace('T', ' ')
-                deadline_dt = datetime.strptime(deadline_str, "%Y-%m-%d %H:%M")
-                if datetime.now() > deadline_dt:
-                    return jsonify({"status": "error", "msg": f"报名通道已关闭！截止时间为：{deadline_row[0].replace('T', ' ')}"})
+                raw_dl = str(deadline_row[0]).strip().replace('T', ' ')
+                if len(raw_dl) == 16:
+                    raw_dl += ':00'
+                cur_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                if cur_time > raw_dl:
+                    conn.close()
+                    return jsonify({"status": "error", "msg": f"报名通道已关闭！截止时间为：{raw_dl}"}), 403
             except Exception:
                 pass
+	
 
         # 2. 读取系统各项参数配置（带默认保底）
         def get_cfg_val(key, default):
@@ -2368,34 +2381,37 @@ def manage_team_passwords():
     conn = get_db_connection()
     c = conn.cursor()
 
-    if action == 'generate':
-        teams = set()
-        try:
-            for r in c.execute("SELECT name FROM cfg_teams").fetchall(): teams.add(r['name'])
-            for r in c.execute("SELECT DISTINCT team_name FROM registrations WHERE team_name != ''").fetchall(): teams.add(r['team_name'])
-            
-            for team in teams:
-                if not c.execute("SELECT 1 FROM team_auth WHERE team_name=?", (team,)).fetchone():
+    try:
+        c.execute("BEGIN IMMEDIATE")
+        c.execute("""
+            DELETE FROM team_auth 
+            WHERE team_name NOT IN (SELECT name FROM cfg_teams WHERE name != '' AND name IS NOT NULL)
+        """)
+        if action == 'generate':
+            current_teams = [r['name'] for r in c.execute("SELECT name FROM cfg_teams WHERE name != '' AND name IS NOT NULL").fetchall()]
+            for team in current_teams:
+                if not c.execute("SELECT 1 FROM team_auth WHERE team_name = ?", (team,)).fetchone():
                     new_pass = ''.join(random.choices(string.digits, k=6))
                     c.execute("INSERT INTO team_auth (team_name, password) VALUES (?, ?)", (team, new_pass))
-            conn.commit()
-        except Exception:
-            pass
-
+        
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"同步代表队密码库异常: {e}")
     query = """
         SELECT 
             IFNULL(g.name, '未分配组别') as group_name, 
-            ta.team_name, 
-            ta.password
-        FROM team_auth ta
-        LEFT JOIN cfg_teams t ON ta.team_name = t.name
-        LEFT JOIN cfg_groups g ON t.group_id = g.id
-        ORDER BY g.name, ta.team_name
+            t.name as team_name, 
+            IFNULL(ta.password, '------') as password
+        FROM cfg_teams t
+        JOIN cfg_groups g ON t.group_id = g.id
+        LEFT JOIN team_auth ta ON t.name = ta.team_name
+        ORDER BY g.name ASC, t.name ASC
     """
     rows = c.execute(query).fetchall()
     conn.close()
+    
     return jsonify([{'group': r['group_name'], 'team': r['team_name'], 'password': r['password']} for r in rows])
-
 @app.route('/api/generate_finals_list', methods=['POST'])
 def generate_finals_list():
     data = request.json or {}
@@ -2769,7 +2785,7 @@ def init_db():
     conn = get_db_connection()
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS cfg_groups (id INTEGER PRIMARY KEY, name TEXT, prefix TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS cfg_teams (id INTEGER PRIMARY KEY, group_id INTEGER, name TEXT, leader TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS cfg_teams (id INTEGER PRIMARY KEY, group_id INTEGER, name TEXT, leader TEXT, coach TEXT DEFAULT '', phone TEXT DEFAULT '')''')
     c.execute('''CREATE TABLE IF NOT EXISTS cfg_events (id INTEGER PRIMARY KEY, name TEXT, type TEXT, gender TEXT, score_rule TEXT, record TEXT, record_bonus TEXT, is_double_score BOOLEAN, need_lane BOOLEAN, has_prelim BOOLEAN, is_relay BOOLEAN, limit_count INTEGER, allowed_groups TEXT DEFAULT '')''')
     c.execute('''CREATE TABLE IF NOT EXISTS sys_config (key TEXT PRIMARY KEY, value TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS team_auth (id INTEGER PRIMARY KEY AUTOINCREMENT, team_name TEXT, password TEXT)''')
