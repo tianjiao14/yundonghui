@@ -1440,7 +1440,7 @@ def get_data_admin():
     conn = get_db_connection()
     c = conn.cursor()    
     try:
-        db_groups = [dict(r) for r in c.execute("SELECT id, name, prefix FROM cfg_groups").fetchall()]
+        db_groups = [dict(r) for r in c.execute("SELECT id, name, prefix FROM cfg_groups ORDER BY id ASC").fetchall()]
         db_teams = [dict(r) for r in c.execute("SELECT id, group_id, name, leader, coach, phone FROM cfg_teams").fetchall()]
         for t in db_teams: t['groupId'] = t['group_id']
         db_events = [dict(r) for r in c.execute("SELECT * FROM cfg_events").fetchall()]
