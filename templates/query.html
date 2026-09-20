@@ -525,7 +525,7 @@
                             const scored = groupData.filter(i => isRealScore(i.score));
                             const abandoned = groupData.filter(i => !isRealScore(i.score) && (String(i.score || '').includes('弃权') || String(i.checked_in) === '2' || String(i.score || '').includes('DNS')));
 
-                            // 🌟 3. 未全部完赛时，严格锁定综合排名结果，不排第1名也不给q标签
+                           // 🌟 3. 未全部完赛时，严格锁定综合排名结果，不排第1名也不给q标签
                             if (roundStatus === '预赛' && !isAllHeatsFinished) {
                                 html += `
                                 <div class="px-4 py-3 font-extrabold text-orange-700 bg-orange-50 border-y border-orange-100 mt-2 flex items-center justify-between">
@@ -537,10 +537,20 @@
                                     <div class="text-xs text-slate-400">各小组全部比完后，系统将自动汇总所有道次用时，公布最终总排名及录取名单(q)。</div>
                                 </div>`;
                             } else if (scored.length > 0 || abandoned.length > 0) {
+
+                                // 👇👇👇 你的代码就是替换在此处 👇👇👇
+                                const isFun = (eventName.includes('趣味') || ['绕杆', '引体', '跳绳', '仰卧'].some(k => eventName.includes(k)));
+                                let funIsTiming = ['绕杆', '跑', '接力', '计时', '障碍', '运球'].some(k => eventName.includes(k));
+
                                 scored.sort((a,b) => {
-                                    const sa = parseTimeVal(a.score); const sb = parseTimeVal(b.score);
+                                    const sa = parseTimeVal(a.score); 
+                                    const sb = parseTimeVal(b.score);
+                                    if (isFun) {
+                                        return funIsTiming ? (sa - sb) : (sb - sa);
+                                    }
                                     return isField ? (sb - sa) : (sa - sb);
                                 });
+                                // 👆👆👆 替换结束 👆👆👆
 
                                 html += `
                                 <div class="px-4 py-3 font-extrabold text-orange-700 bg-orange-50 border-y border-orange-100 mt-2 flex items-center justify-between">

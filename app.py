@@ -510,13 +510,36 @@ def recalculate_all_points():
                 if cfg:
                     has_prelim = (to_bool_str(cfg.get('has_prelim') or cfg.get('hasPrelim')) == '1')
 
-                # 判定是否为田赛
+               # 判定是否为趣味项目
+                is_fun = False
+                if cfg and (cfg.get('type') == '趣味' or cfg.get('type') == '趣味项目' or to_bool_str(cfg.get('is_fun')) == '1'):
+                    is_fun = True
+                elif '趣味' in core_name:
+                    is_fun = True
+
+                # 判定是否为田赛（趣味项目不进入田赛）
                 is_field = False
-                field_keywords = ['跳', '投', '掷', '铅球', '实心球', '标枪', '铁饼', '球', '引体', '仰卧']
-                if cfg and (cfg.get('type') == '田赛' or '田' in str(cfg.get('type'))): 
-                    is_field = True
-                elif any(kwd in core_name for kwd in field_keywords): 
-                    is_field = True
+                if not is_fun:
+                    field_keywords = ['跳', '投', '掷', '铅球', '实心球', '标枪', '铁饼', '球', '引体', '仰卧']
+                    if cfg and (cfg.get('type') == '田赛' or '田' in str(cfg.get('type'))): 
+                        is_field = True
+                    elif any(kwd in core_name for kwd in field_keywords): 
+                        is_field = True
+
+                # 判定趣味项目是计时还是计数
+                # 计时型：越少越好 (升序)；计数型：越多越好 (降序)
+                fun_is_timing = False
+                if is_fun:
+                    timing_keywords = ['绕杆', '跑', '接力', '计时', '障碍', '运球', '运球跑', '滑行', '冲刺']
+                    counting_keywords = ['引体', '向上', '跳绳', '踢毽', '仰卧', '起坐', '投篮', '穿梭', '计数', '个数', '定点']
+                    if any(k in core_name for k in timing_keywords):
+                        fun_is_timing = True
+                    elif any(k in core_name for k in counting_keywords):
+                        fun_is_timing = False
+                    else:
+                        # 根据录入的成绩格式动态推断：带冒号或小数点后有位数的优先当计时
+                        sample_scores = [r['score'] for r in all_data_rows if r['score']]
+                        fun_is_timing = any(':' in str(s) or '：' in str(s) for s in sample_scores)
 
                 # 判定是否为团体项目
                 is_team_event = False
@@ -572,7 +595,12 @@ def recalculate_all_points():
                         best_score_map[key] = val
                     else:
                         old_val = best_score_map[key]
-                        is_better = (val > old_val) if is_field else (val < old_val)
+                        if is_fun:
+                            # 趣味计时：越少越好；趣味计数：越多越好
+                            is_better = (val < old_val) if fun_is_timing else (val > old_val)
+                        else:
+                            # 传统田径逻辑不变
+                            is_better = (val > old_val) if is_field else (val < old_val)
                         if is_better: 
                             best_score_map[key] = val
 
@@ -614,7 +642,14 @@ def recalculate_all_points():
                     for item in final_list:
                         item['_hj_tie'] = parse_high_jump_tie_breaker(item['score'], item.get('attempts_json', ''))
                     final_list.sort(key=lambda x: x['_hj_tie'], reverse=True)
+                elif is_fun:
+                    # 🌟 趣味项目专属排序逻辑：
+                    # 计时型：升序（越少越好，reverse=False）
+                    # 计数型：降序（越多越好，reverse=True）
+                    final_list = [item for item in unique_entries.values() if item['_val'] > 0]
+                    final_list.sort(key=lambda x: x['_val'], reverse=(not fun_is_timing))
                 else:
+                    # 传统田赛/径赛保持原逻辑完全不动
                     final_list = [item for item in unique_entries.values() if item['_val'] > 0]
                     final_list.sort(key=lambda x: x['_val'], reverse=is_field)
 
@@ -653,7 +688,10 @@ def recalculate_all_points():
                             rec_val = parse_time_to_seconds(rec.get('val'))
                             r_bonus = int(rec.get('bonus') or 0)
                             if rec_val is not None and rec_val > 0 and best_val > 0:
-                                is_broken = (best_val > rec_val) if is_field else (best_val < rec_val)
+                                if is_fun:
+                                    is_broken = (best_val < rec_val) if fun_is_timing else (best_val > rec_val)
+                                else:
+                                    is_broken = (best_val > rec_val) if is_field else (best_val < rec_val)
                                 if is_broken and r_bonus >= max_bonus:
                                     max_bonus = r_bonus
                     p += max_bonus
@@ -2143,24 +2181,46 @@ def submit_score():
         gender = row['gender'] if 'gender' in row.keys() else ''
         formatted_score = raw_val
 
-        # 2. 田径成绩格式化
+       # 2. 成绩格式化（田径保持原逻辑不变，独立增加趣味项目）
         clean_core = re.sub(r"\(.*?\)|（.*?）", "", event_name).strip()
         field_keywords = ['跳', '投', '掷', '铅球', '实心球', '标枪', '铁饼', '球', '引体', '仰卧']
-        is_field = False
         
-        cfg = c.execute("SELECT type FROM cfg_events WHERE name=?", (clean_core,)).fetchone()
-        if cfg and (cfg['type'] == '田赛' or '田' in str(cfg['type'])): 
-            is_field = True
-        elif any(kwd in event_name for kwd in field_keywords): 
-            is_field = True
+        cfg_row = c.execute("SELECT type, is_fun FROM cfg_events WHERE name=?", (clean_core,)).fetchone()
+        cfg = dict(cfg_row) if cfg_row else {}
+        is_fun = False
+        if cfg:
+            evt_type = str(cfg.get('type') or '')
+            is_fun_flag = str(cfg.get('is_fun') or '')
+            if '趣味' in evt_type or is_fun_flag in ['1', 'true', 'True']:
+                is_fun = True
+        elif '趣味' in event_name:
+            is_fun = True
+
+        is_field = False
+        if not is_fun:
+            if cfg and (cfg['type'] == '田赛' or '田' in str(cfg['type'])): 
+                is_field = True
+            elif any(kwd in event_name for kwd in field_keywords): 
+                is_field = True
 
         if raw_val:
-            if is_field:
+            if is_fun:
+                # 趣味项目：如果输入含有冒号或双点，按径赛计时格式化；否则纯计数直接保存
+                if ':' in raw_val or '：' in raw_val:
+                    formatted_score = raw_val.replace('：', ':')
+                elif raw_val.count('.') == 2:
+                    parts = raw_val.split('.')
+                    formatted_score = f"{parts[0]}:{parts[1]}.{parts[2]}"
+                else:
+                    # 纯数值计数（如引体向上 25 个），直接录入
+                    formatted_score = raw_val.strip()
+            elif is_field:
                 formatted_score = raw_val.replace(':', '.').replace('：', '.')
                 if formatted_score.count('.') > 1:
                     parts = formatted_score.split('.')
                     formatted_score = f"{parts[0]}.{parts[1]}"
             else:
+                # 径赛保持原有逻辑
                 if ':' in raw_val or '：' in raw_val:
                     formatted_score = raw_val.replace('：', ':')
                 elif raw_val.count('.') == 2:

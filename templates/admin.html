@@ -201,6 +201,7 @@
     #step-8:not(.hidden), #step-9:not(.hidden) { 
         display: block !important; 
         width: 100% !important;
+        body, .flex-1, main, #step-4, #step-5, #step-6, #scheduleOutput, #resultOutput {
         height: auto !important;
         overflow: visible !important;
         position: static !important;
@@ -884,7 +885,7 @@
     </div>
 </div>
 <!-- 兼项冲突检测结果弹窗 -->
-<div id="conflictModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden z-[120] flex items-center justify-center p-4">
+<div id="conflictModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-[120] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-gray-100 overflow-hidden flex flex-col max-h-[85vh]">
         <div class="bg-gradient-to-r from-rose-600 to-red-600 p-4 text-white flex justify-between items-center shrink-0">
             <div class="flex items-center gap-2">
@@ -902,6 +903,28 @@
         </div>
         <div class="p-3 bg-gray-50 border-t border-gray-100 flex justify-end shrink-0">
             <button onclick="closeConflictModal()" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold transition">关 闭</button>
+        </div>
+    </div>
+</div>
+<!-- 🌟 班级详细得分明细弹窗 -->
+<div id="teamScoreDetailModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-[150] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-gray-100 overflow-hidden flex flex-col max-h-[85vh]">
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 text-white flex justify-between items-center shrink-0">
+            <div class="flex items-center gap-2">
+                <span class="text-xl">🏆</span>
+                <h3 class="font-black text-base tracking-wide" id="modalTeamDetailTitle">班级得分明细</h3>
+            </div>
+            <button onclick="closeTeamScoreDetailModal()" class="text-white/80 hover:text-white font-bold text-2xl leading-none">&times;</button>
+        </div>
+        <div class="p-3 bg-blue-50 border-b border-blue-100 text-xs text-blue-800 font-bold flex justify-between items-center shrink-0">
+            <span id="modalTeamGroupSubtitle">组别：--</span>
+            <span id="modalTeamTotalSubtitle" class="bg-blue-600 text-white px-2 py-0.5 rounded-full font-mono font-bold">总分: 0</span>
+        </div>
+        <div class="overflow-y-auto flex-1 p-4" id="modalTeamDetailContent">
+            <!-- 动态填充项目明细表格 -->
+        </div>
+        <div class="p-3 bg-gray-50 border-t border-gray-100 flex justify-end shrink-0">
+            <button onclick="closeTeamScoreDetailModal()" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold transition">关 闭</button>
         </div>
     </div>
 </div>
@@ -3364,10 +3387,48 @@ function exportWord() {
             window.currentEventStartListData = data;
             
             let finalHTML = '';
-            const isField = eventName.includes('跳') || eventName.includes('投') || eventName.includes('球') || eventName.includes('掷'); 
-            const sortAsc = !isField; 
+            // 🌟 1. 判定是否为趣味项目
+            const cleanCoreEvt = eventName.replace(' (预赛)', '').replace(' (决赛)', '').replace(/[\(（].*?[\)）]/g, '').trim();
+            const evtCfg = db.events.find(e => e.name === cleanCoreEvt || e.name === eventName) || {};
+            const isFun = (
+                evtCfg.type === '趣味' || 
+                evtCfg.type === '趣味项目' || 
+                String(evtCfg.is_fun) === '1' || 
+                String(evtCfg.isFun) === 'true' ||
+                eventName.includes('趣味')
+            );
 
-            const evtCfg = db.events.find(e => e.name === eventName) || {};
+            // 🌟 2. 判定趣味是计时还是计数
+            let funIsTiming = false;
+            if (isFun) {
+                const timingKeywords = ['绕杆', '跑', '接力', '计时', '障碍', '运球', '滑行', '冲刺'];
+                const countingKeywords = ['引体', '向上', '跳绳', '踢毽', '仰卧', '起坐', '投篮', '穿梭', '计数', '个数'];
+                if (timingKeywords.some(k => eventName.includes(k))) {
+                    funIsTiming = true;
+                } else if (countingKeywords.some(k => eventName.includes(k))) {
+                    funIsTiming = false;
+                } else {
+                    // 根据已有成绩是否包含冒号推断
+                    funIsTiming = data.some(i => String(i.score || '').includes(':') || String(i.score || '').includes('：'));
+                }
+            }
+
+            const isField = !isFun && (
+                evtCfg.type === '田赛' ||
+                eventName.includes('跳') || eventName.includes('投') || eventName.includes('球') || eventName.includes('掷')
+            ); 
+
+            // 🌟 3. 正确的排序方向：
+            // 趣味计时 / 普通径赛：用时越少越好 (升序 sortAsc = true)
+            // 趣味计数 / 普通田赛：数值越大越好 (降序 sortAsc = false)
+            let sortAsc = true;
+            if (isFun) {
+                sortAsc = funIsTiming;
+            } else {
+                sortAsc = !isField;
+            }
+
+        
             const qualifyLimit = parseInt(evtCfg.limit) || 8;
 
             // 1. 排查是否全场小组全部完赛（排除弃权选手）
@@ -3403,7 +3464,7 @@ function exportWord() {
             Object.keys(heats).sort((a,b) => parseInt(a) - parseInt(b)).forEach(heatNum => {
                 const items = heats[heatNum];
                 
-                // 本组内名次严格从 1 开始顺排
+                // 本组内名次：优先读取后台核算好的真实 rank，若没有才按前端规则排
                 const rankMap = {};
                 const validItemsInHeat = items.filter(i => isRealScore(i.score));
                 validItemsInHeat.sort((a,b) => {
@@ -3417,7 +3478,8 @@ function exportWord() {
                     if (idx > 0 && safeParseVal(item.score) !== safeParseVal(validItemsInHeat[idx - 1].score)) {
                         currentRank = idx + 1;
                     }
-                    rankMap[item.id] = currentRank;
+                    // 🌟 优先取数据库存好的 rank，若没有再取 currentRank
+                    rankMap[item.id] = (item.rank && item.rank !== '') ? item.rank : currentRank;
                 });
 
                 items.forEach(p => {
@@ -3541,7 +3603,89 @@ function exportWord() {
         window.currentRankGroupName = groupName;
         initRankPage();
     }
+// 🌟 显示班级得分明细弹窗
+window.showAdminTeamScoreDetail = function(groupName, teamName, totalScore) {
+    const modal = document.getElementById('teamScoreDetailModal');
+    const title = document.getElementById('modalTeamDetailTitle');
+    const subGrp = document.getElementById('modalTeamGroupSubtitle');
+    const subTot = document.getElementById('modalTeamTotalSubtitle');
+    const content = document.getElementById('modalTeamDetailContent');
 
+    title.innerText = `【${teamName}】 获奖与得分明细`;
+    subGrp.innerText = `所属组别：${groupName}`;
+    subTot.innerText = `总积分: ${totalScore} 分`;
+    
+    content.innerHTML = `
+        <div class="py-12 text-center text-blue-600 font-bold text-xs animate-pulse">
+            正在拉取该班级所有得分项目明细...
+        </div>`;
+    modal.classList.remove('hidden');
+
+    fetch('/api/get_team_score_details', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ group_name: groupName, team_name: teamName })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data || data.length === 0) {
+            content.innerHTML = `
+                <div class="py-12 text-center text-gray-400 font-bold text-xs">
+                    该班级暂无有效得分记录
+                </div>`;
+            return;
+        }
+
+        let rowsHtml = data.map((item, idx) => {
+            const isRelay = item.event_name.includes('接力') || item.event_name.includes('4×') || item.event_name.includes('4*');
+            const displayName = isRelay ? '集体接力队' : item.name;
+
+            return `
+            <tr class="hover:bg-blue-50/50 transition border-b border-gray-100 text-xs">
+                <td class="p-2.5 text-center font-mono text-gray-400">${idx + 1}</td>
+                <td class="p-2.5 text-left font-black text-gray-800">
+                    ${item.event_name} 
+                    <span class="text-[10px] text-gray-400 font-normal">(${item.gender})</span>
+                </td>
+                <td class="p-2.5 text-left font-bold text-blue-700">${displayName}</td>
+                <td class="p-2.5 text-center font-mono font-bold text-gray-700">${item.score || '--'}</td>
+                <td class="p-2.5 text-center font-bold text-orange-600">
+                    ${item.rank == 1 ? '🥇 第1名' : (item.rank == 2 ? '🥈 第2名' : (item.rank == 3 ? '🥉 第3名' : `第 ${item.rank} 名`))}
+                </td>
+                <td class="p-2.5 text-right font-mono font-black text-emerald-600 text-sm">
+                    +${item.points}
+                </td>
+            </tr>`;
+        }).join('');
+
+        content.innerHTML = `
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-100 text-gray-600 text-[11px] font-bold border-b">
+                    <tr>
+                        <th class="p-2 text-center w-10">序</th>
+                        <th class="p-2 text-left">比赛项目</th>
+                        <th class="p-2 text-left">参赛选手</th>
+                        <th class="p-2 text-center">比赛成绩</th>
+                        <th class="p-2 text-center">名次</th>
+                        <th class="p-2 text-right">获得积分</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    ${rowsHtml}
+                </tbody>
+            </table>`;
+    })
+    .catch(err => {
+        content.innerHTML = `
+            <div class="py-12 text-center text-red-500 font-bold text-xs">
+                数据提取失败，请检查网络后重试
+            </div>`;
+    });
+};
+
+window.closeTeamScoreDetailModal = function() {
+    document.getElementById('teamScoreDetailModal').classList.add('hidden');
+};
     window.calculateTeamRanking = function(gName) {
         const targetGroup = gName || window.currentRankGroupName;
         const div = document.getElementById('rankOutput');
@@ -3588,7 +3732,11 @@ function exportWord() {
                     <td class="font-bold text-gray-500">${t.silver}</td> 
                     <td class="font-bold text-orange-600">${t.bronze}</td> 
                     <td class="font-bold text-red-500 bg-red-50/60 font-mono">+${t.total_record_bonus || 0}</td>
-                    <td class="font-black text-xl text-blue-700 font-mono">${t.score}</td>
+                    <td class="font-black text-xl text-blue-700 font-mono underline cursor-pointer hover:text-blue-900 transition active:scale-95" 
+    title="点击查看详细得分明细"
+    onclick="showAdminTeamScoreDetail('${targetGroup}', '${t.name}', ${t.score})">
+    ${t.score}
+</td>
                 </tr>`;
             });
 
@@ -3951,6 +4099,11 @@ function exportWord() {
         const lim = parseInt(document.getElementById('customEventLim').value) || 8; 
         const isFun = document.getElementById('customIsFun').checked; 
         const needLane = document.getElementById('customNeedLane').checked;
+        const isTeam = document.getElementById('customIsTeam').checked;
+
+        // 🌟 核心修复：接力属性优先读取勾选框，或者仅在名称含“接力”时才默认为 true，绝不绑定趣味项目
+        const customIsRelayEl = document.getElementById('customIsRelay');
+        const isRelay = customIsRelayEl ? customIsRelayEl.checked : name.includes('接力');
 
         const m = document.getElementById('customGenM').checked;
         const f = document.getElementById('customGenF').checked;
@@ -3968,15 +4121,25 @@ function exportWord() {
             alert('当前项目已在矩阵池中存在，无需重复添加！'); 
             return; 
         }
-        const isTeam = document.getElementById('customIsTeam').checked;
-window.PRESET_MATRIX_POOL.push({
-    name: name, type: type, gender: gender, duration: dur, limit: lim,
-    hasPrelim: false, isRelay: (type === '趣味项目' || name.includes('接力')),
-    needLane: needLane, isFun: isFun, isTeam: isTeam, forceCheck: true
-});
+
+        // 🌟 修复后的推入逻辑：isRelay 不再与 (type === '趣味项目') 挂钩
+        window.PRESET_MATRIX_POOL.push({
+            name: name, 
+            type: type, 
+            gender: gender, 
+            duration: dur, 
+            limit: lim,
+            hasPrelim: false, 
+            isRelay: isRelay, 
+            needLane: needLane, 
+            isFun: isFun, 
+            isTeam: isTeam, 
+            forceCheck: true
+        });
         
         document.getElementById('customEventName').value = ''; 
         document.getElementById('customIsFun').checked = false; 
+        if (customIsRelayEl) customIsRelayEl.checked = false;
         
         renderEvents(); 
         alert(`🎉 项目【${name}】已成功放入矩阵池，请在下方列表核对并点击“保存所有项目配置”！`);
