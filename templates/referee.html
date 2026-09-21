@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>裁判员工作站</title>
 <script src="https://cdn.bootcdn.net/ajax/libs/tailwindcss/3.4.1/tailwind.min.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
     window.tailwind || document.write('<script src="{{ url_for("static", filename="js/tailwindcss.js") }}"><\/script>');
 </script>
@@ -221,7 +222,39 @@
             👉 立即载入本科成绩录入
         </button>
     </div>
-</div><script>
+</div>
+<script>
+// 建立全局 WebSocket 连接
+const socket = io();
+
+// 1. 监听起点发令事件
+socket.on('heat_activated', function(payload) {
+    if (currentRole === 'timing') {
+        // 终点裁判立即弹出提示
+        pollActiveHeat(); 
+    } else if (currentRole === 'starter' || currentRole === 'checkin') {
+        // 检录或发令裁判更新道次被锁定的状态
+        window.isTrackBusy = true;
+        loadCheckinSchedule();
+    }
+});
+
+// 2. 监听终点裁判录入/修改成绩事件
+socket.on('score_updated', function(payload) {
+    if (currentRole === 'starter' || currentRole === 'checkin') {
+        // 如果终点录完了，跑道释放，检录端按钮恢复可点击
+        window.isTrackBusy = false;
+        loadCheckinSchedule();
+    }
+});
+
+// 3. 监听检录状态打钩事件
+socket.on('checkin_updated', function(payload) {
+    if (currentRole === 'starter' || currentRole === 'checkin') {
+        // 同步更新其他检录裁判手机上的打钩状态
+        loadCheckinSchedule();
+    }
+});
     function login() {
         const user = document.getElementById('username').value.trim();
         const pwd = document.getElementById('pwd').value;
@@ -288,81 +321,74 @@
             .catch(e => console.log('获取日期失败，将回退为第X天格式'));
     }
 function selectRole(role) {
-        currentRole = role;
-        localStorage.setItem('last_referee_role', role);
-        document.getElementById('roleSelection').classList.add('hidden');
-        document.getElementById('btnBack').classList.remove('hidden');
+    currentRole = role;
+    localStorage.setItem('last_referee_role', role);
+    document.getElementById('roleSelection').classList.add('hidden');
+    document.getElementById('btnBack').classList.remove('hidden');
 
-        if (trackPollingTimer) clearInterval(trackPollingTimer);
-        if (starterPollingTimer) clearInterval(starterPollingTimer);
+    // 历史遗留定时器清理（防止切换角色时残留）
+    if (typeof trackPollingTimer !== 'undefined' && trackPollingTimer) clearInterval(trackPollingTimer);
+    if (typeof starterPollingTimer !== 'undefined' && starterPollingTimer) clearInterval(starterPollingTimer);
 
-        if (role === 'starter') {
-            document.getElementById('headerTitle').innerHTML = '🚩 起点发令裁判控制台 (径赛)';
-            document.getElementById('checkinSection').classList.remove('hidden');
-            document.getElementById('timingSection').classList.add('hidden');
+    if (role === 'starter') {
+        document.getElementById('headerTitle').innerHTML = '🚩 起点发令裁判控制台 (径赛)';
+        document.getElementById('checkinSection').classList.remove('hidden');
+        document.getElementById('timingSection').classList.add('hidden');
 
-            const syncStarterStatus = () => {
-                fetch('/api/get_active_heat?_t=' + Date.now())
-                    .then(r => r.json())
-                    .then(res => {
-                        const wasBusy = window.isTrackBusy;
-                        window.isTrackBusy = Boolean(res.data && !res.is_finished);
-                        if (wasBusy !== window.isTrackBusy) {
-                            loadCheckinSchedule();
-                        }
-                    }).catch(()=>{});
-            };
-            syncStarterStatus();
-            starterPollingTimer = setInterval(syncStarterStatus, 2500);
-            loadCheckinSchedule();
-        } else if (role === 'checkin') {
-            document.getElementById('headerTitle').innerHTML = '📝 检录长终端';
-            document.getElementById('checkinSection').classList.remove('hidden');
-            document.getElementById('timingSection').classList.add('hidden');
-            if (starterPollingTimer) clearInterval(starterPollingTimer);
-starterPollingTimer = setInterval(() => {
-    // 如果裁判当前正按着屏幕或焦点在输入框/正在点击按钮，跳过本次自动拉取
-    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'BUTTON')) {
-        return;
-    }
-    loadCheckinSchedule(true); // 传入 isSilent 标记
-}, 10000);
-            loadCheckinSchedule();
-        } else if (role === 'timing') {
-            document.getElementById('headerTitle').innerHTML = '⏱️ 终点计时终端 (径赛)';
-            document.getElementById('timingSection').classList.remove('hidden');
-            document.getElementById('checkinSection').classList.add('hidden');
-            
-            document.getElementById('fieldControlBar')?.classList.add('hidden');
-            document.getElementById('highJumpSection')?.classList.add('hidden');
-            document.getElementById('normalTableSection')?.classList.remove('hidden');
+        // 初次加载跑道状态与检录名单
+        fetch('/api/get_active_heat?_t=' + Date.now())
+            .then(r => r.json())
+            .then(res => {
+                window.isTrackBusy = Boolean(res.data && !res.is_finished);
+                loadCheckinSchedule();
+            }).catch(()=>{ loadCheckinSchedule(); });
 
-            const filterBar = document.getElementById('filterSelectBar');
-            if (filterBar) filterBar.classList.add('hidden');
+    } else if (role === 'checkin') {
+        document.getElementById('headerTitle').innerHTML = '📝 检录长终端';
+        document.getElementById('checkinSection').classList.remove('hidden');
+        document.getElementById('timingSection').classList.add('hidden');
+        
+        // 初次加载检录名单
+        loadCheckinSchedule();
 
-            const list = document.getElementById('athleteList');
-            if (list) {
-                list.innerHTML = '<tr><td colspan="4" class="p-16 text-center text-gray-400 font-bold text-sm">⏳ 跑道空闲，等待起点裁判发令推送...</td></tr>';
-            }
+    } else if (role === 'timing') {
+        document.getElementById('headerTitle').innerHTML = '⏱️ 终点计时终端 (径赛)';
+        document.getElementById('timingSection').classList.remove('hidden');
+        document.getElementById('checkinSection').classList.add('hidden');
+        
+        document.getElementById('fieldControlBar')?.classList.add('hidden');
+        document.getElementById('highJumpSection')?.classList.add('hidden');
+        document.getElementById('normalTableSection')?.classList.remove('hidden');
 
-            pollActiveHeat();
-            trackPollingTimer = setInterval(pollActiveHeat, 2000);
-        } else if (role === 'field') {
-            document.getElementById('headerTitle').innerHTML = '🎯 田赛 / 趣味项目终端';
-            document.getElementById('timingSection').classList.remove('hidden');
-            document.getElementById('checkinSection').classList.add('hidden');
-            document.getElementById('trackActiveNotice')?.classList.add('hidden');
-            
-            const list = document.getElementById('athleteList');
-            if (list) {
-                list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">请在上方选择组别、性别和项目开始录入</td></tr>';
-            }
+        const filterBar = document.getElementById('filterSelectBar');
+        if (filterBar) filterBar.classList.add('hidden');
 
-            const filterBar = document.getElementById('filterSelectBar');
-            if (filterBar) filterBar.classList.remove('hidden');
-            fetchMeta();
+        const list = document.getElementById('athleteList');
+        if (list) {
+            list.innerHTML = '<tr><td colspan="4" class="p-16 text-center text-gray-400 font-bold text-sm">⏳ 跑道空闲，等待起点裁判发令推送...</td></tr>';
         }
+
+        // 初次查询当前活跃比赛
+        pollActiveHeat();
+
+    } else if (role === 'field') {
+        document.getElementById('headerTitle').innerHTML = '🎯 田赛 / 趣味项目终端';
+        document.getElementById('timingSection').classList.remove('hidden');
+        document.getElementById('checkinSection').classList.add('hidden');
+        document.getElementById('trackActiveNotice')?.classList.add('hidden');
+        
+        const list = document.getElementById('athleteList');
+        if (list) {
+            list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">请在上方选择组别、性别和项目开始录入</td></tr>';
+        }
+
+        const filterBar = document.getElementById('filterSelectBar');
+        if (filterBar) filterBar.classList.remove('hidden');
+        
+        // 初次加载下拉筛选项
+        fetchMeta();
     }
+}
     function resetRoleSelection() {
         currentRole = null;
         if (trackPollingTimer) clearInterval(trackPollingTimer);
@@ -905,8 +931,14 @@ starterPollingTimer = setInterval(() => {
                 <div class="flex items-center justify-end gap-1">
                     <input type="text" inputmode="decimal" value="${attempts[roundIndex - 1] || ''}" 
                            placeholder="第${roundIndex}次"
-                           class="input-score w-20 border border-orange-300 bg-orange-50/50 rounded-lg px-2 py-1.5 text-center font-mono font-bold text-orange-950 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-400"
+                           class="input-score w-20 border border-orange-300 bg-orange-50/50 rounded-lg px-1.5 py-1.5 text-center font-bold text-orange-950 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-400"
                            onblur="saveFieldScore(${p.reg_id}, ${roundIndex}, this)">
+                    <button type="button" 
+                            onclick="quickMarkFieldAbsent(${p.reg_id}, ${roundIndex}, this)" 
+                            class="px-1 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md active:scale-95 transition"
+                            title="标记本次试跳弃权">
+                        弃权
+                    </button>
                     
                     <div class="text-[10px] text-gray-400 text-right min-w-[35px]">
                         <span class="block text-[8px] text-gray-300">最好</span>
@@ -952,16 +984,20 @@ starterPollingTimer = setInterval(() => {
                     <div class="text-[10px] text-gray-400 mt-0.5 truncate max-w-[120px]">${p.team_name}</div>
                 </td>
                 <td class="p-2 text-right">
-                    ${isAbsent ? `
-                        <span class="inline-block w-24 py-1.5 text-center text-xs font-bold text-red-500 bg-red-100/60 border border-red-200 rounded-lg select-none cursor-not-allowed">
-                            ✕ 弃权
-                        </span>
-                    ` : `
+                    <div class="flex items-center justify-end gap-1">
                         <input type="text" inputmode="decimal" value="${p.score || ''}" 
+                               placeholder="成绩/弃权"
                                data-heat="${currentHeat}"
-                               class="input-score ${isFirstOfHeat ? 'heat-first-input-' + currentHeat : ''} w-24 border border-blue-200 bg-blue-50 rounded-lg px-2 py-1.5 text-center shadow-inner text-blue-900 outline-none focus:bg-white"
+                               class="input-score ${isFirstOfHeat ? 'heat-first-input-' + currentHeat : ''} w-20 border border-blue-200 bg-blue-50 rounded-lg px-1.5 py-1.5 text-center shadow-inner text-blue-900 outline-none focus:bg-white text-sm"
                                onblur="saveScore(${p.reg_id || p.id}, this)">
-                    `}
+                        <!-- 🌟 增加一键填入“弃权”小按钮 -->
+                        <button type="button" 
+                                onclick="quickMarkAbsent(${p.reg_id || p.id}, this)" 
+                                class="px-1.5 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg active:scale-95 transition shrink-0"
+                                title="点击直接标记弃权">
+                            弃权
+                        </button>
+                    </div>
                 </td>
             </tr>`;
         });
@@ -1692,6 +1728,21 @@ window.saveScore = function(regId, input) {
     window.addCustomHjHeight = addCustomHjHeight;
     window.highJumpPassAllUnjumped = highJumpPassAllUnjumped;
     window.highJumpNextBar = highJumpNextBar;
+// 径赛/普通项目一键快捷标记弃权
+window.quickMarkAbsent = function(regId, btn) {
+    const input = btn.previousElementSibling;
+    if (!input) return;
+    input.value = "弃权";
+    saveScore(regId, input);
+};
+
+// 田赛试跳一键快捷标记弃权
+window.quickMarkFieldAbsent = function(regId, roundNum, btn) {
+    const input = btn.previousElementSibling;
+    if (!input) return;
+    input.value = "弃权";
+    saveFieldScore(regId, roundNum, input);
+};
 </script>
 </body>
 </html>

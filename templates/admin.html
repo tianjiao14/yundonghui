@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>田径运动会管理系统</title>
 <script src="https://cdn.bootcdn.net/ajax/libs/tailwindcss/3.4.1/tailwind.min.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
     window.tailwind || document.write('<script src="{{ url_for("static", filename="js/tailwindcss.js") }}"><\/script>');
 </script>
@@ -387,6 +388,7 @@
                             <option value="径赛">径赛</option>
                             <option value="田赛">田赛</option>
                             <option value="趣味项目">✨ 趣味项目</option>
+                            <option value="健康测试">🩺 体质健康测试</option>
                         </select>
                     </div>
                     <div class="flex items-center gap-1">
@@ -1236,36 +1238,38 @@
     window.curResGender = '';
     window.curResEvent = '';
 
-    function initResGroupTabs() {
-        const container = document.getElementById('resGroupBtns');
-        if (!container) return;
-        container.innerHTML = '';
+ function initResGroupTabs() {
+    const container = document.getElementById('resGroupBtns');
+    if (!container) return;
+    container.innerHTML = '';
 
-        if (!db || !db.groups || db.groups.length === 0) {
-            container.innerHTML = '<span class="text-[11px] text-gray-400 font-bold">暂无组别</span>';
-            return;
-        }
-
-        if (!window.curResGroup || !db.groups.some(g => g.name === window.curResGroup)) {
-            window.curResGroup = db.groups[0].name;
-        }
-
-        db.groups.forEach(g => {
-            const isSelected = (g.name === window.curResGroup);
-            const btn = document.createElement('button');
-            btn.className = isSelected 
-                ? 'px-2.5 py-1 rounded-md font-black text-[11px] bg-blue-600 text-white shadow-xs shrink-0 transition active:scale-95' 
-                : 'px-2.5 py-1 rounded-md font-bold text-[11px] bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-600 border border-gray-200 shrink-0 transition active:scale-95';
-            btn.innerText = g.name;
-            btn.onclick = () => {
-                window.curResGroup = g.name;
-                initResGroupTabs();
-            };
-            container.appendChild(btn);
-        });
-
-        updateResGenderTabs();
+    if (!db || !db.groups || db.groups.length === 0) {
+        container.innerHTML = '<span class="text-[11px] text-gray-400 font-bold">暂无组别</span>';
+        return;
     }
+
+    const sortedGroups = [...db.groups].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh-CN', { numeric: true }));
+    // 🌟 修正：统一使用 window.curResGroup
+    if (!window.curResGroup || !sortedGroups.some(g => g.name === window.curResGroup)) {
+        window.curResGroup = sortedGroups[0].name;
+    }
+
+    sortedGroups.forEach(g => {
+        const isSelected = (g.name === window.curResGroup);
+        const btn = document.createElement('button');
+        btn.className = isSelected 
+            ? 'px-2.5 py-1 rounded-md font-black text-[11px] bg-blue-600 text-white shadow-xs shrink-0 transition active:scale-95' 
+            : 'px-2.5 py-1 rounded-md font-bold text-[11px] bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-600 border border-gray-200 shrink-0 transition active:scale-95';
+        btn.innerText = g.name;
+        btn.onclick = () => {
+            window.curResGroup = g.name;
+            initResGroupTabs();
+        };
+        container.appendChild(btn);
+    });
+
+    updateResGenderTabs();
+}
 
     function updateResGenderTabs() {
         const container = document.getElementById('resGenderBtns');
@@ -1602,11 +1606,6 @@ window.saveRegDeadline = function(val) {
             case 9:
                 if (typeof renderProcessMonitor === 'function') {
                     renderProcessMonitor();
-                    if (!window.monitorTimer) {
-                        window.monitorTimer = setInterval(() => {
-                            if (currentStepId === 9) renderProcessMonitor();
-                        }, 10000);
-                    }
                 }
                 break;
 case 10:
@@ -3239,10 +3238,29 @@ if (eventName.includes('决赛')) {
                 return;
             }
                  
+            // 🌟 修复：严谨判定项目成绩是“越小越好”还是“越大越好”
+            const isTimingEvent = ['跑', '绕杆', '计时', '接力', '障碍', '运球', '冲刺', '50米', '100米', '200米', '400米', '800米', '1000米'].some(k => rawEventName.includes(k));
+            const isCountingOrField = ['仰卧', '起坐', '引体', '向上', '跳绳', '垫球', '踢毽', '立定跳远', '跳远', '跳高', '实心球', '铅球', '标枪', '铁饼', '投', '掷'].some(k => rawEventName.includes(k));
 
-                validAthletes.sort((a,b) => !isField ? (parseTimeVal(a.score) - parseTimeVal(b.score)) : (parseTimeVal(b.score) - parseTimeVal(a.score)));
+            // sortAsc = true 表示数值越少越好（升序，如 58.3秒 排在 1:08 前面）；
+            // sortAsc = false 表示数值越多/越大越好（降序，如 仰卧起坐 56个 排在 22个 前面）
+            let sortAsc = true;
+            if (isTimingEvent) {
+                sortAsc = true;
+            } else if (isCountingOrField) {
+                sortAsc = false;
+            } else {
+                // 根据是否含有冒号推断，带冒号时间格式越小越好
+                sortAsc = validAthletes.some(i => String(i.score).includes(':') || String(i.score).includes('：'));
+            }
 
-                const myRecords = (groupRecordsData[`${coreMatchName}_${gender}`] || []).filter(r => r.en && parseTimeVal(r.val) > 0);
+            validAthletes.sort((a, b) => {
+                const sa = parseTimeVal(a.score);
+                const sb = parseTimeVal(b.score);
+                return sortAsc ? (sa - sb) : (sb - sa);
+            });
+
+            const myRecords = (groupRecordsData[`${coreMatchName}_${gender}`] || []).filter(r => r.en && parseTimeVal(r.val) > 0);
                 let rowsHtml = ''; let currentRank = 1;
                 validAthletes.forEach((p, idx) => {
                     if (idx > 0 && parseTimeVal(p.score) !== parseTimeVal(validAthletes[idx-1].score)) currentRank = idx + 1;
@@ -3573,50 +3591,28 @@ function exportWord() {
             window.currentEventStartListData = data;
             
             let finalHTML = '';
-            // 🌟 1. 判定是否为趣味项目
+
+            // 🌟 补齐定义 evtCfg 与 isField，防止 qualifyLimit 及分组判断报错
             const cleanCoreEvt = eventName.replace(' (预赛)', '').replace(' (决赛)', '').replace(/[\(（].*?[\)）]/g, '').trim();
             const evtCfg = db.events.find(e => e.name === cleanCoreEvt || e.name === eventName) || {};
-            const isFun = (
-                evtCfg.type === '趣味' || 
-                evtCfg.type === '趣味项目' || 
-                String(evtCfg.is_fun) === '1' || 
-                String(evtCfg.isFun) === 'true' ||
-                eventName.includes('趣味')
-            );
 
-            // 🌟 2. 判定趣味是计时还是计数
-            let funIsTiming = false;
-            if (isFun) {
-                const timingKeywords = ['绕杆', '跑', '接力', '计时', '障碍', '运球', '滑行', '冲刺'];
-                const countingKeywords = ['引体', '向上', '跳绳', '踢毽', '仰卧', '起坐', '投篮', '穿梭', '计数', '个数'];
-                if (timingKeywords.some(k => eventName.includes(k))) {
-                    funIsTiming = true;
-                } else if (countingKeywords.some(k => eventName.includes(k))) {
-                    funIsTiming = false;
-                } else {
-                    // 根据已有成绩是否包含冒号推断
-                    funIsTiming = data.some(i => String(i.score || '').includes(':') || String(i.score || '').includes('：'));
-                }
-            }
+            // 判定是否为田赛（高度/远度度量型项目不区分道次，按单组汇流）
+            const isField = evtCfg.type === '田赛' || ['跳', '投', '铅球', '实心球', '标枪', '铁饼', '球', '掷'].some(k => eventName.includes(k));
 
-            const isField = !isFun && (
-                evtCfg.type === '田赛' ||
-                eventName.includes('跳') || eventName.includes('投') || eventName.includes('球') || eventName.includes('掷')
-            ); 
+            // 🌟 严谨判定项目成绩排序规则
+            const isTimingEvent = ['跑', '绕杆', '计时', '接力', '障碍', '运球', '冲刺', '50米', '100米', '200米', '400米', '800米', '1000米'].some(k => eventName.includes(k));
+            const isCountingOrField = ['仰卧', '起坐', '引体', '向上', '跳绳', '垫球', '踢毽', '立定跳远', '跳远', '跳高', '实心球', '铅球', '标枪', '铁饼', '投', '掷'].some(k => eventName.includes(k));
 
-            // 🌟 3. 正确的排序方向：
-            // 趣味计时 / 普通径赛：用时越少越好 (升序 sortAsc = true)
-            // 趣味计数 / 普通田赛：数值越大越好 (降序 sortAsc = false)
             let sortAsc = true;
-            if (isFun) {
-                sortAsc = funIsTiming;
+            if (isTimingEvent) {
+                sortAsc = true;
+            } else if (isCountingOrField) {
+                sortAsc = false;
             } else {
-                sortAsc = !isField;
+                sortAsc = data.some(i => String(i.score || '').includes(':') || String(i.score || '').includes('：'));
             }
 
-        
-            const qualifyLimit = parseInt(evtCfg.limit) || 8;
-
+            const qualifyLimit = parseInt(evtCfg.limit || evtCfg.limit_count) || 8;
             // 1. 排查是否全场小组全部完赛（排除弃权选手）
             const hasUnfinishedRunners = data.some(item => {
                 const s = String(item.score || '').trim();
@@ -4395,7 +4391,7 @@ window.deleteMatrixEvent = function(index) {
                 </td>
                 <td class="text-center font-bold text-gray-400">${index + 1}</td> 
                 <td class="font-black text-gray-800 text-sm">${preset.name}</td> 
-                <td> <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${preset.type.includes('趣味') ? 'bg-amber-100 text-amber-800 border border-amber-300' : (preset.type === '径赛' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-orange-50 text-orange-700 border border-orange-200')}"> ${preset.type} </span> </td> 
+                <td> <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${preset.type.includes('趣味') ? 'bg-amber-100 text-amber-800 border border-amber-300' : (preset.type.includes('健康') ? 'bg-teal-100 text-teal-800 border border-teal-300' : (preset.type === '径赛' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-orange-50 text-orange-700 border border-orange-200'))}"> ${preset.type} </span> </td> 
                 <td class="text-center"> <input type="number" id="dur_${index}" value="${currentDuration}" class="w-12 border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 focus:bg-white outline-none"> </td> 
                 <td class="text-center"> <input type="number" id="lim_${index}" value="${currentLimit}" class="w-12 border border-gray-300 rounded text-center font-bold py-0.5 bg-gray-50 focus:bg-white outline-none"> </td>
                 <td class="text-center bg-orange-50/30"> <input type="number" id="qua_${index}" value="${currentQualify}" min="1" max="64" class="w-12 border border-orange-300 rounded text-center font-mono font-bold text-orange-700 py-0.5 bg-white outline-none focus:ring-1 focus:ring-orange-400"> </td>
@@ -5737,7 +5733,12 @@ let rawAnalysisData = {};
 
                 const currentG = select.value;
                 select.innerHTML = grades.map(g => `<option value="${g}">${g}</option>`).join('');
-                if (grades.includes(currentG)) select.value = currentG;
+              
+                if (currentG && grades.includes(currentG)) {
+                    select.value = currentG;
+                } else {
+                    select.value = grades[0];
+                }
 
                 onAnalysisFilterChange();
             })
@@ -5798,12 +5799,20 @@ let rawAnalysisData = {};
         const metricsContainer = document.getElementById('eventMetricsContainer');
         let cardHtml = '';
 
-        const formatAnalysisVal = (val, isField) => {
+        const formatAnalysisVal = (val, cat, eName) => {
             if (val === null || val === undefined || val === '' || val <= 0) return '--';
             const num = parseFloat(val);
             if (isNaN(num) || num <= 0) return '--';
-            if (isField) return `${num}m`;
-            
+
+            // 判断是否属于纯计数型项目
+            if (cat === 'count' || ['跳绳', '仰卧', '垫球', '引体', '踢毽'].some(k => eName.includes(k))) {
+                return `${Math.round(num * 10) / 10}个`;
+            }
+            // 远度/度量型田赛
+            if (cat === 'distance' || ['跳远', '实心球', '铅球', '跳高'].some(k => eName.includes(k))) {
+                return `${num}m`;
+            }
+            // 计时型径赛
             if (num >= 60) {
                 const m = Math.floor(num / 60);
                 const s = (num % 60).toFixed(2);
@@ -5811,9 +5820,30 @@ let rawAnalysisData = {};
             }
             return `${num}s`;
         };
-       activeEventNames.forEach(eName => {
+
+        activeEventNames.forEach(eName => {
             const item = allEvents[eName];
-            const isField = item.is_field;
+            let cat = item.category;
+            if (!cat) {
+                if (['跳绳', '仰卧', '垫球', '引体', '踢毽'].some(k => eName.includes(k))) cat = 'count';
+                else if (item.is_field || ['跳远', '实心球', '铅球'].some(k => eName.includes(k))) cat = 'distance';
+                else cat = 'timing';
+            }
+
+            // 标签颜色与文案匹配
+            let tagColor = 'bg-blue-50 text-blue-700 border-blue-200';
+            let tagLabel = '径赛/用时';
+            let icon = '🏃';
+
+            if (cat === 'count') {
+                tagColor = 'bg-teal-50 text-teal-700 border-teal-200';
+                tagLabel = '体测/计数';
+                icon = '🔢';
+            } else if (cat === 'distance') {
+                tagColor = 'bg-orange-50 text-orange-700 border-orange-200';
+                tagLabel = '田赛/远度';
+                icon = '🎯';
+            }
 
             // 班级均值覆盖
             let customTeamAvg = null;
@@ -5829,19 +5859,19 @@ let rawAnalysisData = {};
 
             cardHtml += `
             <div class="bg-white p-3.5 rounded-xl border border-gray-200 shadow-xs hover:shadow-md transition flex flex-col justify-between">
-                <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+               <div class="flex items-center justify-between pb-2 border-b border-gray-100">
                     <span class="font-black text-gray-800 text-sm flex items-center gap-1">
-                        <span>${isField ? '🎯' : '🏃'}</span> ${eName}
+                        <span>${icon}</span>${eName}
                     </span>
-                    <span class="text-[10px] px-2 py-0.5 rounded font-bold ${isField ? 'bg-orange-50 text-orange-700 border border-orange-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}">
-                        ${isField ? '田赛/远度' : '径赛/用时'}
+                    <span class="text-[10px] px-2 py-0.5 rounded font-bold ${tagColor} border">
+                        ${tagLabel}
                     </span>
                 </div>
 
                 ${customTeamAvg !== null ? `
                     <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-2 my-2 text-center">
                         <span class="text-[10px] text-indigo-700 font-bold block">${selTeam} 班级平均</span>
-                        <span class="font-mono font-black text-indigo-900 text-lg">${formatAnalysisVal(customTeamAvg, isField)}</span>
+                        <span class="font-mono font-black text-indigo-900 text-lg">${formatAnalysisVal(customTeamAvg, cat, eName)}</span>
                     </div>
                 ` : ''}
 
@@ -5853,11 +5883,11 @@ let rawAnalysisData = {};
                             <span class="font-normal text-gray-400">${item.male_count}人</span>
                         </div>
                         <div class="font-mono font-black text-blue-700 text-base my-0.5">
-                            ${formatAnalysisVal(item.male_avg, isField)}
+                            ${formatAnalysisVal(item.male_avg, cat, eName)}
                         </div>
                         <div class="text-[10px] text-gray-500 flex justify-between border-t border-blue-100/60 pt-1 mt-1">
                             <span>最优极值:</span>
-                            <span class="font-mono font-bold text-blue-800">${formatAnalysisVal(item.male_best, isField)}</span>
+                            <span class="font-mono font-bold text-blue-800">${formatAnalysisVal(item.male_best, cat, eName)}</span>
                         </div>
                     </div>` : ''}
 
@@ -5868,11 +5898,11 @@ let rawAnalysisData = {};
                             <span class="font-normal text-gray-400">${item.female_count}人</span>
                         </div>
                         <div class="font-mono font-black text-pink-700 text-base my-0.5">
-                            ${formatAnalysisVal(item.female_avg, isField)}
+                            ${formatAnalysisVal(item.female_avg, cat, eName)}
                         </div>
                         <div class="text-[10px] text-gray-500 flex justify-between border-t border-pink-100/60 pt-1 mt-1">
                             <span>最优极值:</span>
-                            <span class="font-mono font-bold text-pink-800">${formatAnalysisVal(item.female_best, isField)}</span>
+                            <span class="font-mono font-bold text-pink-800">${formatAnalysisVal(item.female_best, cat, eName)}</span>
                         </div>
                     </div>` : ''}
                 </div>
@@ -5981,11 +6011,10 @@ let rawAnalysisData = {};
             teams = teams.filter(t => t.team === selTeam);
         }
 
-        tableBody.innerHTML = teams.map((t, idx) => {
+      tableBody.innerHTML = teams.map((t, idx) => {
             const cells = activeEventNames.map(k => {
                 const val = t.scores[k];
-                const isField = allEvents[k]?.is_field;
-                const displayVal = formatAnalysisVal(val, isField);
+                const displayVal = formatAnalysisVal(val, allEvents[k]?.category, k);
                 return `<td class="p-2 text-center font-mono font-bold text-gray-800">${displayVal}</td>`;
             }).join('');
 
@@ -6100,7 +6129,7 @@ window.refreshAthleteView = function(btnEl) {
                 if (activeEl) activeEl.classList.add('active');
             }
 
-            // 🌟 7. 按钮给出生动反馈，提示共同步到多少人
+           // 🌟 7. 按钮给出生动反馈，提示共同步到多少人
             if (btnEl) {
                 const currentTeamAthletes = db.athletes.filter(a => String(a.teamId) === String(activeTeamId));
                 btnEl.innerText = `✔ 已同步(${currentTeamAthletes.length}人)`;
@@ -6121,6 +6150,51 @@ window.refreshAthleteView = function(btnEl) {
             }
         });
 };
+
+// =======================================================
+// 🌟 管理端 Socket.IO 全局长连接与事件驱动中心
+// =======================================================
+const socket = io();
+
+// 1. 跑道起点发令广播 -> 实时刷新赛事监控进度
+socket.on('heat_activated', function(payload) {
+    if (currentStepId === 9 && typeof renderProcessMonitor === 'function') {
+        renderProcessMonitor();
+    }
+});
+
+// 2. 检录打钩/弃权广播 -> 实时刷新赛事监控与进度条
+socket.on('checkin_updated', function(payload) {
+    if (currentStepId === 9 && typeof renderProcessMonitor === 'function') {
+        renderProcessMonitor();
+    }
+});
+
+// 3. 裁判录入成绩广播 -> 实时刷新后台成绩单、总分榜与监控进度
+socket.on('score_updated', function(payload) {
+    // 刷新 Step 9 进程监控
+    if (currentStepId === 9 && typeof renderProcessMonitor === 'function') {
+        renderProcessMonitor();
+    }
+    // 刷新 Step 5 成绩管理与决赛表
+    if (currentStepId === 5 && typeof renderResultSheet === 'function') {
+        renderResultSheet();
+    }
+    // 刷新 Step 6 团体总分排行榜
+    if (currentStepId === 6 && typeof calculateTeamRanking === 'function') {
+        calculateTeamRanking(window.currentRankGroupName);
+    }
+    // 刷新 Step 10 体能数据分析
+    if (currentStepId === 10 && typeof fetchPhysicalAnalysisData === 'function') {
+        fetchPhysicalAnalysisData();
+    }
+});
+// 4. 监听跑道成绩录完释放广播
+socket.on('track_released', function(payload) {
+    if (currentStepId === 9 && typeof renderProcessMonitor === 'function') {
+        renderProcessMonitor();
+    }
+});
 </script>
 </body>
 </html>

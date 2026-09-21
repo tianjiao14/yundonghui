@@ -526,7 +526,7 @@
                 return genderMatch && groupMatch;
             };
 
-            db.events.filter(e => filterFn(e) && e.type !== '趣味项目').forEach(e => {
+            db.events.filter(e => filterFn(e) && e.type !== '趣味项目' && e.type !== '健康测试').forEach(e => {
                 const el = document.createElement('div'); 
                 el.className = 'chk-box comp-item shadow-sm';
                 el.dataset.isRelay = e.isRelay ? "true" : "false"; 
@@ -541,7 +541,7 @@
                 compListDiv.appendChild(el);
             });
 
-            const funEvents = db.events.filter(e => filterFn(e) && e.type === '趣味项目');
+            const funEvents = db.events.filter(e => filterFn(e) && (e.type === '趣味项目' || e.type === '健康测试'));
             if (funEvents.length > 0) {
                 document.getElementById('funSection').classList.remove('hidden');
                 funEvents.forEach(e => {
@@ -592,6 +592,7 @@
     const e = db.events.find(item => item.name === evtName);
     if (!e) return false;
     return e.type === '趣味' || e.type === '趣味项目' || 
+           e.type === '健康测试' || e.type === '体质健康测试' ||
            String(e.is_fun) === '1' || String(e.isFun) === 'true' || 
            String(e.isFun) === '1';
 }

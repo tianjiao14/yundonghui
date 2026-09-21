@@ -1,5 +1,7 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
 from flask_compress import Compress
+from flask_socketio import SocketIO, emit, join_room, leave_room
+import eventlet
 import sqlite3
 import json
 from datetime import datetime, timedelta
@@ -11,10 +13,10 @@ import re
 from io import StringIO, BytesIO
 import csv
 from functools import wraps
-from waitress import serve
 import sys
 import threading
 import time
+
 # 1. 动态判断运行环境
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
@@ -30,8 +32,12 @@ app = Flask(
     static_folder=os.path.join(BUNDLE_DIR, 'static')
 )
 
-app.secret_key = 'sports_day_secret_key_2026'
+# 使用环境变量读取密钥与并发 SocketIO 初始化
+app.secret_key = os.environ.get('SECRET_KEY', 'sports_day_secret_key_2026')
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
+socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 604800
 # 🌟 3. 紧随 app 创建之后配置 Gzip 压缩参数并激活
 app.config['COMPRESS_MIMETYPES'] = [
@@ -358,6 +364,11 @@ def toggle_checkin():
         conn.commit()
         conn.close()
 
+        if '_cache_store' in globals():
+            _cache_store.pop("get_data_public", None)
+
+        # 广播检录状态更新，同步多名检录裁判终端
+        socketio.emit('checkin_updated', {'id': start_id, 'status': status})
         return jsonify({"status": "success", "checked_in": status})
     except Exception as e:
         conn.rollback()
@@ -519,36 +530,41 @@ def recalculate_all_points():
                 if cfg:
                     has_prelim = (to_bool_str(cfg.get('has_prelim') or cfg.get('hasPrelim')) == '1')
 
-               # 判定是否为趣味项目
+               # 1. 判定是否为趣味项目或健康测试
+                is_health = False
                 is_fun = False
-                if cfg and (cfg.get('type') == '趣味' or cfg.get('type') == '趣味项目' or to_bool_str(cfg.get('is_fun')) == '1'):
+                evt_type_str = str(cfg.get('type') or '') if cfg else ''
+                
+                if '健康' in evt_type_str or '健康' in core_name:
+                    is_health = True
                     is_fun = True
-                elif '趣味' in core_name:
+                elif '趣味' in evt_type_str or to_bool_str(cfg.get('is_fun') if cfg else None) == '1' or '趣味' in core_name:
                     is_fun = True
 
-                # 判定是否为田赛（趣味项目不进入田赛）
+                # 2. 判定田赛度量型项目（远度/高度，越大越好）：注意过滤带“球”的趣味/测试项目
                 is_field = False
+                field_pure_keywords = ['跳远', '立定跳远', '跳高', '三级跳', '撑竿跳', '铅球', '实心球', '标枪', '铁饼', '掷']
                 if not is_fun:
-                    field_keywords = ['跳', '投', '掷', '铅球', '实心球', '标枪', '铁饼', '球', '引体', '仰卧']
-                    if cfg and (cfg.get('type') == '田赛' or '田' in str(cfg.get('type'))): 
+                    if '田' in evt_type_str:
                         is_field = True
-                    elif any(kwd in core_name for kwd in field_keywords): 
+                    elif any(kwd in core_name for kwd in field_pure_keywords):
                         is_field = True
+                elif '立定跳远' in core_name or '跳远' in core_name:
+                    # 健康测试中的立定跳远属于度量型，越大越好
+                    is_field = True
 
-                # 判定趣味项目是计时还是计数
-                # 计时型：越少越好 (升序)；计数型：越多越好 (降序)
+                # 3. 判定计时型（用时越少越好，升序）还是计数型（次数越多越好，降序）
                 fun_is_timing = False
-                if is_fun:
-                    timing_keywords = ['绕杆', '跑', '接力', '计时', '障碍', '运球', '运球跑', '滑行', '冲刺']
-                    counting_keywords = ['引体', '向上', '跳绳', '踢毽', '仰卧', '起坐', '投篮', '穿梭', '计数', '个数', '定点']
-                    if any(k in core_name for k in timing_keywords):
-                        fun_is_timing = True
-                    elif any(k in core_name for k in counting_keywords):
-                        fun_is_timing = False
-                    else:
-                        # 根据录入的成绩格式动态推断：带冒号或小数点后有位数的优先当计时
-                        sample_scores = [r['score'] for r in all_data_rows if r['score']]
-                        fun_is_timing = any(':' in str(s) or '：' in str(s) for s in sample_scores)
+                timing_keywords = ['绕杆', '跑', '接力', '计时', '障碍', '运球', '滑行', '冲刺', '50米', '100米', '800米', '1000米']
+                counting_keywords = ['仰卧', '起坐', '引体', '向上', '跳绳', '踢毽', '垫球', '投篮', '穿梭', '计数', '个数', '定点']
+                
+                if any(k in core_name for k in timing_keywords):
+                    fun_is_timing = True
+                elif any(k in core_name for k in counting_keywords):
+                    fun_is_timing = False
+                else:
+                    # 兜底：先默认计时
+                    fun_is_timing = True
 
                 # 判定是否为团体项目
                 is_team_event = False
@@ -652,20 +668,20 @@ def recalculate_all_points():
                         item['_hj_tie'] = parse_high_jump_tie_breaker(item['score'], item.get('attempts_json', ''))
                     final_list.sort(key=lambda x: x['_hj_tie'], reverse=True)
                 elif is_fun:
-                    # 🌟 趣味项目专属排序逻辑：
-                    # 计时型：升序（越少越好，reverse=False）
-                    # 计数型：降序（越多越好，reverse=True）
                     final_list = [item for item in unique_entries.values() if item['_val'] > 0]
-                    final_list.sort(key=lambda x: x['_val'], reverse=(not fun_is_timing))
+                    
+                    if is_field or ('跳远' in core_name or '立定跳远' in core_name):
+                        final_list.sort(key=lambda x: x['_val'], reverse=True)
+                    elif fun_is_timing:
+                        final_list.sort(key=lambda x: x['_val'], reverse=False)
+                    else:
+                        final_list.sort(key=lambda x: x['_val'], reverse=True)
                 else:
-                    # 传统田赛/径赛保持原逻辑完全不动
                     final_list = [item for item in unique_entries.values() if item['_val'] > 0]
                     final_list.sort(key=lambda x: x['_val'], reverse=is_field)
 
                 score_rule = cfg.get('score_rule', "9,7,6,5,4,3,2,1") if cfg else "9,7,6,5,4,3,2,1"
                 rules = [int(x) for x in score_rule.replace('，', ',').split(',') if x.strip().isdigit()]
-
-                # 团体项目或显式配置双倍积分的项目自动执行双倍赋分
                 cfg_double = (to_bool_str(cfg.get('is_double_score')) == '1') if cfg else False
                 is_double = is_team_event or cfg_double
 
@@ -676,10 +692,10 @@ def recalculate_all_points():
                     if i > 0:
                         if is_height_event:
                             if item['_hj_tie'] != final_list[i-1]['_hj_tie']:
-                                current_rank = i + 1
+                                current_rank = (current_rank + 1) if is_health else (i + 1)
                         else:
                             if item['_val'] != final_list[i-1]['_val']:
-                                current_rank = i + 1
+                                current_rank = (current_rank + 1) if is_health else (i + 1)
                     
                     p = 0
                     if current_rank <= len(rules):
@@ -933,6 +949,8 @@ def push_active_heat():
         """, (g_name, e_name, clean_gender, heat))
 
         conn.commit()
+        # 实时通知所有裁判终端与大屏幕
+        socketio.emit('heat_activated', heat_payload)
         return jsonify({"status": "success", "msg": "发车成功", "data": heat_payload})
     except Exception as e:
         conn.rollback()
@@ -1428,10 +1446,7 @@ def get_statistics():
 @app.route('/api/get_data')
 def get_data_admin():
     current_role = session.get('user_role')
-    
-    # 🌟 核心修复：管理员后台坚决不走缓存，永远实时读取数据库最新数据！
-    # 仅当未登录或非管理员（如公网查询端、裁判端）拉取时，才走 20 秒内存缓存防刷
-    if current_role != 'admin':
+    if current_role not in ['admin', 'referee']:
         cache_key = "get_data_public"
         cached = get_cached_data(cache_key, ttl_seconds=20)
         if cached is not None:
@@ -1742,7 +1757,7 @@ def add_athlete():
         comp_count = 0
         for evt in selected_events:
             evt_info = c.execute("SELECT type, is_fun FROM cfg_events WHERE name=?", (evt,)).fetchone()
-            is_fun = evt_info and (evt_info['type'] == '趣味' or '趣味' in str(evt_info['type']) or str(evt_info['is_fun']) == '1')
+            is_fun = evt_info and (evt_info['type'] in ['趣味', '趣味项目', '健康测试'] or '趣味' in str(evt_info['type']) or '健康' in str(evt_info['type']) or str(evt_info['is_fun']) == '1')
             if not is_fun:
                 comp_count += 1
         if comp_count > MAX_PER_PERSON:
@@ -1860,7 +1875,7 @@ def batch_submit_team_athletes():
             has_comp = False
             for evt in ath.get('events', []):
                 evt_info = c.execute("SELECT type, is_fun FROM cfg_events WHERE name=?", (evt,)).fetchone()
-                is_fun = evt_info and (evt_info['type'] == '趣味' or '趣味' in str(evt_info['type']) or str(evt_info['is_fun']) == '1')
+                is_fun = evt_info and (evt_info['type'] in ['趣味', '趣味项目', '健康测试'] or '趣味' in str(evt_info['type']) or '健康' in str(evt_info['type']) or str(evt_info['is_fun']) == '1')
                 if not is_fun:
                     has_comp = True
                     break
@@ -1886,7 +1901,7 @@ def batch_submit_team_athletes():
             comp_events = []
             for evt in ath.get('events', []):
                 evt_info = c.execute("SELECT type, is_relay, is_fun FROM cfg_events WHERE name=?", (evt,)).fetchone()
-                is_fun = evt_info and (evt_info['type'] == '趣味' or '趣味' in str(evt_info['type']) or str(evt_info['is_fun']) == '1')
+                is_fun = evt_info and (evt_info['type'] in ['趣味', '趣味项目', '健康测试'] or '趣味' in str(evt_info['type']) or '健康' in str(evt_info['type']) or str(evt_info['is_fun']) == '1')
                 is_relay = evt_info and (str(evt_info['is_relay']) == '1' or str(evt_info['is_relay']).lower() == 'true')
 
                 # 趣味项目既不占用个人项数指标，也不受每队单项人数限制
@@ -2290,6 +2305,15 @@ def submit_score():
             
         conn.commit()
         invalidate_event_cache(event_name, group_name)
+        clean_name = re.sub(r"\(.*?\)|（.*?）", "", event_name).strip()
+        project_room = f"event_{group_name}_{clean_name}_{gender}"
+        socketio.emit('score_updated', {
+            'event_name': event_name, 
+            'group_name': group_name,
+            'gender': gender
+        }, to=project_room)
+        socketio.emit('rank_updated', {'group_name': group_name}, to=f"rank_{group_name}")
+        socketio.emit('track_released', {'event_name': event_name, 'group_name': group_name})
     except Exception as e:
         conn.rollback()
         return jsonify({"status": "error", "msg": str(e)})
@@ -2857,6 +2881,8 @@ def force_sync_and_upgrade_db():
     except Exception: pass   
     try: c.execute("ALTER TABLE cfg_events ADD COLUMN qualify_count INTEGER DEFAULT 8")
     except Exception: pass
+    try: c.execute("ALTER TABLE registrations ADD COLUMN relay_leg TEXT DEFAULT ''")
+    except Exception: pass
     try: c.execute("ALTER TABLE cfg_teams ADD COLUMN coach TEXT DEFAULT ''")
     except Exception: pass
     try: c.execute("ALTER TABLE cfg_teams ADD COLUMN phone TEXT DEFAULT ''")
@@ -2940,20 +2966,28 @@ def analyze_physical_data():
     conn = get_db_connection()
     c = conn.cursor()
     try:
+        # 🌟 修复：多表关联，如果 registrations 里的 group_name 缺失，自动通过 cfg_teams 补齐
         sql = """
-            SELECT group_name, team_name, gender, event_name, score
-            FROM registrations
-            WHERE score IS NOT NULL AND score != ''
+            SELECT 
+                COALESCE(NULLIF(r.group_name, ''), g.name, '未分配组别') AS group_name,
+                r.team_name, r.gender, r.event_name, r.score
+            FROM registrations r
+            LEFT JOIN cfg_teams t ON (r.team_id = t.id OR r.team_name = t.name)
+            LEFT JOIN cfg_groups g ON (t.group_id = g.id)
+            WHERE r.score IS NOT NULL AND TRIM(r.score) != ''
+              AND r.score NOT LIKE '%弃权%'
+              AND r.score NOT LIKE '%DNS%'
+              AND r.score NOT LIKE '%DQ%'
+              AND r.score NOT LIKE '%DNF%'
         """
-        rows = c.execute(sql).fetchall()
-        
+        rows = c.execute(sql).fetchall()        
         cfgs = {r['name']: dict(r) for r in c.execute("SELECT name, type FROM cfg_events").fetchall()}
         grade_analysis = {}
 
         for r in rows:
-            g_name = r['group_name'] or '未知年级'
+            g_name = r['group_name'] or '未分配组别'
             t_name = r['team_name'] or '未知班级'
-            gen = r['gender']
+            gen = '女' if '女' in str(r['gender']) else '男'
             raw_evt = r['event_name']
             
             core_evt = re.sub(r"\(.*?\)|（.*?）|决赛|预赛|男子|女子|混合|第\d+组|场地\d+", "", raw_evt).strip()
@@ -2964,12 +2998,18 @@ def analyze_physical_data():
             if sec_val <= 0:
                 continue
 
-            is_field = False
-            cfg = cfgs.get(core_evt)
-            if cfg and (cfg.get('type') == '田赛' or '田' in str(cfg.get('type'))):
-                is_field = True
-            elif any(k in core_evt for k in ['跳', '投', '铅球', '实心球', '标枪', '铁饼', '引体', '仰卧']):
-                is_field = True
+            # 判定项目类别
+            evt_category = 'timing'
+            if any(k in core_evt for k in ['仰卧', '起坐', '跳绳', '垫球', '引体', '踢毽', '计数', '个数', '投篮']):
+                evt_category = 'count'
+            elif any(k in core_evt for k in ['立定跳远', '跳远', '跳高', '实心球', '铅球', '标枪', '铁饼', '投', '掷']):
+                evt_category = 'distance'
+            else:
+                cfg = cfgs.get(core_evt)
+                if cfg and (cfg.get('type') == '田赛' or '田' in str(cfg.get('type'))):
+                    evt_category = 'distance'
+                else:
+                    evt_category = 'timing'
 
             if g_name not in grade_analysis:
                 grade_analysis[g_name] = {"events": {}, "teams": {}}
@@ -2978,7 +3018,7 @@ def analyze_physical_data():
                 grade_analysis[g_name]["events"][core_evt] = {
                     "男": [],
                     "女": [],
-                    "is_field": is_field
+                    "category": evt_category
                 }
             if gen in grade_analysis[g_name]["events"][core_evt]:
                 grade_analysis[g_name]["events"][core_evt][gen].append(sec_val)
@@ -2996,16 +3036,18 @@ def analyze_physical_data():
             for evt_name, evt_data in data["events"].items():
                 m_list = evt_data["男"]
                 f_list = evt_data["女"]
-                is_field = evt_data["is_field"]
+                cat = evt_data.get("category", "timing")
+                is_max_better = (cat in ['distance', 'count'])
 
                 event_summary[evt_name] = {
-                    "is_field": is_field,
+                    "category": cat,
+                    "is_field": (cat == 'distance'),
                     "male_avg": round(sum(m_list) / len(m_list), 2) if m_list else 0,
                     "male_count": len(m_list),
-                    "male_best": (max(m_list) if is_field else min(m_list)) if m_list else 0,
+                    "male_best": (max(m_list) if is_max_better else min(m_list)) if m_list else 0,
                     "female_avg": round(sum(f_list) / len(f_list), 2) if f_list else 0,
                     "female_count": len(f_list),
-                    "female_best": (max(f_list) if is_field else min(f_list)) if f_list else 0,
+                    "female_best": (max(f_list) if is_max_better else min(f_list)) if f_list else 0,
                 }
 
             team_summary = []
@@ -3472,6 +3514,25 @@ def batch_save_events():
         return jsonify({"success": False, "message": str(ex)})
     finally:
         conn.close()
+@socketio.on('join_event_room')
+def handle_join_event_room(data):
+    room = data.get('room')
+    if room:
+        join_room(room)
+
+# 客户端离开特定项目房间
+@socketio.on('leave_event_room')
+def handle_leave_event_room(data):
+    room = data.get('room')
+    if room:
+        leave_room(room)
+
+# 客户端订阅团体总分榜更新
+@socketio.on('join_rank_room')
+def handle_join_rank_room(data):
+    group_name = data.get('group_name')
+    if group_name:
+        join_room(f"rank_{group_name}")
 # 初始化数据库
 init_db()
 force_sync_and_upgrade_db()
@@ -3515,4 +3576,4 @@ if __name__ == '__main__':
     
     app.jinja_env.auto_reload = True
     app.config['TEMPLATES_AUTO_RELOAD'] = True
-    serve(app, host='0.0.0.0', port=5000, threads=64)
+    socketio.run(app, host='0.0.0.0', port=5000)

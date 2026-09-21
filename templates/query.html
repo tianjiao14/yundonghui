@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>成绩查询</title>
 <script src="https://cdn.bootcdn.net/ajax/libs/tailwindcss/3.4.1/tailwind.min.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
     window.tailwind || document.write('<script src="{{ url_for("static", filename="js/tailwindcss.js") }}"><\/script>');
 </script>
@@ -259,15 +260,19 @@
         }
 
         function switchView(viewId) {
-    document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
-    const target = document.getElementById(viewId);
-    if (target) {
-        target.classList.remove('hidden');
-        const scroller = target.querySelector('main') || target;
-        scroller.scrollTop = 0;
-    }
-    window.scrollTo(0, 0);
-}
+            if (viewId === 'view-home' && currentSubscribedRoom) {
+                socket.emit('leave_event_room', { room: currentSubscribedRoom });
+                currentSubscribedRoom = null;
+            }
+            document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+            const target = document.getElementById(viewId);
+            if (target) {
+                target.classList.remove('hidden');
+                const scroller = target.querySelector('main') || target;
+                scroller.scrollTop = 0;
+            }
+            window.scrollTo(0, 0);
+        }
 
         // 🌟 关键：控制首页所有手风琴面板的展开与折叠
         function toggleAcc(panelId) { 
@@ -330,7 +335,21 @@
             `).join('');
         }
 
+        let currentSubscribedRoom = null; // 全局记录当前所在房间
+
         function goToEventDetail(eventName, isFinalsList, isSilent = false) {
+            // 🌟 1. 离开上一个项目的房间
+            if (currentSubscribedRoom) {
+                socket.emit('leave_event_room', { room: currentSubscribedRoom });
+                currentSubscribedRoom = null;
+            }
+
+            // 🌟 2. 构造并加入当前点击项目的房间（静默刷新时不重复订阅）
+            let cleanCore = eventName.replace('决赛', '').replace('预赛', '').replace(/[\(（].*?[\)）]/g, '').trim();
+            // 如果是在特定组别下查看，订阅具体房间
+            currentSubscribedRoom = `event_${eventName}`; // 订阅该项目房间
+            socket.emit('join_event_room', { room: currentSubscribedRoom });
+
             document.getElementById('detEventName').innerText = eventName;
             document.getElementById('detHeatLabel').innerHTML = isFinalsList ? '✨ 晋级决赛检录名单' : '🏅 综合成绩公告';
             const contentArea = document.getElementById('detContentArea');
@@ -538,19 +557,23 @@
                                 </div>`;
                             } else if (scored.length > 0 || abandoned.length > 0) {
 
-                                // 👇👇👇 你的代码就是替换在此处 👇👇👇
-                                const isFun = (eventName.includes('趣味') || ['绕杆', '引体', '跳绳', '仰卧'].some(k => eventName.includes(k)));
-                                let funIsTiming = ['绕杆', '跑', '接力', '计时', '障碍', '运球'].some(k => eventName.includes(k));
+                                const isTimingEvent = ['跑', '绕杆', '计时', '接力', '障碍', '运球', '冲刺', '50米', '100米', '200米', '400米', '800米', '1000米'].some(k => eventName.includes(k));
+                                const isCountingOrField = ['仰卧', '起坐', '引体', '向上', '跳绳', '垫球', '踢毽', '立定跳远', '跳远', '跳高', '实心球', '铅球', '标枪', '铁饼', '投', '掷'].some(k => eventName.includes(k));
 
-                                scored.sort((a,b) => {
+                                let sortAsc = true;
+                                if (isTimingEvent) {
+                                    sortAsc = true;
+                                } else if (isCountingOrField) {
+                                    sortAsc = false;
+                                } else {
+                                    sortAsc = scored.some(i => String(i.score).includes(':') || String(i.score).includes('：'));
+                                }
+
+                                scored.sort((a, b) => {
                                     const sa = parseTimeVal(a.score); 
                                     const sb = parseTimeVal(b.score);
-                                    if (isFun) {
-                                        return funIsTiming ? (sa - sb) : (sb - sa);
-                                    }
-                                    return isField ? (sb - sa) : (sa - sb);
+                                    return sortAsc ? (sa - sb) : (sb - sa);
                                 });
-                                // 👆👆👆 替换结束 👆👆👆
 
                                 html += `
                                 <div class="px-4 py-3 font-extrabold text-orange-700 bg-orange-50 border-y border-orange-100 mt-2 flex items-center justify-between">
@@ -667,12 +690,13 @@
                 container.innerHTML = '<span class="text-xs text-slate-400 font-bold">暂无组别</span>';
                 return;
             }
+            const sortedGroups = [...db.groups].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh-CN', { numeric: true }));
 
-            if (!window.activeRankGroup || !db.groups.some(g => g.name === window.activeRankGroup)) {
-                window.activeRankGroup = db.groups[0].name;
+            if (!window.activeRankGroup || !sortedGroups.some(g => g.name === window.activeRankGroup)) {
+                window.activeRankGroup = sortedGroups[0].name;
             }
 
-            container.innerHTML = db.groups.map(g => {
+            container.innerHTML = sortedGroups.map(g => {
                 const isSelected = (g.name === window.activeRankGroup);
                 return `
                     <button type="button" 
@@ -690,8 +714,15 @@
             loadTeamRank(window.activeRankGroup);
         }
 
+        let currentRankRoom = null;
         function selectRankGroup(groupName) {
             window.activeRankGroup = groupName;
+            if (currentRankRoom) {
+                socket.emit('leave_event_room', { room: currentRankRoom });
+            }
+            currentRankRoom = `rank_${groupName}`;
+            socket.emit('join_rank_room', { group_name: groupName });
+            
             renderRankGroupTabs();
         }
 
@@ -881,11 +912,11 @@
             });
         }
 
-        let pollTimer = null;
+        // 🌟 1. 建立 Socket.IO 长连接
+        const socket = io();
 
-        function triggerSilentUpdate() {
-            if (document.hidden) return;
-
+        // 🌟 2. 监听后台成绩更新事件：全自动静默刷新当前视图
+        socket.on('score_updated', function(payload) {
             const detailPanel = document.getElementById('view-event-detail');
             if (detailPanel && !detailPanel.classList.contains('hidden')) {
                 const curEvt = document.getElementById('detEventName')?.innerText;
@@ -894,13 +925,56 @@
                     goToEventDetail(curEvt, isFinals, true);
                 }
             }
-        }
+        });
 
-        //pollTimer = setInterval(triggerSilentUpdate, 15000);
+        // 🌟 收到总分榜更新时，只刷新总分面板
+        socket.on('rank_updated', function(payload) {
+            const rankPanel = document.getElementById('panel-team-score');
+            if (rankPanel && !rankPanel.classList.contains('hidden') && window.activeRankGroup === payload.group_name) {
+                loadTeamRank(window.activeRankGroup);
+            }
+        });
 
+            // B. 如果用户当前停留在“代表队得分明细”页面
+            const teamPanel = document.getElementById('view-team-detail');
+            if (teamPanel && !teamPanel.classList.contains('hidden')) {
+                const teamTitle = document.getElementById('teamDetailTitle')?.innerText || '';
+                const teamName = teamTitle.replace(' 明细', '').trim();
+                if (teamName && teamName !== '--' && window.activeRankGroup) {
+                    goToTeamDetail(teamName, window.activeRankGroup);
+                }
+            }
+
+            // C. 无论在哪个页面，如果团体总分面板处于展开状态，静默刷新总分榜
+            const rankPanel = document.getElementById('panel-team-score');
+            if (rankPanel && !rankPanel.classList.contains('hidden') && window.activeRankGroup) {
+                loadTeamRank(window.activeRankGroup);
+            }
+        });
+
+        // 🌟 3. 监听赛程发令/状态更新事件（用于赛程与检录状态即时同步）
+        socket.on('heat_activated', function(payload) {
+            const detailPanel = document.getElementById('view-event-detail');
+            if (detailPanel && !detailPanel.classList.contains('hidden')) {
+                const curEvt = document.getElementById('detEventName')?.innerText;
+                const isFinals = document.getElementById('detHeatLabel')?.innerText.includes('晋级');
+                if (curEvt && curEvt !== '--') {
+                    goToEventDetail(curEvt, isFinals, true);
+                }
+            }
+        });
+
+        // 页面从后台切回前台时，自动校验一次
         document.addEventListener('visibilitychange', function() {
             if (!document.hidden) {
-                triggerSilentUpdate();
+                const detailPanel = document.getElementById('view-event-detail');
+                if (detailPanel && !detailPanel.classList.contains('hidden')) {
+                    const curEvt = document.getElementById('detEventName')?.innerText;
+                    const isFinals = document.getElementById('detHeatLabel')?.innerText.includes('晋级');
+                    if (curEvt && curEvt !== '--') {
+                        goToEventDetail(curEvt, isFinals, true);
+                    }
+                }
             }
         });
     </script>
