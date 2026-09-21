@@ -986,7 +986,7 @@ function selectRole(role) {
                 <td class="p-2 text-right">
                     <div class="flex items-center justify-end gap-1">
                         <input type="text" inputmode="decimal" value="${p.score || ''}" 
-                               placeholder="成绩/弃权"
+                               placeholder=""
                                data-heat="${currentHeat}"
                                class="input-score ${isFirstOfHeat ? 'heat-first-input-' + currentHeat : ''} w-20 border border-blue-200 bg-blue-50 rounded-lg px-1.5 py-1.5 text-center shadow-inner text-blue-900 outline-none focus:bg-white text-sm"
                                onblur="saveScore(${p.reg_id || p.id}, this)">
@@ -1383,7 +1383,14 @@ function initFieldAthletesData(data) {
             athlete.attempts[roundNum - 1] = val;
             let allValid = athlete.attempts.map(v => parseFloat(v) || 0);
             let overallBest = Math.max(0, ...allValid);
-            let scoreStr = overallBest > 0 ? overallBest.toFixed(2) : '';
+            
+            // 🌟 核心修复：如果有成绩取最好成绩；如果试跳中有“弃权”且没有有效数值，成绩记为“弃权”
+            let scoreStr = '';
+            if (overallBest > 0) {
+                scoreStr = overallBest.toFixed(2);
+            } else if (athlete.attempts.some(v => String(v).includes('弃权'))) {
+                scoreStr = '弃权';
+            }
             let targetRegId = athlete.reg_id || athlete.id;
             if (!targetRegId) {
                 console.error("未找到有效的注册ID (reg_id)", athlete);
@@ -1736,12 +1743,41 @@ window.quickMarkAbsent = function(regId, btn) {
     saveScore(regId, input);
 };
 
-// 田赛试跳一键快捷标记弃权
 window.quickMarkFieldAbsent = function(regId, roundNum, btn) {
     const input = btn.previousElementSibling;
     if (!input) return;
     input.value = "弃权";
-    saveFieldScore(regId, roundNum, input);
+    
+    let athlete = fieldAthletesData.find(a => a.reg_id === regId || a.id === regId);
+    let targetRegId = athlete ? (athlete.reg_id || athlete.id) : regId;
+
+    input.classList.add('saving');
+    fetch('/api/submit_score', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ 
+            id: targetRegId, 
+            score: "弃权",
+            attempts: athlete ? JSON.stringify(athlete.attempts) : ""
+        })
+    })
+    .then(r => r.json())
+    .then(res => {
+        input.classList.remove('saving');
+        if (res.status === 'success') {
+            input.classList.add('saved');
+            setTimeout(() => input.classList.remove('saved'), 1000);
+            if (athlete) {
+                athlete.attempts[roundNum - 1] = "弃权";
+            }
+            renderCurrentFieldList();
+        } else {
+            alert("标记弃权失败: " + res.msg);
+        }
+    })
+    .catch(() => {
+        input.classList.remove('saving');
+    });
 };
 </script>
 </body>

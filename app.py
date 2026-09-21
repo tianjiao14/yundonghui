@@ -540,17 +540,10 @@ def recalculate_all_points():
                     is_fun = True
                 elif '趣味' in evt_type_str or to_bool_str(cfg.get('is_fun') if cfg else None) == '1' or '趣味' in core_name:
                     is_fun = True
-
-                # 2. 判定田赛度量型项目（远度/高度，越大越好）：注意过滤带“球”的趣味/测试项目
+                # 2. 判定田赛与度量型项目（远度/投掷/高度，越大越好）
                 is_field = False
-                field_pure_keywords = ['跳远', '立定跳远', '跳高', '三级跳', '撑竿跳', '铅球', '实心球', '标枪', '铁饼', '掷']
-                if not is_fun:
-                    if '田' in evt_type_str:
-                        is_field = True
-                    elif any(kwd in core_name for kwd in field_pure_keywords):
-                        is_field = True
-                elif '立定跳远' in core_name or '跳远' in core_name:
-                    # 健康测试中的立定跳远属于度量型，越大越好
+                distance_keywords = ['跳远', '立定跳远', '跳高', '三级跳', '撑竿跳', '铅球', '实心球', '标枪', '铁饼', '投', '掷', '投掷']
+                if any(kwd in core_name for kwd in distance_keywords) or '田' in evt_type_str:
                     is_field = True
 
                 # 3. 判定计时型（用时越少越好，升序）还是计数型（次数越多越好，降序）
@@ -587,18 +580,17 @@ def recalculate_all_points():
                 if not target_events: 
                     continue
 
-                # 🌟 核心修复：检查赛程表 (start_list)，若该决胜项目仍有选手未比完，绝对不提前结算积分！
                 target_placeholders = ','.join(['?'] * len(target_events))
                 uncompleted_count = c.execute(f"""
                     SELECT COUNT(*) 
                     FROM start_list 
                     WHERE group_name = ? AND gender = ? 
                       AND event_name IN ({target_placeholders})
-                      AND (score IS NULL OR TRIM(score) = '')
+                      AND (score IS NULL OR TRIM(score) = '' OR score = '-')
                       AND checked_in != 2
                 """, [g_name, gender] + target_events).fetchone()[0]
 
-                # 如果还有非弃权人员未录入成绩，说明比赛尚在进行中，跳过积分结算
+                # 如果还有既没成绩又没弃权的人员，说明比赛尚在进行中，跳过
                 if uncompleted_count > 0:
                     continue
 
@@ -656,29 +648,34 @@ def recalculate_all_points():
                         unique_entries[key] = item
                     else:
                         old_val = unique_entries[key]['_val']
-                        is_better = (item['_val'] > old_val) if is_field else (item['_val'] < old_val)
+                        # 远度/田赛/投掷项目数值越大越好；计时类项目用时越少越好
+                        if is_field:
+                            is_better = (item['_val'] > old_val)
+                        elif is_fun:
+                            is_better = (item['_val'] < old_val) if fun_is_timing else (item['_val'] > old_val)
+                        else:
+                            is_better = (item['_val'] < old_val)
                         if is_better: 
                             unique_entries[key] = item
 
                 is_height_event = any(kwd in core_name for kwd in ['跳高', '撑竿跳'])
 
+                # 🌟 统一最终排名列表（过滤无有效成绩与弃权选手）
+                final_list = [item for item in unique_entries.values() if item['_val'] > 0]
+
                 if is_height_event:
-                    final_list = [item for item in unique_entries.values() if parse_time_to_seconds(item['score']) > 0]
                     for item in final_list:
                         item['_hj_tie'] = parse_high_jump_tie_breaker(item['score'], item.get('attempts_json', ''))
                     final_list.sort(key=lambda x: x['_hj_tie'], reverse=True)
+                elif is_field or any(kwd in core_name for kwd in ['实心球', '铅球', '标枪', '铁饼', '跳远', '立定跳远', '投掷', '掷']):
+                    # 远度/投掷：降序，数值越大越好，16m 排在最上面得第 1 名
+                    final_list.sort(key=lambda x: x['_val'], reverse=True)
                 elif is_fun:
-                    final_list = [item for item in unique_entries.values() if item['_val'] > 0]
-                    
-                    if is_field or ('跳远' in core_name or '立定跳远' in core_name):
-                        final_list.sort(key=lambda x: x['_val'], reverse=True)
-                    elif fun_is_timing:
-                        final_list.sort(key=lambda x: x['_val'], reverse=False)
-                    else:
-                        final_list.sort(key=lambda x: x['_val'], reverse=True)
+                    # 趣味项目：计时升序，计数降序
+                    final_list.sort(key=lambda x: x['_val'], reverse=(not fun_is_timing))
                 else:
-                    final_list = [item for item in unique_entries.values() if item['_val'] > 0]
-                    final_list.sort(key=lambda x: x['_val'], reverse=is_field)
+                    # 普通径赛：升序，用时越少越好
+                    final_list.sort(key=lambda x: x['_val'], reverse=False)
 
                 score_rule = cfg.get('score_rule', "9,7,6,5,4,3,2,1") if cfg else "9,7,6,5,4,3,2,1"
                 rules = [int(x) for x in score_rule.replace('，', ',').split(',') if x.strip().isdigit()]
@@ -687,15 +684,20 @@ def recalculate_all_points():
 
                 my_records = group_records_map.get(f"{core_name}_{gender}", [])
 
+               # 🌟 判断该项目是否由用户勾选了“稠密排名/不跳名次”
+                is_dense_rank = (to_bool_str(cfg.get('dense_rank') if cfg else None) == '1') or is_health
+
                 current_rank = 1
                 for i, item in enumerate(final_list):
                     if i > 0:
                         if is_height_event:
                             if item['_hj_tie'] != final_list[i-1]['_hj_tie']:
-                                current_rank = (current_rank + 1) if is_health else (i + 1)
+                                # 🌟 核心分流：稠密排名加1 (1,1,2,2)；跳名次跳到 (i+1) 如 (1,1,3)
+                                current_rank = (current_rank + 1) if is_dense_rank else (i + 1)
                         else:
                             if item['_val'] != final_list[i-1]['_val']:
-                                current_rank = (current_rank + 1) if is_health else (i + 1)
+                                # 🌟 核心分流：稠密排名加1 (1,1,2,2)；跳名次跳到 (i+1) 如 (1,1,3)
+                                current_rank = (current_rank + 1) if is_dense_rank else (i + 1)
                     
                     p = 0
                     if current_rank <= len(rules):
@@ -794,6 +796,37 @@ def delete_athlete():
         _cache_store.clear()
         
     return jsonify({"status": "success", "msg": "删除成功"})
+# 🌟 一键清空运动员名单（支持全量清空或仅清空当前班级/组别）
+@app.route('/api/clear_all_athletes', methods=['POST'])
+@login_required('admin')
+def clear_all_athletes():
+    data = request.json or {}
+    team_id = data.get('team_id')
+    group_id = data.get('group_id')
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute("BEGIN IMMEDIATE")
+        if team_id:
+            c.execute("DELETE FROM registrations WHERE team_id = ?", (str(team_id),))
+            msg = "已成功清空当前代表队的全部报名运动员！"
+        elif group_id:
+            c.execute("DELETE FROM registrations WHERE group_id = ?", (str(group_id),))
+            msg = "已成功清空当前组别的全部报名运动员！"
+        else:
+            c.execute("DELETE FROM registrations")
+            msg = "已成功清空全场所有报名运动员及参赛记录！"
+
+        conn.commit()
+        if '_cache_store' in globals():
+            _cache_store.clear()
+        return jsonify({"status": "success", "msg": msg})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "msg": str(e)})
+    finally:
+        conn.close()
 @app.route('/api/update_point', methods=['POST'])
 def update_point():
     data = request.json or {}
@@ -1455,8 +1488,16 @@ def get_data_admin():
     conn = get_db_connection()
     c = conn.cursor()    
     try:
-        db_groups = [dict(r) for r in c.execute("SELECT id, name, prefix FROM cfg_groups ORDER BY id ASC").fetchall()]
-        db_teams = [dict(r) for r in c.execute("SELECT id, group_id, name, leader, coach, phone FROM cfg_teams").fetchall()]
+        # 🌟 按照手动保存的权重排序，没有权重时降级为 rowid
+        try:
+            db_groups = [dict(r) for r in c.execute("SELECT id, name, prefix FROM cfg_groups ORDER BY IFNULL(sort_order, rowid) ASC").fetchall()]
+        except Exception:
+            db_groups = [dict(r) for r in c.execute("SELECT id, name, prefix FROM cfg_groups ORDER BY rowid ASC").fetchall()]
+        
+        try:
+            db_teams = [dict(r) for r in c.execute("SELECT id, group_id, name, leader, coach, phone FROM cfg_teams ORDER BY IFNULL(sort_order, rowid) ASC").fetchall()]
+        except Exception:
+            db_teams = [dict(r) for r in c.execute("SELECT id, group_id, name, leader, coach, phone FROM cfg_teams ORDER BY rowid ASC").fetchall()]
         for t in db_teams: t['groupId'] = t['group_id']
         db_events = [dict(r) for r in c.execute("SELECT * FROM cfg_events").fetchall()]
         
@@ -1586,21 +1627,26 @@ def save_config():
     conn = get_db_connection()
     c = conn.cursor()
     try:
+        try: c.execute("ALTER TABLE cfg_groups ADD COLUMN sort_order INTEGER DEFAULT 0")
+        except Exception: pass
+        try: c.execute("ALTER TABLE cfg_teams ADD COLUMN sort_order INTEGER DEFAULT 0")
+        except Exception: pass
+
         if 'groups' in data:
             c.execute("DELETE FROM cfg_groups")
-            for g in data['groups']:
-                c.execute("INSERT OR REPLACE INTO cfg_groups (id, name, prefix) VALUES (?, ?, ?)", 
-                          (str(g['id']), g['name'], g['prefix']))
+            for idx, g in enumerate(data['groups']):
+                c.execute("INSERT OR REPLACE INTO cfg_groups (id, name, prefix, sort_order) VALUES (?, ?, ?, ?)", 
+                          (str(g['id']), g['name'], g.get('prefix', '-'), idx))
                   
         if 'teams' in data:
             c.execute("DELETE FROM cfg_teams")
-            for t in data['teams']:
+            for idx, t in enumerate(data['teams']):
                 c.execute("""
-                    INSERT OR REPLACE INTO cfg_teams (id, group_id, name, leader, coach, phone) 
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO cfg_teams (id, group_id, name, leader, coach, phone, sort_order) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, (
                     str(t['id']), str(t.get('groupId') or t.get('group_id')), 
-                    t['name'], t.get('leader', '') or '', t.get('coach', '') or '', t.get('phone', '') or ''
+                    t['name'], t.get('leader', '') or '', t.get('coach', '') or '', t.get('phone', '') or '', idx
                 ))
                   
         if 'events' in data:
@@ -2264,20 +2310,24 @@ def submit_score():
 
         is_relay = re.search(r'4[xX*×]|接力', event_name) is not None
 
+       # 🌟 核心修复：如果标记弃权，必须把成绩确切保存为 '弃权'，并将检录标记为 2
+        is_abandoned_score = ('弃权' in str(formatted_score) or 'DNS' in str(formatted_score) or 'DNF' in str(formatted_score))
+        if is_abandoned_score:
+            formatted_score = '弃权'
+
         # 3. 更新 start_list (道次表)
         if is_relay:
             c.execute("""
                 UPDATE start_list 
-                SET score = ?, attempts_json = ? 
+                SET score = ?, attempts_json = ?, checked_in = CASE WHEN ? = 1 THEN 2 ELSE checked_in END
                 WHERE team_name = ? AND group_name = ? AND event_name = ? AND gender = ?
-            """, (formatted_score, attempts_json, team_name, group_name, event_name, gender))
+            """, (formatted_score, attempts_json, 1 if is_abandoned_score else 0, team_name, group_name, event_name, gender))
         else:
-            # 个人单项（包括100米、200米、400米、跳远等）：严格锁定运动员个人姓名！
             c.execute("""
                 UPDATE start_list 
-                SET score = ?, attempts_json = ? 
+                SET score = ?, attempts_json = ?, checked_in = CASE WHEN ? = 1 THEN 2 ELSE checked_in END
                 WHERE name = ? AND team_name = ? AND group_name = ? AND event_name = ? AND gender = ?
-            """, (formatted_score, attempts_json, name, team_name, group_name, event_name, gender))
+            """, (formatted_score, attempts_json, 1 if is_abandoned_score else 0, name, team_name, group_name, event_name, gender))
 
         # 4. 更新 registrations (报名成绩表)
         if is_relay:
@@ -2287,13 +2337,21 @@ def submit_score():
                 WHERE team_name = ? AND group_name = ? AND event_name = ? AND gender = ?
             """, (formatted_score, attempts_json, team_name, group_name, event_name, gender))
         else:
-            # 个人单项：严格只更新当前这位运动员自己！绝不影响同班其他选手！
             up_res = c.execute("""
                 UPDATE registrations 
                 SET score = ?, attempts_json = ? 
                 WHERE name = ? AND team_name = ? AND group_name = ? AND event_name = ? AND gender = ?
             """, (formatted_score, attempts_json, name, team_name, group_name, event_name, gender))
             
+            if up_res.rowcount == 0:
+                t_row = c.execute("SELECT id, group_id FROM cfg_teams WHERE name = ?", (team_name,)).fetchone()
+                tid = t_row['id'] if t_row else 0
+                gid = t_row['group_id'] if t_row else 0
+                c.execute("""
+                    INSERT INTO registrations (group_id, group_name, team_id, team_name, name, gender, event_name, score, attempts_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (gid, group_name, tid, team_name, name, gender, event_name, formatted_score, attempts_json))
+
             if up_res.rowcount == 0:
                 t_row = c.execute("SELECT id, group_id FROM cfg_teams WHERE name = ?", (team_name,)).fetchone()
                 tid = t_row['id'] if t_row else 0
@@ -2888,6 +2946,8 @@ def force_sync_and_upgrade_db():
     try: c.execute("ALTER TABLE cfg_teams ADD COLUMN phone TEXT DEFAULT ''")
     except Exception: pass
     try: c.execute("ALTER TABLE cfg_events ADD COLUMN is_team TEXT DEFAULT '0'")
+    except Exception: pass
+    try: c.execute("ALTER TABLE cfg_events ADD COLUMN dense_rank TEXT DEFAULT '0'")
     except Exception: pass
     try:
         c.execute("""
@@ -3486,6 +3546,8 @@ def batch_save_events():
             is_relay_str = '1' if e.get('isRelay') else '0'
             need_lane_str = '1' if e.get('needLane') else '0'
             is_fun_str = '1' if e.get('isFun', False) else '0'
+            # 🌟 新增：接收稠密排名设定
+            dense_rank_str = '1' if (e.get('denseRank') or e.get('dense_rank')) else '0'
             
             limit_val = e.get('limit') if e.get('limit') is not None else 8
             dur_val = e.get('duration') if e.get('duration') is not None else 5
@@ -3495,15 +3557,15 @@ def batch_save_events():
             c.execute('''
                 INSERT INTO cfg_events 
                 (id, name, type, gender, score_rule, record, record_bonus, is_double_score, 
-                 need_lane, has_prelim, is_relay, is_team, limit_count, is_fun, allowed_groups, duration, venue_count, qualify_count)
-                VALUES (?, ?, ?, ?, ?, '', ?, '0', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 need_lane, has_prelim, is_relay, is_team, limit_count, is_fun, allowed_groups, duration, venue_count, qualify_count, dense_rank)
+                VALUES (?, ?, ?, ?, ?, '', ?, '0', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 str(i + 1), e.get('name', ''), e.get('type', ''), e.get('gender', '双性'),
                 e.get('scoreRule', '9,7,6,5,4,3,2,1'), e.get('recordBonus', 0), 
                 need_lane_str, has_prelim_str, is_relay_str, is_team_str,
                 int(limit_val), is_fun_str,
                 str(e.get('allowedGroups', '')),
-                float(dur_val), int(ven_val), qualify_val
+                float(dur_val), int(ven_val), qualify_val, dense_rank_str
             ))
             
         conn.commit()
