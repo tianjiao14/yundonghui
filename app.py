@@ -2631,10 +2631,10 @@ def import_system():
         c.execute("PRAGMA busy_timeout = 60000;")
         c.execute("PRAGMA synchronous = OFF;")
         
-        # 2. 确保目标表结构存在（直接用当前连接建表，防止其他连接抢锁）
-        c.execute('''CREATE TABLE IF NOT EXISTS cfg_groups (id INTEGER PRIMARY KEY, name TEXT, prefix TEXT)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS cfg_teams (id INTEGER PRIMARY KEY, group_id INTEGER, name TEXT, leader TEXT, coach TEXT DEFAULT '', phone TEXT DEFAULT '')''')
-        c.execute('''CREATE TABLE IF NOT EXISTS cfg_events (id INTEGER PRIMARY KEY, name TEXT, type TEXT, gender TEXT, score_rule TEXT, record TEXT, record_bonus TEXT, is_double_score BOOLEAN, need_lane BOOLEAN, has_prelim BOOLEAN, is_relay BOOLEAN, limit_count INTEGER, allowed_groups TEXT DEFAULT '', duration REAL DEFAULT 5, venue_count INTEGER DEFAULT 1, is_fun TEXT DEFAULT '0', qualify_count INTEGER DEFAULT 8)''')
+        # 2. 确保目标表结构存在（直接用当前连接建表，包含所有最新字段）
+        c.execute('''CREATE TABLE IF NOT EXISTS cfg_groups (id INTEGER PRIMARY KEY, name TEXT, prefix TEXT, sort_order INTEGER DEFAULT 0)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS cfg_teams (id INTEGER PRIMARY KEY, group_id INTEGER, name TEXT, leader TEXT, coach TEXT DEFAULT '', phone TEXT DEFAULT '', sort_order INTEGER DEFAULT 0)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS cfg_events (id INTEGER PRIMARY KEY, name TEXT, type TEXT, gender TEXT, score_rule TEXT, record TEXT, record_bonus TEXT, is_double_score BOOLEAN, need_lane BOOLEAN, has_prelim BOOLEAN, is_relay BOOLEAN, is_team TEXT DEFAULT '0', limit_count INTEGER, allowed_groups TEXT DEFAULT '', duration REAL DEFAULT 5, venue_count INTEGER DEFAULT 1, is_fun TEXT DEFAULT '0', qualify_count INTEGER DEFAULT 8, dense_rank TEXT DEFAULT '0')''')
         c.execute('''CREATE TABLE IF NOT EXISTS sys_config (key TEXT PRIMARY KEY, value TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS team_auth (id INTEGER PRIMARY KEY AUTOINCREMENT, team_name TEXT, password TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS system_settings (key TEXT PRIMARY KEY, value TEXT)''')
@@ -2649,44 +2649,66 @@ def import_system():
         for tbl in ["cfg_groups", "cfg_teams", "cfg_events", "sys_config", "system_settings", "team_auth", "cfg_group_records", "registrations", "start_list"]:
             c.execute(f"DELETE FROM {tbl}")
 
-        # 5. 批量写入 cfg_groups
+       # 5. 批量写入 cfg_groups（携带排序权重）
         if data.get('groups'):
-            groups_data = [(g.get('id'), g.get('name', ''), g.get('prefix', '-')) for g in data['groups']]
-            c.executemany("INSERT OR REPLACE INTO cfg_groups (id, name, prefix) VALUES (?, ?, ?)", groups_data)
+            groups_data = [
+                (g.get('id'), g.get('name', ''), g.get('prefix', '-'), g.get('sort_order', idx))
+                for idx, g in enumerate(data['groups'])
+            ]
+            c.executemany("INSERT OR REPLACE INTO cfg_groups (id, name, prefix, sort_order) VALUES (?, ?, ?, ?)", groups_data)
 
-        # 6. 批量写入 cfg_teams
+        # 6. 批量写入 cfg_teams（携带排序权重）
         if data.get('teams'):
             teams_data = [(
                 t.get('id'), t.get('group_id') or t.get('groupId'), t.get('name', ''), 
-                t.get('leader', ''), t.get('coach', ''), t.get('phone', '')
-            ) for t in data['teams']]
+                t.get('leader', ''), t.get('coach', ''), t.get('phone', ''),
+                t.get('sort_order', idx)
+            ) for idx, t in enumerate(data['teams'])]
             c.executemany("""
-                INSERT OR REPLACE INTO cfg_teams (id, group_id, name, leader, coach, phone) 
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO cfg_teams (id, group_id, name, leader, coach, phone, sort_order) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """, teams_data)
 
         # 7. 批量写入 cfg_events
         if data.get('events'):
-            events_data = [(
-                e.get('id'), e.get('name', ''), e.get('type', '径赛'), e.get('gender', '双性'),
-                e.get('score_rule') or e.get('scoreRule') or '9,7,6,5,4,3,2,1',
-                e.get('record', ''), e.get('record_bonus') or e.get('recordBonus') or 0,
-                to_bool_str(e.get('is_double_score') or e.get('isDoubleScore')),
-                to_bool_str(e.get('need_lane') or e.get('needLane')),
-                to_bool_str(e.get('has_prelim') or e.get('hasPrelim')),
-                to_bool_str(e.get('is_relay') or e.get('isRelay')),
-                int(e.get('limit_count') or e.get('limit') or 8),
-                e.get('allowed_groups') or e.get('allowedGroups') or '',
-                float(e.get('duration') or 5), int(e.get('venue_count') or e.get('venueCount') or 1),
-                to_bool_str(e.get('is_fun') or e.get('isFun')),
-                int(e.get('qualify_count') or e.get('qualifyCount') or 8)
-            ) for e in data['events']]
+            events_data = []
+            for e in data['events']:
+                # 严谨获取限额：如果是 0 则严格保留 0，只有为 None/空串时才回退默认值
+                raw_lim = e.get('limit_count') if e.get('limit_count') is not None else e.get('limit')
+                lim_val = int(raw_lim) if (raw_lim is not None and str(raw_lim).strip() != '') else 8
+
+                raw_dur = e.get('duration')
+                dur_val = float(raw_dur) if (raw_dur is not None and str(raw_dur).strip() != '') else 5.0
+
+                raw_ven = e.get('venue_count') if e.get('venue_count') is not None else e.get('venueCount')
+                ven_val = int(raw_ven) if (raw_ven is not None and str(raw_ven).strip() != '') else 1
+
+                raw_qua = e.get('qualify_count') if e.get('qualify_count') is not None else e.get('qualifyCount')
+                qua_val = int(raw_qua) if (raw_qua is not None and str(raw_qua).strip() != '') else 8
+
+                events_data.append((
+                    e.get('id'), e.get('name', ''), e.get('type', '径赛'), e.get('gender', '双性'),
+                    e.get('score_rule') or e.get('scoreRule') or '9,7,6,5,4,3,2,1',
+                    e.get('record', ''), e.get('record_bonus') or e.get('recordBonus') or 0,
+                    to_bool_str(e.get('is_double_score') or e.get('isDoubleScore')),
+                    to_bool_str(e.get('need_lane') or e.get('needLane')),
+                    to_bool_str(e.get('has_prelim') or e.get('hasPrelim')),
+                    to_bool_str(e.get('is_relay') or e.get('isRelay')),
+                    to_bool_str(e.get('is_team') or e.get('isTeam')),
+                    lim_val,
+                    e.get('allowed_groups') or e.get('allowedGroups') or '',
+                    dur_val, ven_val,
+                    to_bool_str(e.get('is_fun') or e.get('isFun')),
+                    qua_val,
+                    to_bool_str(e.get('dense_rank') or e.get('denseRank'))
+                ))
+
             c.executemany("""
                 INSERT OR REPLACE INTO cfg_events 
                 (id, name, type, gender, score_rule, record, record_bonus, 
-                 is_double_score, need_lane, has_prelim, is_relay, limit_count, 
-                 allowed_groups, duration, venue_count, is_fun, qualify_count)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 is_double_score, need_lane, has_prelim, is_relay, is_team, limit_count, 
+                 allowed_groups, duration, venue_count, is_fun, qualify_count, dense_rank)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, events_data)
 
         # 8. 批量写入 sys_config
