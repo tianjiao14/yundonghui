@@ -3514,11 +3514,15 @@ function exportWord() {
                     const rawDur = e.duration;
                     const rawVen = e.venue_count !== undefined ? e.venue_count : e.venueCount;
 
+                    const isFunEvt = (String(e.type).includes('趣味') || String(e.type).includes('健康') || String(e.is_fun) === '1');
+                    const fallbackLimit = isFunEvt ? 0 : 8;
+                    const fallbackDuration = isFunEvt ? 0 : 5;
+
                     return {
                         ...e,
-                        limit: (rawLimit !== null && rawLimit !== undefined && rawLimit !== '') ? parseInt(rawLimit) : 8,
+                        limit: (rawLimit !== null && rawLimit !== undefined && rawLimit !== '') ? parseInt(rawLimit) : fallbackLimit,
                         venueCount: (rawVen !== null && rawVen !== undefined && rawVen !== '') ? parseInt(rawVen) : 1,
-                        duration: (rawDur !== null && rawDur !== undefined && rawDur !== '') ? parseFloat(rawDur) : 5,
+                        duration: (rawDur !== null && rawDur !== undefined && rawDur !== '') ? parseFloat(rawDur) : fallbackDuration,
                         qualifyCount: (e.qualify_count !== undefined && e.qualify_count !== null) ? parseInt(e.qualify_count) : 8,
                         scoreRule: e.scoreRule || e.score_rule || '9,7,6,5,4,3,2,1', 
                         record: e.record || '',
@@ -4410,13 +4414,13 @@ window.closeTeamScoreDetailModal = function() {
     window.appendCustomToMatrix = function() {
         const name = document.getElementById('customEventName').value.trim(); 
         const type = document.getElementById('customEventType').value;
-        const dur = parseInt(document.getElementById('customEventDur').value) || 5; 
-        const lim = parseInt(document.getElementById('customEventLim').value) || 8; 
+        const rawDurInput = document.getElementById('customEventDur').value.trim();
+        const rawLimInput = document.getElementById('customEventLim').value.trim();
+        const dur = rawDurInput !== '' ? (parseFloat(rawDurInput) || 0) : 5;
+        const lim = rawLimInput !== '' ? (parseInt(rawLimInput) || 0) : 8;
         const isFun = document.getElementById('customIsFun').checked; 
         const needLane = document.getElementById('customNeedLane').checked;
         const isTeam = document.getElementById('customIsTeam').checked;
-
-        // 🌟 核心修复：接力属性优先读取勾选框，或者仅在名称含“接力”时才默认为 true，绝不绑定趣味项目
         const customIsRelayEl = document.getElementById('customIsRelay');
         const isRelay = customIsRelayEl ? customIsRelayEl.checked : name.includes('接力');
 
@@ -4481,14 +4485,24 @@ window.deleteMatrixEvent = function(index) {
         window.PRESET_MATRIX_POOL.forEach((preset, index) => {
             const activeEvt = db.events.find(e => e.name === preset.name);
             const isChecked = (activeEvt || preset.forceCheck) ? 'checked' : ''; 
-            
-            let currentDuration = activeEvt?.duration ?? preset.duration ?? 5;
-            let currentLimit = activeEvt?.limit ?? preset.limit ?? 8;
+            let currentDuration = 5;
+            if (activeEvt && activeEvt.duration !== undefined && activeEvt.duration !== null && activeEvt.duration !== '') {
+                currentDuration = activeEvt.duration;
+            } else if (preset.duration !== undefined && preset.duration !== null && preset.duration !== '') {
+                currentDuration = preset.duration;
+            }
+
+            let currentLimit = 8;
+            if (activeEvt && activeEvt.limit !== undefined && activeEvt.limit !== null && activeEvt.limit !== '') {
+                currentLimit = activeEvt.limit;
+            } else if (preset.limit !== undefined && preset.limit !== null && preset.limit !== '') {
+                currentLimit = preset.limit;
+            }
+
             let currentQualify = activeEvt?.qualifyCount ?? activeEvt?.qualify_count ?? preset.qualifyCount ?? 8;
 
             let hasPrelimVal = activeEvt ? (String(activeEvt.hasPrelim) === 'true' || String(activeEvt.has_prelim) === '1') : preset.hasPrelim;
-            
-            // 🌟 读取团体勾选状态
+
             let isTeamVal = activeEvt ? (String(activeEvt.is_team) === '1' || String(activeEvt.isTeam) === 'true' || String(activeEvt.is_team) === 'true') : (preset.isTeam || false);
             const isTeamChecked = isTeamVal ? 'checked' : '';
             let isDenseChecked = (activeEvt ? (String(activeEvt.dense_rank) === '1' || String(activeEvt.denseRank) === 'true') : preset.denseRank) ? 'checked' : '';
@@ -4585,21 +4599,8 @@ window.deleteMatrixEvent = function(index) {
                 const rawLim = document.getElementById(`lim_${index}`).value.trim();
                 const rawVen = document.getElementById(`ven_${index}`).value.trim();
                 const isFunChecked = document.getElementById(`fun_${index}`).checked;
-
-                // 🌟 趣味项目留空或填0统一按 0 分钟/不限保存；常规项目留空才取预设默认值
-                let finalDur = 0;
-                if (rawDur !== '') {
-                    finalDur = parseFloat(rawDur);
-                } else if (!isFunChecked) {
-                    finalDur = preset.duration !== undefined ? preset.duration : 5;
-                }
-
-                let finalLim = 0;
-                if (rawLim !== '') {
-                    finalLim = parseInt(rawLim);
-                } else if (!isFunChecked) {
-                    finalLim = preset.limit !== undefined ? preset.limit : 8;
-                }
+                const finalDur = rawDur !== '' ? (parseFloat(rawDur) || 0) : (preset.duration !== undefined ? preset.duration : 5);
+                const finalLim = rawLim !== '' ? (parseInt(rawLim) || 0) : (preset.limit !== undefined ? preset.limit : 8);
 
                const rawQua = document.getElementById(`qua_${index}`).value.trim();
                 const finalQua = rawQua === '' ? 8 : (parseInt(rawQua) || 8);
