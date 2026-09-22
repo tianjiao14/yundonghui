@@ -799,7 +799,6 @@ def delete_athlete():
         _cache_store.clear()
         
     return jsonify({"status": "success", "msg": "删除成功"})
-# 🌟 一键清空运动员名单（支持全量清空或仅清空当前班级/组别）
 @app.route('/api/clear_all_athletes', methods=['POST'])
 @login_required('admin')
 def clear_all_athletes():
@@ -812,15 +811,33 @@ def clear_all_athletes():
     try:
         c.execute("BEGIN IMMEDIATE")
         if team_id:
+            # 查出队名，联动清除 start_list
+            t_row = c.execute("SELECT name FROM cfg_teams WHERE id = ?", (str(team_id),)).fetchone()
+            t_name = t_row[0] if t_row else ''
             c.execute("DELETE FROM registrations WHERE team_id = ?", (str(team_id),))
-            msg = "已成功清空当前代表队的全部报名运动员！"
+            if t_name:
+                c.execute("DELETE FROM start_list WHERE team_name = ?", (t_name,))
+            msg = "已成功清空当前代表队的全部报名运动员及编排记录！"
         elif group_id:
+            # 查出组别名，联动清除 start_list
+            g_row = c.execute("SELECT name FROM cfg_groups WHERE id = ?", (str(group_id),)).fetchone()
+            g_name = g_row[0] if g_row else ''
             c.execute("DELETE FROM registrations WHERE group_id = ?", (str(group_id),))
-            msg = "已成功清空当前组别的全部报名运动员！"
+            if g_name:
+                c.execute("DELETE FROM start_list WHERE group_name = ?", (g_name,))
+            msg = "已成功清空当前组别的全部报名运动员及编排记录！"
         else:
+            # 🌟 核心：全场清空时，彻底清空 start_list 道次表和沙盘日程设置
             c.execute("DELETE FROM registrations")
-            msg = "已成功清空全场所有报名运动员及参赛记录！"
+            c.execute("DELETE FROM start_list")
+            c.execute("DELETE FROM sys_config WHERE key = 'manual_schedule_map'")
+            c.execute("DELETE FROM system_settings WHERE key = 'active_track_heat'")
+            msg = "已成功清空全场所有报名运动员及赛程道次编排！"
 
+        conn.commit()
+        if '_cache_store' in globals():
+            _cache_store.clear()
+        return jsonify({"status": "success", "msg": msg})
         conn.commit()
         if '_cache_store' in globals():
             _cache_store.clear()

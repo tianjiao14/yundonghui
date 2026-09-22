@@ -2657,7 +2657,17 @@ function selectView(m, id, n) {
         .then(res => {
             if (res.status === 'success') {
                 alert("✔ " + res.msg);
+                // 🌟 同步清空前端的编排缓存
+                if (!payload.team_id && !payload.group_id) {
+                    db.schedule = [];
+                    db.athletes = [];
+                    window.manualScheduleMap = {};
+                    localStorage.removeItem('manual_schedule_map');
+                }
                 fetchLatestData();
+                // 强制刷新 Step 4 界面
+                if (typeof renderScheduleResult === 'function') renderScheduleResult();
+                if (typeof calculateEventTimeBudget === 'function') calculateEventTimeBudget();
             } else {
                 alert("❌ 操作失败: " + res.msg);
             }
