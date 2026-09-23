@@ -808,16 +808,23 @@
     </div>
 
     <div class="flex items-center gap-2">
-        <button onclick="calculateDetailedScoreTable()" class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow hover:bg-purple-700 font-bold text-xs flex items-center gap-1.5 transition active:scale-95">
-            📑 详细积分表
-        </button>
-        <button onclick="window.print()" class="bg-gray-700 text-white px-3.5 py-2 rounded-lg hover:bg-gray-800 font-bold text-xs transition">
-            🖨️ 打印
-        </button>
-        <button onclick="printLandscape()" class="bg-gray-900 text-white px-3.5 py-2 rounded-lg hover:bg-black font-bold text-xs transition">
-            🖨️ 强制横向
-        </button>
-    </div>
+    <label class="flex items-center space-x-1.5 cursor-pointer select-none bg-yellow-50 px-3 py-2 rounded-lg border border-yellow-200 text-yellow-800 font-bold text-xs hover:bg-yellow-100 transition">
+        <input type="checkbox" id="enableEditRankScore" onchange="calculateTeamRanking()" class="w-3.5 h-3.5 text-yellow-600 rounded focus:ring-yellow-500 cursor-pointer">
+        <span>🔓 开启附加分编辑</span>
+    </label>
+
+    <!-- 🌟 新增：动态管理附加项目列按钮 -->
+    <button onclick="manageCustomColsPrompt()" class="bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg font-bold text-xs hover:bg-indigo-100 transition active:scale-95">
+        ➕ 增减集体附加项
+    </button>
+
+    <button onclick="calculateDetailedScoreTable()" class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow hover:bg-purple-700 font-bold text-xs flex items-center gap-1.5 transition active:scale-95">
+        📑 详细积分表
+    </button>
+    <button onclick="window.print()" class="bg-gray-700 text-white px-3.5 py-2 rounded-lg hover:bg-gray-800 font-bold text-xs transition">
+        🖨️ 打印
+    </button>
+</div>
 </div>
             <div class="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col">
                 <div class="flex-1 overflow-y-auto p-8 bg-gray-50" id="rankOutput">
@@ -3995,6 +4002,8 @@ window.showAdminTeamScoreDetail = function(groupName, teamName, totalScore) {
 window.closeTeamScoreDetailModal = function() {
     document.getElementById('teamScoreDetailModal').classList.add('hidden');
 };
+    window.customScoreColumns = ["跑操比赛"]; // 默认
+
     window.calculateTeamRanking = function(gName) {
         const targetGroup = gName || window.currentRankGroupName;
         const div = document.getElementById('rankOutput');
@@ -4004,19 +4013,21 @@ window.closeTeamScoreDetailModal = function() {
             div.innerHTML = '<div class="text-center text-gray-400 mt-20">请在上方选择组别查看</div>';
             return; 
         }
-        
-        div.innerHTML = '<div class="text-center text-blue-500 mt-10 font-bold">正在后台核算最新成绩与积分...</div>';
 
-        fetch('/api/recalculate_all_points', { method: 'POST' })
-        .then(() => {
-            return fetch('/api/calculate_team_ranking', {
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'}, 
-                body: JSON.stringify({ group_name: targetGroup })
-            });
+        const isEditMode = document.getElementById('enableEditRankScore')?.checked || false;
+        div.innerHTML = '<div class="text-center text-blue-500 mt-10 font-bold">正在核算积分与附加项...</div>';
+
+        fetch('/api/calculate_team_ranking', {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({ group_name: targetGroup })
         })
         .then(r => r.json())
-        .then(data => {
+        .then(res => {
+            const cols = res.columns || ["跑操比赛"];
+            window.customScoreColumns = cols;
+            const data = res.teams || [];
+
             if (data.length === 0) { 
                 div.innerHTML = `<div class="text-center text-gray-400 mt-20 font-bold">【${targetGroup}】暂无成绩数据</div>`; 
                 return; 
@@ -4024,8 +4035,11 @@ window.closeTeamScoreDetailModal = function() {
             
             const today = new Date(); 
             const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
-            let rows = '';
             
+            // 动态构建表头各附加列
+            let customHeaders = cols.map(c => `<th class="w-24 text-indigo-700 bg-indigo-50/50">${c}</th>`).join('');
+
+            let rows = '';
             data.forEach((t, idx) => {
                 let rankIcon = idx + 1; 
                 let rowClass = "";
@@ -4033,6 +4047,24 @@ window.closeTeamScoreDetailModal = function() {
                 else if (idx === 1) { rankIcon = '🥈'; rowClass = "bg-slate-50"; }
                 else if (idx === 2) { rankIcon = '🥉'; rowClass = "bg-amber-50/50"; }
                 
+                const sMap = t.custom_scores || {};
+
+                // 动态构建各附加分输入框/展示格
+                let customCells = cols.map(col => {
+                    const val = sMap[col] !== undefined ? sMap[col] : 0;
+                    if (isEditMode) {
+                        return `<td class="text-center">
+                            <input type="number" step="0.5" value="${val}" 
+                                class="w-16 text-center font-bold font-mono border border-indigo-300 rounded py-1 bg-white text-indigo-800 outline-none focus:ring-1 focus:ring-indigo-400 shadow-inner"
+                                onblur="saveTeamCustomScore('${t.name}', '${targetGroup}', '${col}', this)">
+                        </td>`;
+                    } else {
+                        return `<td class="text-center font-bold font-mono ${val > 0 ? 'text-indigo-600' : 'text-gray-300'}">
+                            ${val > 0 ? '+' + val : (val < 0 ? val : '-')}
+                        </td>`;
+                    }
+                }).join('');
+
                 rows += `
                 <tr class="${rowClass} border-b border-gray-200 hover:bg-pink-50/30 transition text-center">
                     <td class="font-bold text-lg py-3">${rankIcon}</td> 
@@ -4041,11 +4073,12 @@ window.closeTeamScoreDetailModal = function() {
                     <td class="font-bold text-gray-500">${t.silver}</td> 
                     <td class="font-bold text-orange-600">${t.bronze}</td> 
                     <td class="font-bold text-red-500 bg-red-50/60 font-mono">+${t.total_record_bonus || 0}</td>
+                    ${customCells}
                     <td class="font-black text-xl text-blue-700 font-mono underline cursor-pointer hover:text-blue-900 transition active:scale-95" 
-    title="点击查看详细得分明细"
-    onclick="showAdminTeamScoreDetail('${targetGroup}', '${t.name}', ${t.score})">
-    ${t.score}
-</td>
+                        title="点击查看详细得分明细"
+                        onclick="showAdminTeamScoreDetail('${targetGroup}', '${t.name}', ${t.score})">
+                        ${t.score}
+                    </td>
                 </tr>`;
             });
 
@@ -4065,6 +4098,7 @@ window.closeTeamScoreDetailModal = function() {
                             <th class="w-16">🥈银</th> 
                             <th class="w-16">🥉铜</th>
                             <th class="w-20">破纪加分</th> 
+                            ${customHeaders}
                             <th class="w-24">总积分</th>
                         </tr>
                     </thead>
@@ -4078,49 +4112,132 @@ window.closeTeamScoreDetailModal = function() {
         });
     };
 
+    // 🌟 保存单项附加分
+    window.saveTeamCustomScore = function(teamName, groupName, itemKey, inputEl) {
+        const val = parseFloat(inputEl.value.trim()) || 0;
+        inputEl.style.backgroundColor = '#fef3c7';
+
+        fetch('/api/update_team_custom_score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                team_name: teamName,
+                group_name: groupName,
+                item_key: itemKey,
+                score: val
+            })
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.status === 'success') {
+                inputEl.style.backgroundColor = '#dcfce7';
+                setTimeout(() => {
+                    inputEl.style.backgroundColor = '';
+                    calculateTeamRanking(groupName);
+                }, 600);
+            }
+        });
+    };
+
+    window.manageCustomColsPrompt = function() {
+
+        const existingList = window.customScoreColumns || ["跑操比赛"];
+        const curText = existingList.join('，');
+        
+        const input = prompt(
+            "【管理场外集体附加项目】\n\n" +
+            "说明：请在下方列出所有需要计入总分的附加项目，用中文或英文逗号隔开。\n" +
+            "• 如需追加：在后面补上逗号和新项目名即可\n" +
+            "• 如需删除：直接删掉对应项目名\n\n" +
+            "当前配置：", 
+            curText
+        );
+        
+        if (input === null) return; // 用户点击取消
+
+        // 统一按中英文逗号切割并去重
+        const newCols = input.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+        if (newCols.length === 0) {
+            alert("⚠️ 至少需要保留一个项目名称！");
+            return;
+        }
+
+        fetch('/api/manage_custom_score_columns', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ columns: newCols })
+        })
+        .then(r => r.json())
+        .then(res => {
+            alert(`✔ 附加项目设置成功！当前共包含 ${newCols.length} 个项目：\n${newCols.join('、')}`);
+            // 立即以无缓存方式重新拉取并重绘总分榜
+            calculateTeamRanking(window.currentRankGroupName);
+        })
+        .catch(err => alert("保存失败: " + err.message));
+    };
+
     window.calculateDetailedScoreTable = function() {
         const gName = window.currentRankGroupName;
         const eventTitle = document.getElementById('cfgTitle')?.value || "运动会"; 
         if (!gName) return alert("请先选择一个组别！");
         
         const div = document.getElementById('rankOutput');
-        div.innerHTML = '<div class="text-center text-blue-500 mt-10 font-bold">正在后台核算最新积分并生成矩阵...</div>';
+        div.innerHTML = '<div class="text-center text-blue-500 mt-10 font-bold">正在核算包含集体项目的完整积分大盘...</div>';
 
-        fetch('/api/recalculate_all_points', { method: 'POST' })
-        .then(() => {
-            return fetch('/api/calculate_detailed_matrix?_t=' + Date.now(), {
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'}, 
-                body: JSON.stringify({ group_name: gName })
-            });
+        fetch('/api/calculate_detailed_matrix?_t=' + Date.now(), {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({ group_name: gName })
         })
         .then(r => r.json())
         .then(data => {
-            const cols = data.columns; 
-            const rows = data.rows;    
+            const compCols = data.columns || [];
+            const customCols = data.custom_columns || [];
+            const rows = data.rows || [];    
+            
             if (!rows || rows.length === 0) { 
                 div.innerHTML = `<div class="text-center text-gray-400 mt-10 font-bold">【${gName}】暂无详细积分数据</div>`; 
                 return; 
             }
 
-            let headerRow1 = `<th rowspan="2" style="width:100px;">班级</th>`; 
+            // 表头第1行：班级 + 常规项目 + 集体附加项目 + 总分 + 名次
+            let headerRow1 = `<th rowspan="2" style="width:110px;">班级</th>`; 
             let headerRow2 = ``;
-            cols.forEach(col => { 
+
+            // 常规单项（带男女拆分）
+            compCols.forEach(col => { 
                 headerRow1 += `<th colspan="2">${col}</th>`; 
                 headerRow2 += `<th style="width:35px; font-weight:normal; font-size:10pt;">男</th><th style="width:35px; font-weight:normal; font-size:10pt;">女</th>`; 
             });
-            headerRow1 += `<th rowspan="2" style="width:60px;">总分</th><th rowspan="2" style="width:50px;">名次</th>`;
 
+            // 🌟 集体附加项目（整列直出）
+            customCols.forEach(col => {
+                headerRow1 += `<th rowspan="2" style="width:75px; color:#4338ca; background-color:#eef2ff;">${col}</th>`;
+            });
+
+            headerRow1 += `<th rowspan="2" style="width:65px;">总分</th><th rowspan="2" style="width:50px;">名次</th>`;
+
+            // 渲染数据行
             let bodyHtml = '';
             rows.forEach((row, idx) => {
                 let cells = `<td style="font-weight:bold;">${row.team}</td>`;
-                cols.forEach(col => {
+                
+                // 常规项目得分
+                compCols.forEach(col => {
                     const detail = row.details[col] || { '男': 0, '女': 0 };
                     const scoreM = detail['男'] > 0 ? detail['男'] : ''; 
                     const scoreF = detail['女'] > 0 ? detail['女'] : '';
                     cells += `<td style="color:#666;">${scoreM}</td><td style="color:#666;">${scoreF}</td>`;
                 });
-                cells += `<td style="font-weight:bold; color:#b45309;">${row.total}</td><td style="font-weight:bold;">${idx + 1}</td>`;
+
+                // 🌟 集体附加项目得分
+                customCols.forEach(col => {
+                    const extraVal = row.custom_details[col];
+                    const displayExtra = (extraVal && extraVal > 0) ? `+${extraVal}` : '';
+                    cells += `<td style="font-weight:bold; color:#4338ca; background-color:#faf5ff;">${displayExtra}</td>`;
+                });
+
+                cells += `<td style="font-weight:bold; color:#b45309; font-size:13pt;">${row.total}</td><td style="font-weight:bold;">${idx + 1}</td>`;
                 bodyHtml += `<tr>${cells}</tr>`;
             });
 
@@ -4135,14 +4252,17 @@ window.closeTeamScoreDetailModal = function() {
                         <tr style="background-color:#f3f4f6; height:30px; border-bottom:1px solid #000;"> ${headerRow1} </tr> 
                         <tr style="background-color:#f3f4f6; height:25px; border-bottom:1px solid #000;"> ${headerRow2} </tr> 
                     </thead>
-                    <style> .detail-table td, .detail-table th { border: 1px solid #666; padding: 4px 2px; } tbody tr:hover { background-color: #fefce8; } </style>
+                    <style> 
+                        .detail-table td, .detail-table th { border: 1px solid #666; padding: 4px 2px; } 
+                        tbody tr:hover { background-color: #fefce8; } 
+                    </style>
                     <tbody class="detail-table">${bodyHtml}</tbody>
                 </table>
                 <div class="rc-footer" style="margin-top:20px;"> 
                     <span>总裁判长：________________</span> 
                     <span>记录长：________________</span> 
                 </div>
-                <div style="text-align:center; margin-top:10px; color:#999; font-size:10px;" class="no-print"> * 提示：如果表格过宽，请在打印预览中选择“横向”布局 </div>
+                <div style="text-align:center; margin-top:10px; color:#999; font-size:10px;" class="no-print"> * 提示：如项目较多，请在打印预览中选择“横向”纸张方向 </div>
             </div>`;
             div.innerHTML = tableHtml;
         });
@@ -5518,6 +5638,25 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
         });
     }
 
+   // 🌟 记录监控面板各单元展开/折叠状态
+    window.monitorExpandedUnits = window.monitorExpandedUnits || new Set();
+
+    window.toggleMonitorUnit = function(unitKey) {
+        const el = document.getElementById(`monitor_unit_content_${unitKey}`);
+        const arrow = document.getElementById(`monitor_unit_arrow_${unitKey}`);
+        if (!el) return;
+
+        if (el.classList.contains('hidden')) {
+            el.classList.remove('hidden');
+            if (arrow) arrow.innerText = '▲ 收起单元';
+            window.monitorExpandedUnits.add(unitKey);
+        } else {
+            el.classList.add('hidden');
+            if (arrow) arrow.innerText = '▼ 展开单元';
+            window.monitorExpandedUnits.delete(unitKey);
+        }
+    };
+
     window.renderProcessMonitor = function() {
         const container = document.getElementById('monitorTimelineContainer');
         if (!container) return;
@@ -5536,43 +5675,92 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                 let countOngoing = 0;
                 let countFinished = 0;
 
-                let html = '';
+                // 1. 统计顶部 4 块核心看板数值
+                tasks.forEach(t => {
+                    if (t.status === 'finished') countFinished++;
+                    else if (t.status === 'ongoing') countOngoing++;
+                    else if (t.status === 'pending') countPending++;
+                    else countUnchecked++;
+                });
 
-                tasks.forEach((task, idx) => {
-                    const total = task.total_count || 0;
-                    const checked = task.checked_count || 0;
-                    const scored = task.scored_count || 0;
+                document.getElementById('monStatUnchecked').innerText = countUnchecked;
+                document.getElementById('monStatPending').innerText = countPending;
+                document.getElementById('monStatOngoing').innerText = countOngoing;
+                document.getElementById('monStatFinished').innerText = countFinished;
 
-                    // 🌟 核心：直接使用后端根据起点发车(is_started)和终点有效成绩计算出的权威状态
-                    let status = task.status || 'unchecked';
+                // 2. 获取当前现实时段（判断今天、上午/下午）
+                const now = new Date();
+                const curHour = now.getHours();
+                const curAmpm = (curHour < 12 || (curHour === 12 && now.getMinutes() < 30)) ? '上午' : '下午';
+                
+                let curDayNum = 1;
+                if (window.competitionStartDate) {
+                    const sDate = new Date(window.competitionStartDate);
+                    sDate.setHours(0,0,0,0);
+                    const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    curDayNum = Math.max(1, Math.floor((nowDateOnly - sDate) / (1000 * 60 * 60 * 24)) + 1);
+                }
+                const currentActiveUnitKey = `${curDayNum}_${curAmpm}`;
 
+                // 3. 将全量任务按【比赛单元】归集
+                const unitsMap = {};
+                tasks.forEach(task => {
+                    const timeStr = task.est_time || '';
+                    const match = timeStr.match(/第(\d+)天(上午|下午)?/);
+                    const dayNum = match ? parseInt(match[1]) : 1;
+                    const ampm = match ? match[2] : '上午';
+                    const unitKey = `${dayNum}_${ampm}`;
+
+                    if (!unitsMap[unitKey]) {
+                        unitsMap[unitKey] = {
+                            day: dayNum,
+                            ampm: ampm,
+                            track: [],
+                            field: [],
+                            fun: []
+                        };
+                    }
+
+                    const cat = task.category || 'track';
+                    if (unitsMap[unitKey][cat]) {
+                        unitsMap[unitKey][cat].push(task);
+                    } else {
+                        unitsMap[unitKey].track.push(task);
+                    }
+                });
+
+                // 4. 排序比赛单元
+                const sortedUnitKeys = Object.keys(unitsMap).sort((a, b) => {
+                    const ua = unitsMap[a], ub = unitsMap[b];
+                    if (ua.day !== ub.day) return ua.day - ub.day;
+                    return ua.ampm === '上午' ? -1 : 1;
+                });
+
+                // 单条任务卡片渲染模板
+                const renderTaskCard = (task, displayIndex) => {
                     let cardStyle = '';
                     let badgeStyle = '';
                     let statusText = '';
                     
-                    if (status === 'finished') {
-                        countFinished++;
+                    if (task.status === 'finished') {
                         cardStyle = 'bg-gray-50 border-gray-200 opacity-60 text-gray-500';
                         badgeStyle = 'bg-gray-200 text-gray-600';
                         statusText = '🏁 比赛已结束';
-                    } else if (status === 'ongoing') {
-                        countOngoing++;
+                    } else if (task.status === 'ongoing') {
                         cardStyle = 'bg-emerald-50 border-emerald-500 shadow-md ring-2 ring-emerald-400 text-emerald-950 font-bold';
                         badgeStyle = 'bg-emerald-600 text-white animate-pulse';
                         statusText = '🟢 跑道进行中 / 成绩录入中';
-                    } else if (status === 'pending') {
-                        countPending++;
+                    } else if (task.status === 'pending') {
                         cardStyle = 'bg-blue-50 border-blue-400 shadow-sm text-blue-950 font-bold';
                         badgeStyle = 'bg-blue-600 text-white';
-                        statusText = `🔵 待开始 (已检录 ${checked}/${total})`;
+                        statusText = `🔵 待开始 (已检录 ${task.checked_count}/${task.total_count})`;
                     } else {
-                        countUnchecked++;
                         cardStyle = 'bg-white border-gray-200 hover:border-gray-300 text-gray-800';
                         badgeStyle = 'bg-gray-100 text-gray-600 border border-gray-200';
                         statusText = '⚪ 未检录';
                     }
 
-                    const athleteBadges = task.athletes.map(a => {
+                    const athleteBadges = (task.athletes || []).map(a => {
                         const hasScore = Boolean(a.score && String(a.score).trim() !== '');
                         const state = parseInt(a.checked_in || 0);
                         
@@ -5602,11 +5790,11 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                         `;
                     }).join(' ');
 
-                    html += `
-                        <div class="border-2 rounded-xl p-3 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 transition ${cardStyle}">
+                    return `
+                        <div class="border-2 rounded-xl p-3 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 transition ${cardStyle} mb-2.5">
                             <div class="flex items-center gap-3 min-w-0 flex-1">
                                 <span class="w-7 h-7 rounded-lg flex items-center justify-center font-mono font-black text-xs ${badgeStyle} shrink-0">
-                                    ${idx + 1}
+                                    ${displayIndex}
                                 </span>
                                 <div class="min-w-0">
                                     <div class="flex items-center gap-2 flex-wrap">
@@ -5625,14 +5813,91 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                             </div>
                         </div>
                     `;
+                };
+
+                // 5. 拼装大类列表与比赛单元卡片
+                let fullHtml = '';
+                let globalIndex = 1;
+
+                sortedUnitKeys.forEach(uKey => {
+                    const u = unitsMap[uKey];
+
+                    let isPastUnit = false;
+                    if (u.day < curDayNum) {
+                        isPastUnit = true;
+                    } else if (u.day === curDayNum && curAmpm === '下午' && u.ampm === '上午') {
+                        isPastUnit = true;
+                    }
+
+                    const isCurrentUnit = (uKey === currentActiveUnitKey);
+
+                    let isExpanded = false;
+                    if (window.monitorExpandedUnits.has(uKey)) {
+                        isExpanded = true;
+                    } else if (isCurrentUnit || (!isPastUnit && sortedUnitKeys[0] === uKey)) {
+                        isExpanded = true;
+                        window.monitorExpandedUnits.add(uKey);
+                    }
+
+                    // 类别内部按时间升序排序
+                    const sortTasks = (arr) => arr.sort((a, b) => {
+                        if (a.time_index !== b.time_index) return a.time_index - b.time_index;
+                        return (a.est_time || '').localeCompare(b.est_time || '');
+                    });
+
+                    const trackTasks = sortTasks(u.track);
+                    const fieldTasks = sortTasks(u.field);
+                    const funTasks = sortTasks(u.fun);
+
+                    fullHtml += `
+                    <div class="mb-5 bg-white border ${isCurrentUnit ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'} rounded-2xl overflow-hidden shadow-xs">
+                        <div class="p-3.5 flex items-center justify-between cursor-pointer select-none transition ${isCurrentUnit ? 'bg-gradient-to-r from-blue-600 to-indigo-700 text-white' : (isPastUnit ? 'bg-gray-100 text-gray-600' : 'bg-slate-50 text-gray-800')}"
+                             onclick="toggleMonitorUnit('${uKey}')">
+                            
+                            <div class="flex items-center gap-2">
+                                <span class="text-base">${isCurrentUnit ? '🔥' : (isPastUnit ? '📁' : '📅')}</span>
+                                <span class="text-sm font-black tracking-wide">第 ${u.day} 天 ${u.ampm} 比赛单元</span>
+                                ${isCurrentUnit ? '<span class="text-[10px] font-black bg-amber-400 text-gray-900 px-2 py-0.5 rounded-full animate-pulse">当前时段</span>' : ''}
+                                ${isPastUnit ? '<span class="text-[10px] font-bold bg-gray-200 text-gray-600 px-2 py-0.5 rounded">已结束单元</span>' : ''}
+                                <span class="text-xs opacity-75 font-normal">(${trackTasks.length + fieldTasks.length + funTasks.length} 个组次)</span>
+                            </div>
+
+                            <span id="monitor_unit_arrow_${uKey}" class="text-xs font-bold px-2.5 py-1 rounded-lg ${isCurrentUnit ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700'}">
+                                ${isExpanded ? '▲ 收起单元' : '▼ 展开单元'}
+                            </span>
+                        </div>
+
+                        <div id="monitor_unit_content_${uKey}" class="${isExpanded ? '' : 'hidden'} p-4 bg-gray-50/50 space-y-5">
+                            
+                            <!-- 1. 径赛区 -->
+                            <div>
+                                <div class="flex items-center gap-2 mb-2 pb-1.5 border-b-2 border-blue-200 text-blue-900 font-black text-xs">
+                                    <span>🏃</span> <span>径赛项目</span> <span class="text-[10px] font-normal text-gray-500 font-mono">(${trackTasks.length} 组)</span>
+                                </div>
+                                ${trackTasks.length > 0 ? trackTasks.map(t => renderTaskCard(t, globalIndex++)).join('') : '<div class="text-xs text-gray-400 py-2 text-center bg-white rounded-lg border border-dashed">本单元无径赛组次</div>'}
+                            </div>
+
+                            <!-- 2. 田赛区 -->
+                            <div>
+                                <div class="flex items-center gap-2 mb-2 pb-1.5 border-b-2 border-orange-200 text-orange-900 font-black text-xs">
+                                    <span>🎯</span> <span>田赛项目</span> <span class="text-[10px] font-normal text-gray-500 font-mono">(${fieldTasks.length} 组)</span>
+                                </div>
+                                ${fieldTasks.length > 0 ? fieldTasks.map(t => renderTaskCard(t, globalIndex++)).join('') : '<div class="text-xs text-gray-400 py-2 text-center bg-white rounded-lg border border-dashed">本单元无田赛组次</div>'}
+                            </div>
+
+                            <!-- 3. 趣味项目区 -->
+                            <div>
+                                <div class="flex items-center gap-2 mb-2 pb-1.5 border-b-2 border-purple-200 text-purple-900 font-black text-xs">
+                                    <span>🎈</span> <span>趣味与集体项目</span> <span class="text-[10px] font-normal text-gray-500 font-mono">(${funTasks.length} 组)</span>
+                                </div>
+                                ${funTasks.length > 0 ? funTasks.map(t => renderTaskCard(t, globalIndex++)).join('') : '<div class="text-xs text-gray-400 py-2 text-center bg-white rounded-lg border border-dashed">本单元无趣味项目组次</div>'}
+                            </div>
+
+                        </div>
+                    </div>`;
                 });
 
-                container.innerHTML = html;
-
-                document.getElementById('monStatUnchecked').innerText = countUnchecked;
-                document.getElementById('monStatPending').innerText = countPending;
-                document.getElementById('monStatOngoing').innerText = countOngoing;
-                document.getElementById('monStatFinished').innerText = countFinished;
+                container.innerHTML = fullHtml;
             });
     };
 

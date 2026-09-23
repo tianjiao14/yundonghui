@@ -381,11 +381,19 @@ def get_monitor_progress():
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        # 🌟 修复关键点1：优先读取 start_list 自身的 score（s.score），再以 registrations 为辅兜底
-        # 🌟 修复关键点2：接力项目通过班级(team_name)+项目(event_name)+性别(gender)精准关联，杜绝因合并姓名导致匹配失败
+        # 读取趣味项目与田赛配置字典
+        evt_cfg_rows = c.execute("SELECT name, type, is_fun FROM cfg_events").fetchall()
+        evt_cfg_map = {}
+        for r in evt_cfg_rows:
+            e_name = r['name']
+            e_type = str(r['type'] or '')
+            is_fun = (str(r['is_fun']) == '1') or ('趣味' in e_type)
+            evt_cfg_map[e_name] = {'type': e_type, 'is_fun': is_fun}
+
         sql = """
             SELECT 
-                s.id, s.group_name, s.event_name, s.gender, s.heat, s.lane, s.bib, s.name, s.team_name, s.est_time,
+                s.id, s.group_name, s.event_name, s.gender, s.heat, s.lane, s.bib, s.name, s.team_name, 
+                s.est_time, s.time_index, s.is_field,
                 IFNULL(s.is_started, 0) as is_started,
                 IFNULL(s.checked_in, 0) as checked_in,
                 CASE 
@@ -413,13 +421,32 @@ def get_monitor_progress():
         for r in rows:
             key = f"{r['group_name']}#{r['event_name']}#{r['gender']}#{r['heat']}"
             if key not in tasks_map:
+                e_name = r['event_name']
+                # 判定大类：fun (趣味) > field (田赛) > track (径赛)
+                cfg_info = evt_cfg_map.get(e_name, {})
+                clean_name = re.sub(r'[\(（].*?[\)）]', '', e_name).strip()
+                if not cfg_info:
+                    cfg_info = evt_cfg_map.get(clean_name, {})
+
+                is_fun = cfg_info.get('is_fun') or any(k in e_name for k in ['趣味', '足球', '篮球', '投篮', '蛙跳', '跳绳', '拔河', '毛毛虫', '沙包', '毽'])
+                is_field = (r['is_field'] == 1) or any(k in e_name for k in ['跳高', '跳远', '铅球', '实心球', '标枪', '铁饼', '三级跳', '立定跳远'])
+
+                if is_fun:
+                    category = 'fun'
+                elif is_field:
+                    category = 'field'
+                else:
+                    category = 'track'
+
                 tasks_map[key] = {
                     "group_name": r['group_name'],
                     "event_name": r['event_name'],
                     "gender": r['gender'],
                     "heat": r['heat'],
-                    "est_time": r['est_time'],
+                    "est_time": r['est_time'] or '',
+                    "time_index": int(r['time_index'] or 0),
                     "is_started": r['is_started'],
+                    "category": category,
                     "athletes": []
                 }
             tasks_map[key]["athletes"].append({
@@ -432,17 +459,22 @@ def get_monitor_progress():
         tasks = []
         for key, t in tasks_map.items():
             total = len(t["athletes"])
-            # 排除弃权（checked_in == 2）的队伍/选手
-            actual_runners = [a for a in t["athletes"] if a["checked_in"] != 2]
             
-            # 统计已录入有效成绩的队伍数量
-            scored_count = sum(1 for a in actual_runners if a["score"] and str(a["score"]).strip() != '' and str(a["score"]).strip() != '弃权')
-            checked_count = sum(1 for a in t["athletes"] if a["checked_in"] == 1)
-            
-            # 🌟 修复关键点3：只要所有实际参赛的接力队伍均已出成绩，立即标记为已完成
-            if len(actual_runners) > 0 and scored_count >= len(actual_runners):
+            def is_athlete_finished(a):
+                s = str(a.get("score") or "").strip()
+                c = int(a.get("checked_in") or 0)
+                if c == 2: return True
+                if any(k in s for k in ['弃权', 'DNS', 'DNF', 'DQ']): return True
+                if s != '' and s != '-': return True
+                return False
+
+            finished_count = sum(1 for a in t["athletes"] if is_athlete_finished(a))
+            scored_count = sum(1 for a in t["athletes"] if a.get("score") and not any(k in str(a["score"]) for k in ['弃权', 'DNS', 'DNF', 'DQ', '-']))
+            checked_count = sum(1 for a in t["athletes"] if int(a.get("checked_in") or 0) == 1)
+
+            if total > 0 and finished_count >= total:
                 status = "finished"
-            elif t["is_started"] == 1 or scored_count > 0:
+            elif t["is_started"] == 1 or finished_count > 0:
                 status = "ongoing"
             elif checked_count > 0:
                 status = "pending"
@@ -860,19 +892,23 @@ def update_point():
     except Exception as e:
         return jsonify({'status': 'error', 'msg': str(e)})
 
+import json
+
 @app.route('/api/calculate_team_ranking', methods=['POST'])
 def calculate_team_ranking():
     data = request.json or {}
     g_name = data.get('group_name')
     
+    # 🌟 1. 缓存读取（如果管理端开启了编辑模式实时打分，可传 nocache 穿透）
     cache_key = f"rank_{g_name}"
-    cached = get_cached_data(cache_key, ttl_seconds=30)
-    if cached is not None:
+    cached = get_cached_data(cache_key, ttl_seconds=10)
+    if cached is not None and not data.get('nocache'):
         return jsonify(cached)
 
     conn = get_db_connection()
     c = conn.cursor()
     
+    # 🌟 2. 保持你原版强大的“接力/集体去重”核心 SQL，计算常规比赛积分与金银铜牌
     sql = """
         WITH deduplicated_scores AS (
             SELECT 
@@ -914,15 +950,76 @@ def calculate_team_ranking():
             SUM(CASE WHEN final_rank = 3 THEN 1 ELSE 0 END) as bronze
         FROM deduplicated_scores
         GROUP BY team_name 
-        ORDER BY score DESC, gold DESC, silver DESC
     """
     try:
+        # A. 确保该组别下的所有代表队都有坑位（即便比赛目前得0分，跑操加分后也得能上榜）
+        team_rows = c.execute("""
+            SELECT t.name, t.custom_scores 
+            FROM cfg_teams t
+            LEFT JOIN cfg_groups g ON t.group_id = g.id
+            WHERE g.name = ?
+            ORDER BY t.sort_order ASC, t.id ASC
+        """, (g_name,)).fetchall()
+
+        team_dict = {}
+        for tr in team_rows:
+            s_map = {}
+            if tr['custom_scores']:
+                try: s_map = json.loads(tr['custom_scores'])
+                except Exception: s_map = {}
+            team_dict[tr['name']] = {
+                "name": tr['name'],
+                "score": 0.0,
+                "total_record_bonus": 0,
+                "gold": 0,
+                "silver": 0,
+                "bronze": 0,
+                "custom_scores": s_map
+            }
+
+        # B. 累加由 CTE 算出的比赛名次分与奖牌
         rows = c.execute(sql, (g_name,)).fetchall()
-        result = [dict(r) for r in rows]
-        set_cached_data(cache_key, result, ttl_seconds=30)
-        return jsonify(result)
-    except Exception:
-        return jsonify([])
+        for r in rows:
+            t_name = r['name']
+            if t_name in team_dict:
+                team_dict[t_name]['score'] = float(r['score'] or 0)
+                team_dict[t_name]['total_record_bonus'] = int(r['total_record_bonus'] or 0)
+                team_dict[t_name]['gold'] = int(r['gold'] or 0)
+                team_dict[t_name]['silver'] = int(r['silver'] or 0)
+                team_dict[t_name]['bronze'] = int(r['bronze'] or 0)
+
+        # C. 🌟 读取系统自定义的多列附加项定义（如：跑操比赛、入场式评比、文明奖等）
+        col_row = c.execute("SELECT value FROM sys_config WHERE key = 'custom_score_cols'").fetchone()
+        custom_cols = []
+        if col_row and col_row['value']:
+            try: custom_cols = json.loads(col_row['value'])
+            except Exception: custom_cols = []
+        if not custom_cols:
+            custom_cols = ["跑操比赛"]  # 默认兜底一列
+
+        # D. 🌟 将各班级的各附加列得分累加至最终总分
+        final_list = []
+        for t_name, item in team_dict.items():
+            extra_sum = sum(float(item['custom_scores'].get(col, 0) or 0) for col in custom_cols)
+            item['extra_sum'] = extra_sum
+            item['score'] = round(item['score'] + extra_sum, 2)
+            final_list.append(item)
+
+        # E. 最终按：总分降序 > 金牌 > 银牌 > 铜牌 重排
+        final_list.sort(key=lambda x: (x['score'], x['gold'], x['silver'], x['bronze']), reverse=True)
+
+        result_payload = {
+            "columns": custom_cols,
+            "teams": final_list
+        }
+        
+        # 写入缓存（设为 10 秒，保证公网防刷的同时，裁判打分/跑操改分后能迅速同步）
+        set_cached_data(cache_key, result_payload, ttl_seconds=10)
+        return jsonify(result_payload)
+
+    except Exception as e:
+        print("核算团体总分异常:", e)
+        return jsonify({"columns": ["跑操比赛"], "teams": []})
     finally:
         conn.close()
 @app.route('/api/save_competition_date', methods=['POST'])
@@ -1064,11 +1161,50 @@ def get_competition_date():
 
 @app.route('/api/calculate_detailed_matrix', methods=['POST'])
 def calculate_detailed_matrix():
-    g_name = request.json.get('group_name')
+    data = request.json or {}
+    g_name = data.get('group_name')
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        # 接力按队取1次，个人项目同班多人得分累加
+        # 1. 🌟 预先载入当前组别下的所有代表队及附加分，防止0分但有跑操加分的班级漏掉
+        team_rows = c.execute("""
+            SELECT t.name, t.custom_scores
+            FROM cfg_teams t
+            LEFT JOIN cfg_groups g ON t.group_id = g.id
+            WHERE g.name = ?
+            ORDER BY t.sort_order ASC, t.id ASC
+        """, (g_name,)).fetchall()
+
+        # 读取系统设定的集体附加项目列（如：跑操比赛、迎面接力等）
+        col_row = c.execute("SELECT value FROM sys_config WHERE key = 'custom_score_cols'").fetchone()
+        custom_cols = []
+        if col_row and col_row['value']:
+            try: custom_cols = json.loads(col_row['value'])
+            except Exception: custom_cols = []
+        if not custom_cols:
+            custom_cols = ["跑操比赛"]
+
+        # 初始化各班级的矩阵底表
+        matrix = {}
+        for tr in team_rows:
+            t_name = tr['name']
+            s_map = {}
+            if tr['custom_scores']:
+                try: s_map = json.loads(tr['custom_scores'])
+                except Exception: s_map = {}
+            
+            # 计算该班集体附加分
+            c_details = {col: float(s_map.get(col, 0) or 0) for col in custom_cols}
+            extra_sum = sum(c_details.values())
+
+            matrix[t_name] = {
+                'team': t_name,
+                'total': extra_sum,           # 初始总分计入附加分
+                'details': {},
+                'custom_details': c_details   # 传递给前端渲染集体列
+            }
+
+        # 2. 🌟 保持你原版强大的 CTE 接力去重 SQL
         sql = """
         WITH clean_pts AS (
             SELECT 
@@ -1096,32 +1232,45 @@ def calculate_detailed_matrix():
         """
         raw_data = c.execute(sql, (g_name,)).fetchall()
         
-        matrix = {}
         all_core_events = set()
         
         for r in raw_data:
             t = r['team_name']
             full_evt = r['event_name']
             gender = r['gender']
-            p = r['pts']
+            p = float(r['pts'] or 0)
          
+            # 🌟 保持你原有的核心项目名归一化正则提取
             core_evt = re.sub(r"\(.*?\)|（.*?）|决赛|预赛|及格赛|男子|女子|混合|男|女|第一组|第二组|第三组|第四组|第\d+组", "", full_evt).strip()
+            if not core_evt:
+                core_evt = full_evt
             all_core_events.add(core_evt)
             
-            if t not in matrix: matrix[t] = {'team': t, 'total': 0, 'details': {}}
-            if core_evt not in matrix[t]['details']: matrix[t]['details'][core_evt] = {'男': 0, '女': 0}
+            if t not in matrix: 
+                matrix[t] = {'team': t, 'total': 0.0, 'details': {}, 'custom_details': {col: 0.0 for col in custom_cols}}
+            if core_evt not in matrix[t]['details']: 
+                matrix[t]['details'][core_evt] = {'男': 0, '女': 0}
        
             g_key = '男' if '男' in gender else ('女' if '女' in gender else '男')
-            if g_key in matrix[t]['details'][core_evt]:
-                 matrix[t]['details'][core_evt][g_key] += p
-            
+            matrix[t]['details'][core_evt][g_key] += p
             matrix[t]['total'] += p
+
+        # 四舍五入保留两位小数
+        for m in matrix.values():
+            m['total'] = round(m['total'], 2)
             
         cols = sorted(list(all_core_events))
         rows = sorted(matrix.values(), key=lambda x: x['total'], reverse=True)
-        return jsonify({'columns': cols, 'rows': rows})
-    except Exception:
-        return jsonify({'columns': [], 'rows': []})
+
+        # 🌟 同时返回常规项目列 columns 与集体附加项目列 custom_columns
+        return jsonify({
+            'columns': cols, 
+            'custom_columns': custom_cols, 
+            'rows': rows
+        })
+    except Exception as e:
+        print("详细矩阵计算异常:", e)
+        return jsonify({'columns': [], 'custom_columns': [], 'rows': []})
     finally:
         conn.close()
 @app.route('/api/get_team_score_details', methods=['POST'])
@@ -2315,29 +2464,32 @@ def submit_score():
             elif any(kwd in event_name for kwd in field_keywords): 
                 is_field = True
 
-        # 成绩格式自动规整（支持冒号时间、双小数点分秒、远度计数等格式）
+       # 成绩格式自动规整（支持冒号时间、双小数点分秒、远度计数等格式）
         if raw_val:
+            s_val = raw_val.replace('：', ':').replace('，', '.').replace(',', '.').strip()
             if is_fun:
-                if ':' in raw_val or '：' in raw_val:
-                    formatted_score = raw_val.replace('：', ':')
-                elif raw_val.count('.') == 2:
-                    parts = raw_val.split('.')
-                    formatted_score = f"{parts[0]}:{parts}.{parts}"
+                if ':' in s_val:
+                    formatted_score = s_val
+                elif s_val.count('.') == 2:
+                    parts = s_val.split('.')
+                    formatted_score = f"{parts[0]}:{parts[1].zfill(2)}.{parts[2]}"
                 else:
-                    formatted_score = raw_val.strip()
+                    formatted_score = s_val
             elif is_field:
-                formatted_score = raw_val.replace(':', '.').replace('：', '.')
+                formatted_score = s_val.replace(':', '.')
                 if formatted_score.count('.') > 1:
                     parts = formatted_score.split('.')
-                    formatted_score = f"{parts[0]}.{parts}"
+                    formatted_score = f"{parts[0]}.{parts[1]}"
             else:
-                if ':' in raw_val or '：' in raw_val:
-                    formatted_score = raw_val.replace('：', ':')
-                elif raw_val.count('.') == 2:
-                    parts = raw_val.split('.')
-                    formatted_score = f"{parts[0]}:{parts}.{parts}"
+                # 径赛项目（如 800米、100米等）
+                if ':' in s_val:
+                    formatted_score = s_val
+                elif s_val.count('.') == 2:
+                    # 🌟 核心修复：取出下标 parts[1] 和 parts[2]，秒数不足两位自动补 0
+                    parts = s_val.split('.')
+                    formatted_score = f"{parts[0]}:{parts[1].zfill(2)}.{parts[2]}"
                 else:
-                    formatted_score = raw_val
+                    formatted_score = s_val
 
         # 弃权标识统一收敛
         is_abandoned = any(k in str(formatted_score).upper() for k in ['弃权', 'DNS', 'DNF', 'DQ'])
@@ -3014,6 +3166,8 @@ def force_sync_and_upgrade_db():
     except Exception: pass
     try: c.execute("ALTER TABLE cfg_events ADD COLUMN dense_rank TEXT DEFAULT '0'")
     except Exception: pass
+    try: c.execute("ALTER TABLE cfg_teams ADD COLUMN custom_scores TEXT DEFAULT '{}'")
+    except Exception: pass
     try:
         c.execute("""
             UPDATE registrations 
@@ -3040,6 +3194,51 @@ def force_sync_and_upgrade_db():
 
     conn.commit()
     conn.close()
+import json
+
+# 1. 保存/更新某班级的某项附加分
+@app.route('/api/update_team_custom_score', methods=['POST'])
+@login_required('admin')
+def update_team_custom_score():
+    data = request.json or {}
+    team_name = data.get('team_name')
+    group_name = data.get('group_name')
+    item_key = data.get('item_key')      # 比如 "跑操"
+    val = float(data.get('score', 0) or 0)
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        row = c.execute("SELECT custom_scores FROM cfg_teams WHERE name = ?", (team_name,)).fetchone()
+        scores = {}
+        if row and row['custom_scores']:
+            try: scores = json.loads(row['custom_scores'])
+            except Exception: scores = {}
+
+        scores[item_key] = val
+
+        c.execute("UPDATE cfg_teams SET custom_scores = ? WHERE name = ?", (json.dumps(scores, ensure_ascii=False), team_name))
+        conn.commit()
+
+        if 'socketio' in globals() and socketio:
+            socketio.emit('rank_updated', {'group_name': group_name}, room=f"rank_{group_name}")
+            socketio.emit('score_updated', {})
+
+        return jsonify({"status": "success", "msg": "已更新"})
+    except Exception as e:
+        return jsonify({"status": "error", "msg": str(e)})
+
+# 2. 增加/删除系统附加项目标签列（如新增一个“入场式”列）
+@app.route('/api/manage_custom_score_columns', methods=['POST'])
+@login_required('admin')
+def manage_custom_score_columns():
+    data = request.json or {}
+    columns = data.get('columns', []) # 比如 ["跑操", "入场式", "精神文明奖"]
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO sys_config (key, value) VALUES ('custom_score_cols', ?)", (json.dumps(columns, ensure_ascii=False),))
+    conn.commit()
+    return jsonify({"status": "success", "columns": columns})
 
 @app.route('/api/get_group_records', methods=['POST'])
 def get_group_records():

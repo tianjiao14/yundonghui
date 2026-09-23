@@ -63,7 +63,7 @@
                 <button onclick="selectRole('checkin')" class="w-full max-w-sm bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-5 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1.5">
                     <span class="text-3xl">📝</span>
                     <span class="text-lg font-black tracking-widest">检录裁判入口</span>
-                    <span class="text-[11px] text-emerald-100 font-medium">按比赛时间顺序进行选手点名</span>
+                    <span class="text-[11px] text-emerald-100 font-medium">按比赛时间顺序进行选手检录</span>
                 </button>
 
                 <button onclick="selectRole('starter')" class="w-full max-w-sm bg-gradient-to-r from-amber-500 to-orange-600 text-white p-5 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1.5 ring-2 ring-orange-400 ring-offset-2">
@@ -74,14 +74,14 @@
 
                <button onclick="selectRole('timing')" class="w-full max-w-sm bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1">
                     <span class="text-3xl">⏱️</span>
-                    <span class="text-base font-black tracking-widest">终点计时裁判入口 (径赛)</span>
+                    <span class="text-base font-black tracking-widest">终点记录裁判入口</span>
                     <span class="text-[11px] text-blue-100 font-medium">接收发令指令 · 录入跑道径赛成绩</span>
                 </button>
 
                 <button onclick="selectRole('field')" class="w-full max-w-sm bg-gradient-to-r from-amber-600 to-orange-600 text-white p-4 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1">
                     <span class="text-3xl">🎯</span>
                     <span class="text-base font-black tracking-widest">田赛 / 趣味项目裁判入口</span>
-                    <span class="text-[11px] text-amber-100 font-medium">跳远/跳高/铅球试跳录入 · 趣味赛结算</span>
+                    <span class="text-[11px] text-amber-100 font-medium">跳远/跳高/铅球录入 · 趣味项目录入</span>
                 </button>
                </div>
 
@@ -331,7 +331,7 @@ function selectRole(role) {
     if (typeof starterPollingTimer !== 'undefined' && starterPollingTimer) clearInterval(starterPollingTimer);
 
     if (role === 'starter') {
-        document.getElementById('headerTitle').innerHTML = '🚩 起点发令裁判控制台 (径赛)';
+        document.getElementById('headerTitle').innerHTML = '🚩 起点发令端';
         document.getElementById('checkinSection').classList.remove('hidden');
         document.getElementById('timingSection').classList.add('hidden');
 
@@ -351,28 +351,21 @@ function selectRole(role) {
         // 初次加载检录名单
         loadCheckinSchedule();
 
-    } else if (role === 'timing') {
-        document.getElementById('headerTitle').innerHTML = '⏱️ 终点计时终端 (径赛)';
+   } else if (role === 'timing') {
+        document.getElementById('headerTitle').innerHTML = '⏱️ 终点计时终端';
         document.getElementById('timingSection').classList.remove('hidden');
         document.getElementById('checkinSection').classList.add('hidden');
         
         document.getElementById('fieldControlBar')?.classList.add('hidden');
         document.getElementById('highJumpSection')?.classList.add('hidden');
         document.getElementById('normalTableSection')?.classList.remove('hidden');
-
         const filterBar = document.getElementById('filterSelectBar');
-        if (filterBar) filterBar.classList.add('hidden');
-
-        const list = document.getElementById('athleteList');
-        if (list) {
-            list.innerHTML = '<tr><td colspan="4" class="p-16 text-center text-gray-400 font-bold text-sm">⏳ 跑道空闲，等待起点裁判发令推送...</td></tr>';
-        }
-
-        // 初次查询当前活跃比赛
+        if (filterBar) filterBar.classList.remove('hidden');
+        fetchMeta();
         pollActiveHeat();
 
     } else if (role === 'field') {
-        document.getElementById('headerTitle').innerHTML = '🎯 田赛 / 趣味项目终端';
+        document.getElementById('headerTitle').innerHTML = '🎯 田赛 / 趣味端';
         document.getElementById('timingSection').classList.remove('hidden');
         document.getElementById('checkinSection').classList.add('hidden');
         document.getElementById('trackActiveNotice')?.classList.add('hidden');
@@ -433,6 +426,27 @@ function selectRole(role) {
         
         return `${month}月${date}日 ${unit} ${timePart}`;
     }
+    // 🌟 记录展开的单元（如 "1_上午", "1_下午"）
+window.expandedUnits = new Set();
+window.userManuallyToggledUnits = false;
+
+window.toggleUnitSection = function(unitKey, contentId, arrowId) {
+    const content = document.getElementById(contentId);
+    const arrow = document.getElementById(arrowId);
+    if (!content) return;
+    
+    window.userManuallyToggledUnits = true; // 标记用户已手动点过
+    
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        if (arrow) arrow.innerText = '▲ 收起单元';
+        window.expandedUnits.add(unitKey);
+    } else {
+        content.classList.add('hidden');
+        if (arrow) arrow.innerText = '▼ 展开单元';
+        window.expandedUnits.delete(unitKey);
+    }
+};
     function loadCheckinSchedule() {
         const listDiv = document.getElementById('checkinList');
         if (!listDiv.children || listDiv.children.length === 0) {
@@ -498,6 +512,57 @@ function selectRole(role) {
         }
     };
 
+    // 🌟 抽取为独立公用表格组件，供正常卡片和折叠卡片使用
+    function renderAthletesTable(group, typeColor) {
+        return `
+        <table class="w-full text-center text-sm border-collapse">
+            <thead class="bg-gray-50 text-gray-500 text-[11px] border-b">
+                <tr>
+                    <th class="py-2.5 px-1 w-10 border-r">道次</th>
+                    <th class="py-2.5 px-1 w-12 border-r">号码</th>
+                    <th class="py-2.5 px-2 text-left">姓名与单位</th>
+                    <th class="py-2.5 px-1 w-16 text-center text-emerald-700">到位</th>
+                    <th class="py-2.5 px-1 w-16 text-center text-red-600">弃权</th>
+                </tr>
+            </thead>
+            <tbody>
+               ${group.athletes.map(p => {
+                    const state = parseInt(p.checkedIn !== undefined ? p.checkedIn : (p.checked_in !== undefined ? p.checked_in : 0));
+                    const isPresent = (state === 1);
+                    const isAbsent = (state === 2);
+                    const rowBg = isPresent ? 'bg-emerald-50/50' : (isAbsent ? 'bg-red-50/40' : '');
+
+                    return `
+                    <tr id="checkin_row_${p.id}" class="border-b border-gray-100 hover:bg-gray-50 transition ${rowBg}">
+                        <td class="py-2.5 font-black text-gray-400 border-r">${p.lane || '-'}</td>
+                        <td class="py-2.5 font-mono font-black text-${typeColor}-600 border-r text-[12px]">${p.bib || '---'}</td>
+                        <td class="py-2.5 text-left px-2">
+                            <div class="font-black text-gray-800 text-[13px] flex items-center gap-1">
+                                <span class="ath-name ${isAbsent ? 'line-through text-gray-400' : ''}">${p.name}</span>
+                                <span class="tag-absent text-[10px] bg-red-100 text-red-700 px-1 py-0.2 rounded font-bold ${isAbsent ? '' : 'hidden'}">弃权</span>
+                            </div>
+                            <div class="text-[10px] text-gray-500 mt-0.5 truncate max-w-[110px]">${p.teamName}</div>
+                        </td>
+                        <td class="py-2.5 text-center">
+                            <button type="button" 
+                                    onclick="setCheckinStatus(${p.id},${isPresent ? 0 : 1})"
+                                    class="btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition ${isPresent ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-gray-300 border-gray-300 hover:border-emerald-500'}">
+                                ✓
+                            </button>
+                        </td>
+                        <td class="py-2.5 text-center">
+                            <button type="button" 
+                                    onclick="setCheckinStatus(${p.id},${isAbsent ? 0 : 2})"
+                                    class="btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition ${isAbsent ? 'bg-red-600 text-white border-red-600 shadow-sm' : 'bg-white text-gray-300 border-gray-300 hover:border-red-500'}">
+                                ✕
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>`;
+    }
+
     const renderHeatCard = (group, elementId) => {
         group.athletes.sort((a,b) => parseInt(a.lane||0) - parseInt(b.lane||0));
         const realTime = formatRealDate(group.timeStr);
@@ -507,30 +572,62 @@ function selectRole(role) {
         } else if (group.isField) {
             typeColor = 'orange';
         }
-        const isStarter = (currentRole === 'starter');
 
+        const isStarter = (currentRole === 'starter');
+        const showPushBtn = isStarter && !group.isField;
+
+        // 1. 正确计算检录完成情况
         const totalCount = group.athletes.length;
         const handledCount = group.athletes.filter(p => {
             const state = parseInt(p.checkedIn !== undefined ? p.checkedIn : (p.checked_in !== undefined ? p.checked_in : 0));
             return state === 1 || state === 2;
         }).length;
         const isAllChecked = (totalCount > 0 && handledCount === totalCount);
-
         const isAlreadyPushed = group.athletes.some(p => p.is_started === 1 || p.isStarted === 1);
-        const showPushBtn = isStarter && !group.isField;
 
+        // 2. 判定该组是否完结
+        const isHeatDone = isStarter ? isAlreadyPushed : isAllChecked;
         const cardKey = `${group.groupName}_${group.eventName}_${group.gender}_${group.heat}`;
-        const isExpanded = window.expandedHeatCards.has(cardKey);
 
+        // 3. 展开逻辑（不再重复声明 isExpanded）
+        let isExpanded = false;
+        if (window.expandedHeatCards && window.expandedHeatCards.has(cardKey)) {
+            isExpanded = true;
+        } else if (!isHeatDone) {
+            isExpanded = true; // 未完成默认敞开
+        }
+
+        // 4. 如果已完成且未手动点开，折叠显示为紧凑条目
+        if (isHeatDone && !isExpanded) {
+            return `
+            <div class="bg-gray-100/90 rounded-xl border border-gray-200 overflow-hidden mb-2.5 opacity-75 hover:opacity-100 transition">
+                <div class="p-3 flex justify-between items-center cursor-pointer select-none" onclick="toggleHeatCard('${cardKey}', '${elementId}')">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500 font-mono">${realTime}</span>
+                        <span class="font-bold text-gray-800 text-xs">${group.groupName} ${group.gender}组 · ${group.eventName} (第${group.heat}组)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                            ${isStarter ? '🏁 已发令' : '✔ 已检录'}
+                        </span>
+                        <span class="text-xs text-blue-600 font-bold">▼</span>
+                    </div>
+                </div>
+                <div id="${elementId}" class="hidden bg-white border-t border-gray-200">
+                    ${renderAthletesTable(group, typeColor)}
+                </div>
+            </div>`;
+        }
+
+        // 5. 待办/展开状态卡片
         return `
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-3">
             <div class="bg-white border-b border-gray-100 p-3 flex flex-wrap justify-between items-center gap-2">
-                <!-- 点击卡片头部展开/折叠 -->
                 <div class="cursor-pointer flex-1 select-none" onclick="toggleHeatCard('${cardKey}', '${elementId}')">
                     <div class="text-[11px] font-black text-${typeColor}-600 mb-1 flex items-center gap-1">
                         <span>🕒</span> ${realTime}
                         <span class="ml-2 font-mono text-[10px] ${isAllChecked ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'} px-1.5 py-0.2 rounded font-bold">
-                            ${isAllChecked ? '✔ 检录已完毕' : `⏳ 检录中 ${handledCount}/${totalCount}`}
+                            ${isAllChecked ? '✔ 已检录' : `⏳ 检录中 ${handledCount}/${totalCount}`}
                         </span>
                     </div>
                     <div class="font-black text-gray-800 text-sm">
@@ -577,60 +674,35 @@ function selectRole(role) {
             </div>
          
             <div id="${elementId}" class="${isExpanded ? '' : 'hidden'}">
-            <table class="w-full text-center text-sm border-collapse">
-                <thead class="bg-gray-50 text-gray-500 text-[11px] border-b">
-                    <tr>
-                        <th class="py-2.5 px-1 w-10 border-r">道次</th>
-                        <th class="py-2.5 px-1 w-12 border-r">号码</th>
-                        <th class="py-2.5 px-2 text-left">姓名与单位</th>
-                        <th class="py-2.5 px-1 w-16 text-center text-emerald-700">到位</th>
-                        <th class="py-2.5 px-1 w-16 text-center text-red-600">弃权</th>
-                    </tr>
-                </thead>
-                <tbody>
-                   ${group.athletes.map(p => {
-                        const state = parseInt(p.checkedIn || 0);
-                        const isPresent = (state === 1);
-                        const isAbsent = (state === 2);
-                        const rowBg = isPresent ? 'bg-emerald-50/50' : (isAbsent ? 'bg-red-50/40' : '');
+                ${renderAthletesTable(group, typeColor)}
+            </div>
+        </div>`;
+    };
 
-                        return `
-                        <tr id="checkin_row_${p.id}" class="border-b border-gray-100 hover:bg-gray-50 transition ${rowBg}">
-                            <td class="py-2.5 font-black text-gray-400 border-r">${p.lane || '-'}</td>
-                            <td class="py-2.5 font-mono font-black text-${typeColor}-600 border-r text-[12px]">${p.bib || '---'}</td>
-                            <td class="py-2.5 text-left px-2">
-                                <div class="font-black text-gray-800 text-[13px] flex items-center gap-1">
-                                    <span class="ath-name ${isAbsent ? 'line-through text-gray-400' : ''}">${p.name}</span>
-                                    <span class="tag-absent text-[10px] bg-red-100 text-red-700 px-1 py-0.2 rounded font-bold ${isAbsent ? '' : 'hidden'}">弃权</span>
-                                </div>
-                                <div class="text-[10px] text-gray-500 mt-0.5 truncate max-w-[110px]">${p.teamName}</div>
-                            </td>
-                            <td class="py-2.5 text-center">
-                                <button type="button" 
-                                        onclick="setCheckinStatus(${p.id}, ${isPresent ? 0 : 1})"
-                                        class="btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition ${isPresent ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-gray-300 border-gray-300 hover:border-emerald-500'}">
-                                    ✓
-                                </button>
-                            </td>
-                            <td class="py-2.5 text-center">
-                                <button type="button" 
-                                        onclick="setCheckinStatus(${p.id}, ${isAbsent ? 0 : 2})"
-                                        class="btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition ${isAbsent ? 'bg-red-600 text-white border-red-600 shadow-sm' : 'bg-white text-gray-300 border-gray-300 hover:border-red-500'}">
-                                    ✕
-                                </button>
-                            </td>
-                        </tr>`;
-                    }).join('')}
-                </tbody>
-            </table>
-        </div>
-    </div>`;
-};            let html = '';
-            Object.keys(units).sort((a,b) => {
-                const ua = units[a], ub = units[b];
-                if(ua.day !== ub.day) return ua.day - ub.day;
-                return ua.ampm === '上午' ? -1 : 1;
-            }).forEach((uKey, uIdx) => {
+    // 🌟 修正：单次声明 html
+    let html = '';
+    const now = new Date();
+    const curHour = now.getHours();
+    const curAmpm = curHour < 12 || (curHour === 12 && now.getMinutes() < 30) ? '上午' : '下午';
+    
+    let curDayNum = 1;
+    if (compStartDate) {
+        const sDate = new Date(compStartDate);
+        sDate.setHours(0,0,0,0);
+        const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const diffDays = Math.floor((nowDateOnly - sDate) / (1000 * 60 * 60 * 24)) + 1;
+        curDayNum = Math.max(1, diffDays);
+    }
+
+    const currentActiveUnitKey = `${curDayNum}_${curAmpm}`;
+
+    const sortedUnitKeys = Object.keys(units).sort((a,b) => {
+        const ua = units[a], ub = units[b];
+        if(ua.day !== ub.day) return ua.day - ub.day;
+        return ua.ampm === '上午' ? -1 : 1;
+    });
+
+            sortedUnitKeys.forEach((uKey, uIdx) => {
                 const unit = units[uKey];
                 
                 let dateTitle = `第${unit.day}天 ${unit.ampm}`;
@@ -642,18 +714,54 @@ function selectRole(role) {
                     }
                 }
 
-               html += `
-                <div class="mb-6 bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
-                    <h3 class="text-base font-black text-emerald-900 bg-emerald-100 p-3 border-b-2 border-emerald-400 flex items-center gap-2">
-                        📅 ${dateTitle} 比赛单元
-                    </h3>
+                // 🌟 2. 核心状态判定：该单元是过去、现在还是未来
+                let isPastUnit = false;
+                if (unit.day < curDayNum) {
+                    isPastUnit = true; // 昨天及更早，必为过去
+                } else if (unit.day === curDayNum && curAmpm === '下午' && unit.ampm === '上午') {
+                    isPastUnit = true; // 今天下午了，上午必为过去
+                }
+
+                const isCurrentUnit = (uKey === currentActiveUnitKey);
+
+                let shouldExpand = false;
+                if (window.userManuallyToggledUnits) {
+                    shouldExpand = window.expandedUnits.has(uKey);
+                } else {
+                    shouldExpand = isCurrentUnit || (!isPastUnit && uIdx === 0);
+                    if (shouldExpand) window.expandedUnits.add(uKey);
+                }
+
+                const contentId = `unit_body_${uIdx}`;
+                const arrowId = `unit_arrow_${uIdx}`;
+
+                html += `
+                <div class="mb-4 bg-white shadow-sm border ${isCurrentUnit ? 'border-emerald-500 ring-2 ring-emerald-400/20' : 'border-gray-200'} rounded-2xl overflow-hidden transition-all">
+                    <!-- 🌟 单元顶部导航栏：支持整块点击折叠/展开 -->
+                    <div class="p-3.5 flex justify-between items-center cursor-pointer select-none transition ${isCurrentUnit ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white' : (isPastUnit ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : 'bg-emerald-50 text-emerald-900')}"
+                         onclick="toggleUnitSection('${uKey}', '${contentId}', '${arrowId}')">
+                        
+                        <div class="flex items-center gap-2">
+                            <span class="text-base">${isCurrentUnit ?'' : (isPastUnit ? '📁' : '📅')}</span>
+                            <span class="text-sm font-black tracking-wide">${dateTitle} 比赛单元</span>
+                            ${isCurrentUnit ? '<span class="bg-amber-400 text-gray-900 text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse">进行中</span>' : ''}
+                            ${isPastUnit ? '<span class="bg-gray-200 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded">历史单元</span>' : ''}
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <span id="${arrowId}" class="text-xs font-black ${isCurrentUnit ? 'text-emerald-100 bg-white/20' : 'text-gray-500 bg-gray-200'} px-2.5 py-1 rounded-lg">
+                                ${shouldExpand ? '▲ 收起单元' : '▼ 展开查看'}
+                            </span>
+                        </div>
+                    </div>
                     
-                    <div class="bg-gray-50 p-3 space-y-4">
+                    <!-- 单元内容区 -->
+                    <div id="${contentId}" class="${shouldExpand ? '' : 'hidden'} bg-gray-50 p-3 space-y-4">
                         <!-- 上半部：左右两栏（径赛 vs 田赛） -->
                         <div class="flex flex-col md:flex-row gap-4">
                             <!-- 1. 径赛检录区 -->
                             <div class="flex-1">
-                                <div class="font-black text-blue-800 border-b-2 border-blue-200 pb-1.5 mb-3 flex items-center gap-1.5">
+                                <div class="font-black text-blue-800 border-b-2 border-blue-200 pb-1.5 mb-3 flex items-center gap-1.5 text-xs">
                                     <span>🏃</span> 径赛检录区
                                 </div>
                                 <div class="space-y-3">
@@ -669,7 +777,7 @@ function selectRole(role) {
                             <!-- 2. 田赛检录区（起点发令角色下自动隐藏） -->
                             ${currentRole === 'starter' ? '' : `
                             <div class="flex-1">
-                                <div class="font-black text-orange-800 border-b-2 border-orange-200 pb-1.5 mb-3 flex items-center gap-1.5">
+                                <div class="font-black text-orange-800 border-b-2 border-orange-200 pb-1.5 mb-3 flex items-center gap-1.5 text-xs">
                                     <span>🎯</span> 田赛检录区
                                 </div>
                                 <div class="space-y-3">
@@ -679,15 +787,12 @@ function selectRole(role) {
                             </div>`}
                         </div>
 
-                        <!-- 3. 下半部：趣味项目检录区（单独横跨整栏显示） -->
+                        <!-- 3. 下半部：趣味项目检录区 -->
                         ${currentRole === 'starter' ? '' : `
                         <div class="pt-2 border-t border-gray-200">
-                            <div class="font-black text-purple-800 border-b-2 border-purple-200 pb-1.5 mb-3 flex items-center justify-between">
+                            <div class="font-black text-purple-800 border-b-2 border-purple-200 pb-1.5 mb-3 flex items-center justify-between text-xs">
                                 <span class="flex items-center gap-1.5">
                                     <span>🎈</span> 趣味项目检录区
-                                </span>
-                                <span class="text-[11px] font-normal text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-100">
-                                    集体参与 · 独立检录
                                 </span>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -767,7 +872,8 @@ function selectRole(role) {
         if (currentRole === 'timing') {
             eventItems = eventItems.filter(item => {
                 const t = typeof item === 'object' ? item.type : '';
-                return t === '径赛';
+                const name = typeof item === 'object' ? item.name : item;
+                return t === '径赛' || (!t.includes('田') && !t.includes('趣味')) || name.includes('米') || name.includes('接力');
             });
         } else if (currentRole === 'field') {
             eventItems = eventItems.filter(item => {
@@ -952,57 +1058,127 @@ function selectRole(role) {
 
     function renderNormalTrackList(filteredData) {
         const list = document.getElementById('athleteList');
-        let html = ''; let lastHeat = null; 
+        if (!list) return;
+        let html = '';
 
+        // 1. 按组次归类选手
+        const heatsMap = {};
         filteredData.forEach(p => {
-            const currentHeat = p.heat || '1'; 
-            let isFirstOfHeat = false;
-            if (currentHeat !== lastHeat) {
-                html += `
-                <tr class="bg-blue-50 heat-row" id="heat_header_${currentHeat}">
-                    <td colspan="4" class="p-2.5 pl-4 text-sm font-black text-blue-800 border-y border-blue-200 flex justify-between items-center">
-                        <span>🚩 第 ${currentHeat} 组</span>
-                        <span class="text-xs text-blue-600 font-normal heat-status-tag"></span>
-                    </td>
-                </tr>`;
-                lastHeat = currentHeat;
-                isFirstOfHeat = true;
-            }
+            const h = String(p.heat || '1');
+            if (!heatsMap[h]) heatsMap[h] = [];
+            heatsMap[h].push(p);
+        });
 
-            const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn !== undefined ? p.checkedIn : (p.checked || 0)));
-            const isAbsent = (checkState === 2) || (p.score && (p.score.includes('弃权') || p.score.includes('DNS')));
+        // 记录首个未完成的输入框，用于自动对焦
+        let firstUnscoredInputId = null;
 
+        const sortedHeats = Object.keys(heatsMap).sort((a, b) => parseInt(a) - parseInt(b));
+
+        sortedHeats.forEach(heatNum => {
+            const heatItems = heatsMap[heatNum];
+            
+            // 2. 判定该组是否已经全员录完（成绩非空或为弃权）
+            const totalCount = heatItems.length;
+            const scoredCount = heatItems.filter(p => {
+                const s = String(p.score || '').trim();
+                const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn || 0));
+                return (s !== '' && s !== '-') || checkState === 2;
+            }).length;
+
+            const isHeatFinished = (totalCount > 0 && scoredCount === totalCount);
+            const heatBodyId = `timing_heat_tbody_${heatNum}`;
+            const heatArrowId = `timing_heat_arrow_${heatNum}`;
+
+            // 🌟 表头栏：支持点击随时展开/收起查看以往成绩
             html += `
-            <tr class="border-b border-gray-100 athlete-row-heat-${currentHeat} ${isAbsent ? 'bg-red-50/50' : 'bg-white'}">
-                <td class="p-2.5 text-center font-bold text-gray-400 border-r">${p.lane || '-'}</td>
-                <td class="p-2.5 text-center font-mono font-bold ${isAbsent ? 'text-gray-400' : 'text-blue-600'} text-sm border-r">${p.bib || '---'}</td>
-                <td class="p-2.5">
-                    <div class="font-black text-gray-800 text-[13px] flex items-center gap-1.5">
-                        <span class="${isAbsent ? 'line-through text-gray-400' : ''}">${p.name}</span>
-                        ${isAbsent ? '<span class="text-[10px] bg-red-100 text-red-600 border border-red-200 px-1.5 py-0.2 rounded font-bold shadow-2xs">已弃权</span>' : ''}
-                    </div>
-                    <div class="text-[10px] text-gray-400 mt-0.5 truncate max-w-[120px]">${p.team_name}</div>
-                </td>
-                <td class="p-2 text-right">
-                    <div class="flex items-center justify-end gap-1">
-                        <input type="text" inputmode="decimal" value="${p.score || ''}" 
-                               placeholder=""
-                               data-heat="${currentHeat}"
-                               class="input-score ${isFirstOfHeat ? 'heat-first-input-' + currentHeat : ''} w-20 border border-blue-200 bg-blue-50 rounded-lg px-1.5 py-1.5 text-center shadow-inner text-blue-900 outline-none focus:bg-white text-sm"
-                               onblur="saveScore(${p.reg_id || p.id}, this)">
-                        <!-- 🌟 增加一键填入“弃权”小按钮 -->
-                        <button type="button" 
-                                onclick="quickMarkAbsent(${p.reg_id || p.id}, this)" 
-                                class="px-1.5 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg active:scale-95 transition shrink-0"
-                                title="点击直接标记弃权">
-                            弃权
-                        </button>
+            <tr class="border-y border-blue-200 cursor-pointer select-none transition ${isHeatFinished ? 'bg-gray-100 text-gray-600' : 'bg-blue-50 text-blue-900'}"
+                onclick="toggleTimingHeat('${heatBodyId}', '${heatArrowId}')">
+                <td colspan="4" class="p-2.5 px-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="font-black text-sm">🚩 第 ${heatNum} 组</span>
+                            <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${isHeatFinished ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+                                ${isHeatFinished ? '✔ 成绩已录毕' : `⏳ 录入中 (${scoredCount}/${totalCount})`}
+                            </span>
+                        </div>
+                        <span id="${heatArrowId}" class="text-xs font-bold text-blue-600">
+    ${isHeatFinished ? '' : ''}
+</span>
                     </div>
                 </td>
             </tr>`;
+
+            // 🌟 数据行容器：已完成组别直接加 hidden 隐藏，未完成组别默认展开
+            html += `<tbody id="${heatBodyId}" class="${isHeatFinished ? 'hidden' : ''}">`;
+
+            heatItems.forEach(p => {
+                const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn || 0));
+                const isAbsent = (checkState === 2) || (p.score && (p.score.includes('弃权') || p.score.includes('DNS')));
+                const inputId = `score_input_${p.reg_id || p.id}`;
+
+                if (!isHeatFinished && !isAbsent && !p.score && !firstUnscoredInputId) {
+                    firstUnscoredInputId = inputId;
+                }
+
+                html += `
+                <tr class="border-b border-gray-100 ${isAbsent ? 'bg-red-50/40' : 'bg-white'} hover:bg-gray-50 transition">
+                    <td class="p-2 text-center font-bold text-gray-400 border-r w-12 text-sm">${p.lane || '-'}</td>
+                    <td class="p-2 text-center font-mono font-bold ${isAbsent ? 'text-gray-400' : 'text-blue-600'} text-xs border-r w-14">${p.bib || '---'}</td>
+                    <td class="p-2">
+                        <div class="font-black text-gray-800 text-xs flex items-center gap-1">
+                            <span class="${isAbsent ? 'line-through text-gray-400' : ''}">${p.name}</span>
+                            ${isAbsent ? '<span class="text-[9px] bg-red-100 text-red-600 px-1 rounded font-bold">弃权</span>' : ''}
+                        </div>
+                        <div class="text-[10px] text-gray-400 truncate max-w-[110px]">${p.team_name}</div>
+                    </td>
+                    <td class="p-2 text-right w-40">
+                        <div class="flex items-center justify-end gap-1">
+                            <input type="text" inputmode="decimal" value="${p.score || ''}" 
+                                   id="${inputId}"
+                                   placeholder=""
+                                   data-heat="${heatNum}"
+                                   class="input-score w-24 border border-blue-200 bg-blue-50/50 rounded-lg p-1.5 text-center shadow-inner text-blue-950 font-bold text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-400"
+                                   onblur="saveScore(${p.reg_id || p.id}, this)">
+                            <button type="button" onclick="quickMarkAbsent(${p.reg_id || p.id}, this)" 
+                                    class="px-1.5 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md active:scale-95 transition shrink-0">
+                                弃权
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            });
+
+            html += `</tbody>`;
         });
+
         list.innerHTML = html;
+
+        // 自动聚焦到首个未填写的输入框
+        if (firstUnscoredInputId) {
+            setTimeout(() => {
+                const targetInput = document.getElementById(firstUnscoredInputId);
+                if (targetInput) {
+                    targetInput.focus();
+                    targetInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 150);
+        }
     }
+
+    // 🌟 终点端折叠/展开组别函数
+    window.toggleTimingHeat = function(tbodyId, arrowId) {
+        const tb = document.getElementById(tbodyId);
+        const arr = document.getElementById(arrowId);
+        if (!tb) return;
+
+        if (tb.classList.contains('hidden')) {
+            tb.classList.remove('hidden');
+            if (arr) arr.innerText = '▲ 收起';
+        } else {
+            tb.classList.add('hidden');
+            if (arr) arr.innerText = '展开查看成绩 ▼';
+        }
+    };
 
     function saveScore(regId, input) {
         const val = input.value.trim();
