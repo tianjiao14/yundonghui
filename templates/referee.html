@@ -11,7 +11,6 @@
 </script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-tap-highlight-color: transparent;}
-        /* 控制台特有样式 */
         .console-bg { background-color: #f3f4f6; }
         .input-score { transition: all 0.2s; font-family: 'Courier New', Courier, monospace; font-weight: bold; font-size: 1.2rem; }
         .input-score:focus { transform: scale(1.05); border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2); z-index: 10; position: relative; }
@@ -72,10 +71,16 @@
                     <span class="text-[11px] text-orange-100 font-medium">核验上道选手，向终点发令推送</span>
                 </button>
 
-               <button onclick="selectRole('timing')" class="w-full max-w-sm bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1">
-                    <span class="text-3xl">⏱️</span>
+                <button onclick="selectRole('timing')" class="w-full max-w-sm bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1">
+                    <span class="text-3xl">📝</span>
                     <span class="text-base font-black tracking-widest">终点记录裁判入口</span>
-                    <span class="text-[11px] text-blue-100 font-medium">接收发令指令 · 录入跑道径赛成绩</span>
+                    <span class="text-[11px] text-blue-100 font-medium">核验成绩 · 手工录入 · 接收视觉计时自动推送</span>
+                </button>
+
+                <button style="display: none;"onclick="selectRole('camera')" class="w-full max-w-sm bg-gradient-to-r from-cyan-600 to-blue-700 text-white p-4 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1 ring-2 ring-cyan-300 ring-offset-2">
+                    <span class="text-3xl">📷</span>
+                    <span class="text-base font-black tracking-widest">终点摄像计时入口</span>
+                    <span class="text-[11px] text-cyan-100 font-medium">三脚架机位 · 自动跑道对齐 · 撞线自动推送</span>
                 </button>
 
                 <button onclick="selectRole('field')" class="w-full max-w-sm bg-gradient-to-r from-amber-600 to-orange-600 text-white p-4 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1">
@@ -83,7 +88,7 @@
                     <span class="text-base font-black tracking-widest">田赛 / 趣味项目裁判入口</span>
                     <span class="text-[11px] text-amber-100 font-medium">跳远/跳高/铅球录入 · 趣味项目录入</span>
                 </button>
-               </div>
+            </div>
 
             <div id="checkinSection" class="hidden flex-1 flex flex-col bg-gray-100 p-2 md:p-4">
                 <div class="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-emerald-800 text-xs text-center font-bold mb-3 shadow-xs">
@@ -91,22 +96,22 @@
                 </div>
                 <div id="checkinList" class="flex-1 space-y-4 pb-10"></div>
             </div>
-         
 
-             <div id="timingSection" class="hidden flex-1 flex flex-col">
+            <div id="timingSection" class="hidden flex-1 flex flex-col">
                 <div id="trackActiveNotice" class="hidden bg-amber-500 text-white px-4 py-2.5 flex items-center justify-between shadow-md transition-all">
-                    <div class="flex items-center gap-2 text-xs md:text-sm font-black animate-pulse">
-                        <span class="text-lg">📢</span>
-                        <span>跑道当前进行：</span>
-                        <span id="activeTrackInfo" class="underline decoration-white underline-offset-4">---</span>
-                        <span id="activeTrackTime" class="text-[10px] bg-black/20 px-1.5 py-0.5 rounded font-mono font-normal">00:00:00</span>
-                    </div>
-                    <button onclick="switchToActiveHeat()" class="bg-white text-amber-800 px-3 py-1 rounded-lg text-xs font-black hover:bg-amber-100 shadow transition active:scale-95">
-                        👉 立即载入本科成绩录入
-                    </button>
-                </div>
+    <div class="flex items-center gap-2 text-xs md:text-sm font-black animate-pulse">
+        <span class="text-lg">📢</span>
+        <span>跑道当前进行：</span>
+        <span id="activeTrackInfo" class="underline decoration-white underline-offset-4">---</span>
+        <span id="activeTrackTime" class="text-[10px] bg-black/20 px-1.5 py-0.5 rounded font-mono font-normal">00:00:00</span>
+    </div>
 
-                <!-- 🌟 筛选控制栏（终点裁判端会自动隐藏此栏） -->
+    <button onclick="switchToActiveHeat()" class="bg-white text-amber-800 px-3 py-1 rounded-lg text-xs font-black hover:bg-amber-100 shadow transition active:scale-95">
+        👉 载入本科成绩
+    </button>
+</div>
+
+                <!-- 筛选控制栏 -->
                 <div id="filterSelectBar" class="p-4 bg-gray-50 border-b border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">1. 选择组别</label>
@@ -152,7 +157,6 @@
                 </div>
 
                 <div id="highJumpSection" class="hidden flex-1 flex flex-col bg-gray-50 overflow-y-auto relative">
-        
                     <div class="bg-white p-2.5 rounded-xl shadow-sm border-b border-gray-200 sticky top-0 z-20 shrink-0">
                         <div class="flex items-center justify-between mb-1.5">
                             <span class="text-xs font-black text-indigo-900 flex items-center gap-1">
@@ -162,12 +166,10 @@
                                 正在加载...
                             </span>
                         </div>
-                        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5" id="highJumpBarPills">
-                        </div>
+                        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5" id="highJumpBarPills"></div>
                     </div>
 
-                    <div class="space-y-2 p-2 flex-1 pb-16" id="highJumpAthletesContainer">
-                    </div>
+                    <div class="space-y-2 p-2 flex-1 pb-16" id="highJumpAthletesContainer"></div>
                     <div class="sticky bottom-0 bg-white/95 backdrop-blur border-t border-gray-200 p-2.5 flex items-center justify-between px-4 z-30 shadow-md shrink-0">
                         <div class="text-xs">
                             <span class="text-gray-400">当前升杆：</span>
@@ -201,39 +203,127 @@
                 </div>
 
                 <div class="p-2.5 bg-yellow-50 text-yellow-800 text-xs text-center border-t border-yellow-200 font-bold shrink-0">
-                    💡 提示：输入成绩后 <b>点击空白处</b> 即可自动保存。径赛格式如：12.5，田赛如：5.34
+                    💡 提示：输入成绩后 <b>点击空白处</b> 或回车即可保存。摄像端识别将自动填入浅蓝高亮。
                 </div>
             </div> 
         </div>
     </div>
 
-<div id="newHeatModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full border-4 border-amber-500 overflow-hidden transform transition-all text-center p-6 space-y-4">
-        <div class="text-5xl">🚀</div>
-        <div class="space-y-1">
-            <span class="bg-amber-100 text-amber-800 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider">起点已发令</span>
-            <h3 class="text-xl font-black text-gray-900 pt-2" id="modalHeatInfo">---</h3>
-            <p class="text-xs text-gray-400 font-mono" id="modalHeatTime">--:--:--</p>
+    <!-- 🌟 终点摄像裁判专属全屏交互机位 -->
+    <div id="finishCameraSection" class="fixed inset-0 z-50 bg-black flex flex-col hidden select-none overflow-hidden">
+        <div class="relative w-full h-full flex items-center justify-center overflow-hidden" id="cameraViewport">
+            <video id="finishVideo" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover pointer-events-none"></video>
+            <canvas id="calibrationCanvas" class="absolute inset-0 w-full h-full z-10 cursor-crosshair touch-none"></canvas>
         </div>
-        <p class="text-xs text-amber-700 font-bold bg-amber-50 p-2.5 rounded-xl">
-            ⚡ 请终点裁判准备计时，选手冲线后立即录入！
-        </p>
-        <button onclick="acceptNewHeatAndLoad()" class="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white py-3 rounded-xl font-black text-base shadow-lg hover:from-amber-600 hover:to-orange-700 active:scale-95 transition">
-            👉 立即载入本科成绩录入
-        </button>
+
+        <div class="absolute top-2 left-2 right-2 z-20 bg-black/80 backdrop-blur-md px-3.5 pt-2 pb-2.5 rounded-2xl border border-white/10 shadow-xl flex flex-col gap-1.5">
+            <!-- 上半部：组次信息、超大秒表与右侧三个按钮 -->
+            <div class="flex justify-between items-center">
+                <div>
+                    <div class="text-[11px] text-gray-300 font-bold tracking-tight truncate max-w-[160px]" id="camHeatInfo">等待起点发令...</div>
+                    <div class="text-2xl font-black font-mono text-emerald-400 tracking-wider leading-none mt-1" id="camStopwatch">00:00.00</div>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button type="button" onclick="autoCalibrateTrackLines()" class="bg-cyan-600 hover:bg-cyan-500 active:scale-95 text-white px-2.5 py-1.5 rounded-lg text-xs font-black transition shadow flex items-center gap-1">
+                        <span>✨</span> <span>自动对齐</span>
+                    </button>
+                    <button type="button" onclick="resetCalibrationLines()" class="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition">
+                        📐 默认
+                    </button>
+                    <button type="button" onclick="exitCameraRole()" class="bg-gray-700 hover:bg-gray-600 active:scale-95 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition">
+                        退出
+                    </button>
+                </div>
+            </div>
+
+            <!-- 下半部：独立提示条（有独立的纵向间距，绝不挡秒表） -->
+            <div class="text-[10px] text-yellow-300/90 font-medium bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-center flex items-center justify-center gap-1">
+                <span>👆</span>
+                <span>左右拖<span class="text-red-400 font-bold">红线</span>定终点，上下拖<span class="text-cyan-400 font-bold">蓝线</span>定分道 · 撞线自动推送</span>
+            </div>
+        </div>
+
+        <div class="absolute bottom-2 left-2 right-2 z-20 bg-gray-900/90 backdrop-blur-md rounded-2xl p-2.5 border border-white/10 shadow-2xl max-h-40 overflow-y-auto">
+            <div class="text-[11px] font-bold text-gray-300 mb-1.5 flex justify-between items-center">
+                <span>🏁 识别到的各道次冲线时间：</span>
+                <span class="text-[10px] text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/30">
+                    🟢 自动实时同步中
+                </span>
+            </div>
+            <div id="laneResultTags" class="grid grid-cols-4 gap-1.5 text-xs"></div>
+        </div>
     </div>
-</div>
+
+    <!-- 起点发令弹窗 -->
+    <div id="newHeatModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full border-4 border-amber-500 overflow-hidden transform transition-all text-center p-6 space-y-4">
+            <div class="text-5xl">🚀</div>
+            <div class="space-y-1">
+                <span class="bg-amber-100 text-amber-800 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider">起点已发令</span>
+                <h3 class="text-xl font-black text-gray-900 pt-2" id="modalHeatInfo">---</h3>
+                <p class="text-xs text-gray-400 font-mono" id="modalHeatTime">--:--:--</p>
+            </div>
+            <p class="text-xs text-amber-700 font-bold bg-amber-50 p-2.5 rounded-xl">
+                ⚡ 请终点裁判准备计时，选手冲线后立即录入！
+            </p>
+            <button onclick="acceptNewHeatAndLoad()" class="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white py-3 rounded-xl font-black text-base shadow-lg hover:from-amber-600 hover:to-orange-700 active:scale-95 transition">
+                👉 立即载入本科成绩录入
+            </button>
+        </div>
+    </div>
+
+    <!-- 起点发令控制悬浮台
+    <div id="starterControlPanel" class="fixed bottom-4 left-4 right-4 z-50 bg-gray-900/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-gray-700 text-white hidden transition-all transform duration-300">
+        <div class="flex justify-between items-center mb-3 border-b border-gray-700 pb-2">
+            <div class="flex items-center gap-2">
+                <span class="text-lg">📢</span>
+                <span class="text-sm font-black" id="starterPanelTitle">发令控制台</span>
+            </div>
+            <button onclick="toggleStarterPanel()" class="text-xs bg-gray-700 hover:bg-gray-600 px-2.5 py-1 rounded-lg text-gray-300">
+                收起 ▼
+            </button>
+        </div>
+
+        <div class="grid grid-cols-4 gap-2">
+            <button onclick="sendStarterCmd('set')" class="bg-blue-600 hover:bg-blue-500 active:scale-95 py-3 rounded-xl font-black text-sm flex flex-col items-center justify-center gap-1 shadow">
+                <span>🧍</span>
+                <span>各就位</span>
+            </button>
+            <button onclick="sendStarterCmd('ready')" class="bg-amber-600 hover:bg-amber-500 active:scale-95 py-3 rounded-xl font-black text-sm flex flex-col items-center justify-center gap-1 shadow">
+                <span>🏃</span>
+                <span>预备</span>
+            </button>
+            <button onclick="handleGunClick()" id="btnGun" class="bg-red-600 hover:bg-red-500 active:scale-95 py-3 rounded-xl font-black text-sm flex flex-col items-center justify-center gap-1 shadow animate-pulse">
+                <span>💥</span>
+                <span>枪响</span>
+            </button>
+            <button onclick="sendStarterCmd('reset')" class="bg-gray-700 hover:bg-gray-600 active:scale-95 py-3 rounded-xl font-black text-sm flex flex-col items-center justify-center gap-1 shadow">
+                <span>🔄</span>
+                <span>回零</span>
+            </button>
+        </div>
+
+        <div id="starterStatusTip" class="text-[11px] text-center text-gray-400 mt-2 font-mono">
+            就绪状态：点击“枪响”开始计时；连续按枪响将触发犯规召回
+        </div>
+    </div>
+
+    <!-- 折叠后的呼出悬浮球 -->
+    <button id="btnStarterPanelFab" onclick="toggleStarterPanel()" class="fixed bottom-6 right-6 z-40 bg-orange-600 text-white p-3.5 rounded-full shadow-2xl flex items-center gap-1 font-bold text-xs hidden active:scale-95 transition">
+        <span>🚩 发令台</span>
+    </button>
+-->
 <script>
-// 建立全局 WebSocket 连接
 const socket = io();
 
 // 1. 监听起点发令事件
 socket.on('heat_activated', function(payload) {
     if (currentRole === 'timing') {
-        // 终点裁判立即弹出提示
         pollActiveHeat(); 
+    } else if (currentRole === 'camera') {
+        const infoEl = document.getElementById('camHeatInfo');
+        if (infoEl) infoEl.innerText = `${payload.group_name} ${payload.gender}子 · ${payload.event_name} (第${payload.heat}组)`;
     } else if (currentRole === 'starter' || currentRole === 'checkin') {
-        // 检录或发令裁判更新道次被锁定的状态
         window.isTrackBusy = true;
         loadCheckinSchedule();
     }
@@ -242,7 +332,6 @@ socket.on('heat_activated', function(payload) {
 // 2. 监听终点裁判录入/修改成绩事件
 socket.on('score_updated', function(payload) {
     if (currentRole === 'starter' || currentRole === 'checkin') {
-        // 如果终点录完了，跑道释放，检录端按钮恢复可点击
         window.isTrackBusy = false;
         loadCheckinSchedule();
     }
@@ -251,91 +340,118 @@ socket.on('score_updated', function(payload) {
 // 3. 监听检录状态打钩事件
 socket.on('checkin_updated', function(payload) {
     if (currentRole === 'starter' || currentRole === 'checkin') {
-        // 同步更新其他检录裁判手机上的打钩状态
         loadCheckinSchedule();
     }
 });
-    function login() {
-        const user = document.getElementById('username').value.trim();
-        const pwd = document.getElementById('pwd').value;
-        const btn = document.getElementById('btnLogin');
 
-        if (!user) {
-            alert("请输入登录名");
-            return;
-        }
+// 4. 监听摄像端自动推送成绩
+socket.on('receive_camera_times', function(payload) {
+    if (currentRole !== 'timing') return;
 
-        btn.disabled = true;
-        btn.innerHTML = `<span class="animate-spin">⌛</span> 登录中...`;
+    const laneTimes = payload.lane_times || {};
+    let filledCount = 0;
 
-        fetch('/api/auth', {
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ type: 'referee', username: user, password: pwd })
-        })
-        .then(r => r.json())
-        .then(res => {
-            if(res.status === 'success') {
-                document.getElementById('loginSection').classList.add('hidden');
-                document.getElementById('mainConsoleSection').classList.remove('hidden');
-                document.getElementById('bodyWrap').classList.remove('bg-green-800');
-                document.getElementById('bodyWrap').classList.add('console-bg');
-
-                resetRoleSelection();
-                
-                initConsoleData();
-            } else {
-                alert(res.msg || "登录失败，请检查用户名或密码。");
-                btn.disabled = false;
-                btn.innerHTML = `<span>开始工作</span>`;
+    const rows = document.querySelectorAll('#athleteList tr');
+    rows.forEach(tr => {
+        const laneCell = tr.querySelector('td:first-child');
+        const input = tr.querySelector('.input-score');
+        if (laneCell && input) {
+            const laneNum = parseInt(laneCell.innerText.trim());
+            if (laneTimes[laneNum] && !input.dataset.userEdited) {
+                input.value = laneTimes[laneNum];
+                input.classList.add('bg-cyan-50', 'border-cyan-400');
+                filledCount++;
             }
-        })
-        .catch(err => {
-            console.error(err);
-            alert("网络连接失败，请检查服务器状态。");
+        }
+    });
+
+    if (filledCount > 0 && window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate(40);
+    }
+});
+
+function login() {
+    const user = document.getElementById('username').value.trim();
+    const pwd = document.getElementById('pwd').value;
+    const btn = document.getElementById('btnLogin');
+
+    if (!user) {
+        alert("请输入登录名");
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = `<span class="animate-spin">⌛</span> 登录中...`;
+
+    fetch('/api/auth', {
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ type: 'referee', username: user, password: pwd })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if(res.status === 'success') {
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('mainConsoleSection').classList.remove('hidden');
+            document.getElementById('bodyWrap').classList.remove('bg-green-800');
+            document.getElementById('bodyWrap').classList.add('console-bg');
+
+            resetRoleSelection();
+            initConsoleData();
+        } else {
+            alert(res.msg || "登录失败，请检查用户名或密码。");
             btn.disabled = false;
             btn.innerHTML = `<span>开始工作</span>`;
-        });
-    }
-
-    document.getElementById('pwd').addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') login();
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert("网络连接失败，请检查服务器状态。");
+        btn.disabled = false;
+        btn.innerHTML = `<span>开始工作</span>`;
     });
-    document.getElementById('username').addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') document.getElementById('pwd').focus();
-    });
+}
 
-    let metaData = {}; 
-    let compStartDate = ""; 
-    let currentRole = null;
-    let trackPollingTimer = null; 
-    let starterPollingTimer = null; 
-    let currentActiveHeatData = null; 
+document.getElementById('pwd').addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') login();
+});
+document.getElementById('username').addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') document.getElementById('pwd').focus();
+});
 
-    function initConsoleData() {
-        fetch('/api/get_competition_date')
-            .then(r => r.json())
-            .then(d => {
-                if (d.success && d.start_date) compStartDate = d.start_date;
-            })
-            .catch(e => console.log('获取日期失败，将回退为第X天格式'));
-    }
+let metaData = {}; 
+let compStartDate = ""; 
+let currentRole = null;
+let trackPollingTimer = null; 
+let starterPollingTimer = null; 
+let currentActiveHeatData = null; 
+
+function initConsoleData() {
+    fetch('/api/get_competition_date')
+        .then(r => r.json())
+        .then(d => {
+            if (d.success && d.start_date) compStartDate = d.start_date;
+        })
+        .catch(e => console.log('获取日期失败，将回退为第X天格式'));
+}
+
 function selectRole(role) {
     currentRole = role;
     localStorage.setItem('last_referee_role', role);
     document.getElementById('roleSelection').classList.add('hidden');
     document.getElementById('btnBack').classList.remove('hidden');
 
-    // 历史遗留定时器清理（防止切换角色时残留）
-    if (typeof trackPollingTimer !== 'undefined' && trackPollingTimer) clearInterval(trackPollingTimer);
-    if (typeof starterPollingTimer !== 'undefined' && starterPollingTimer) clearInterval(starterPollingTimer);
+    if (trackPollingTimer) clearInterval(trackPollingTimer);
+    if (starterPollingTimer) clearInterval(starterPollingTimer);
+
+    document.getElementById('checkinSection')?.classList.add('hidden');
+    document.getElementById('timingSection')?.classList.add('hidden');
+    document.getElementById('finishCameraSection')?.classList.add('hidden');
 
     if (role === 'starter') {
         document.getElementById('headerTitle').innerHTML = '🚩 起点发令端';
         document.getElementById('checkinSection').classList.remove('hidden');
-        document.getElementById('timingSection').classList.add('hidden');
 
-        // 初次加载跑道状态与检录名单
         fetch('/api/get_active_heat?_t=' + Date.now())
             .then(r => r.json())
             .then(res => {
@@ -346,87 +462,87 @@ function selectRole(role) {
     } else if (role === 'checkin') {
         document.getElementById('headerTitle').innerHTML = '📝 检录长终端';
         document.getElementById('checkinSection').classList.remove('hidden');
-        document.getElementById('timingSection').classList.add('hidden');
-        
-        // 初次加载检录名单
         loadCheckinSchedule();
 
-   } else if (role === 'timing') {
-        document.getElementById('headerTitle').innerHTML = '⏱️ 终点计时终端';
+    } else if (role === 'timing') {
+        document.getElementById('headerTitle').innerHTML = '⏱️ 终点记录终端';
         document.getElementById('timingSection').classList.remove('hidden');
-        document.getElementById('checkinSection').classList.add('hidden');
-        
         document.getElementById('fieldControlBar')?.classList.add('hidden');
         document.getElementById('highJumpSection')?.classList.add('hidden');
         document.getElementById('normalTableSection')?.classList.remove('hidden');
-        const filterBar = document.getElementById('filterSelectBar');
-        if (filterBar) filterBar.classList.remove('hidden');
+        document.getElementById('filterSelectBar')?.classList.remove('hidden');
         fetchMeta();
+        pollActiveHeat();
+
+    } else if (role === 'camera') {
+        document.getElementById('headerTitle').innerHTML = '📷 终点摄像计时机位';
+        document.getElementById('finishCameraSection').classList.remove('hidden');
+        startFinishCamera();
         pollActiveHeat();
 
     } else if (role === 'field') {
         document.getElementById('headerTitle').innerHTML = '🎯 田赛 / 趣味端';
         document.getElementById('timingSection').classList.remove('hidden');
-        document.getElementById('checkinSection').classList.add('hidden');
         document.getElementById('trackActiveNotice')?.classList.add('hidden');
         
         const list = document.getElementById('athleteList');
         if (list) {
             list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">请在上方选择组别、性别和项目开始录入</td></tr>';
         }
-
-        const filterBar = document.getElementById('filterSelectBar');
-        if (filterBar) filterBar.classList.remove('hidden');
-        
-        // 初次加载下拉筛选项
+        document.getElementById('filterSelectBar')?.classList.remove('hidden');
         fetchMeta();
     }
 }
-    function resetRoleSelection() {
-        currentRole = null;
-        if (trackPollingTimer) clearInterval(trackPollingTimer);
-        if (starterPollingTimer) clearInterval(starterPollingTimer);
-        document.getElementById('roleSelection').classList.remove('hidden');
-        document.getElementById('btnBack').classList.add('hidden');
-        document.getElementById('timingSection').classList.add('hidden');
-        document.getElementById('checkinSection').classList.add('hidden');
-        document.getElementById('trackActiveNotice')?.classList.add('hidden');
-        document.getElementById('headerTitle').innerHTML = '📱 裁判员控制台';
+
+function resetRoleSelection() {
+    currentRole = null;
+    if (trackPollingTimer) clearInterval(trackPollingTimer);
+    if (starterPollingTimer) clearInterval(starterPollingTimer);
+
+    if (window.videoStream) {
+        window.videoStream.getTracks().forEach(track => track.stop());
+        window.videoStream = null;
     }
 
-    function refreshCurrentView() {
-        if (currentRole === 'timing' || currentRole === 'field') {
-            const curEvent = document.getElementById('selEvent')?.value;
-            const curGroup = document.getElementById('selGroup')?.value;
-            
-            if (curEvent && curGroup && !curGroup.includes('连接') && !curGroup.includes('选择')) {
-                loadAthletes();
-            } else {
-                fetchMeta();
-            }
-        } else if (currentRole === 'checkin' || currentRole === 'starter') {
-            loadCheckinSchedule();
+    document.getElementById('finishCameraSection')?.classList.add('hidden');
+    document.getElementById('timingSection')?.classList.add('hidden');
+    document.getElementById('checkinSection')?.classList.add('hidden');
+    document.getElementById('trackActiveNotice')?.classList.add('hidden');
+    document.getElementById('starterControlPanel')?.classList.add('hidden');
+    document.getElementById('btnStarterPanelFab')?.classList.add('hidden');
+    document.getElementById('roleSelection').classList.remove('hidden');
+    document.getElementById('btnBack').classList.add('hidden');
+    document.getElementById('headerTitle').innerHTML = '📱 裁判员控制台';
+}
+
+function refreshCurrentView() {
+    if (currentRole === 'timing' || currentRole === 'field') {
+        const curEvent = document.getElementById('selEvent')?.value;
+        const curGroup = document.getElementById('selGroup')?.value;
+        if (curEvent && curGroup && !curGroup.includes('连接') && !curGroup.includes('选择')) {
+            loadAthletes();
+        } else {
+            fetchMeta();
         }
+    } else if (currentRole === 'checkin' || currentRole === 'starter') {
+        loadCheckinSchedule();
     }
-    function formatRealDate(estTimeStr) {
-        if (!compStartDate || !estTimeStr) return estTimeStr;
-        const match = estTimeStr.match(/第(\d+)天(上午|下午)?\s*(.*)/);
-        if (!match) return estTimeStr;
-        
-        const dayOffset = parseInt(match[1]) - 1;
-        const unit = match[2] || '';
-        const timePart = match[3] || '';
-        
-        let baseDate = new Date(compStartDate);
-        if (isNaN(baseDate.getTime())) return estTimeStr; 
-        
-        baseDate.setDate(baseDate.getDate() + dayOffset);
-        const month = baseDate.getMonth() + 1;
-        const date = baseDate.getDate();
-        
-        return `${month}月${date}日 ${unit} ${timePart}`;
-    }
-    // 🌟 记录展开的单元（如 "1_上午", "1_下午"）
+}
+
+function formatRealDate(estTimeStr) {
+    if (!compStartDate || !estTimeStr) return estTimeStr;
+    const match = estTimeStr.match(/第(\d+)天(上午|下午)?\s*(.*)/);
+    if (!match) return estTimeStr;
+    
+    const dayOffset = parseInt(match[1]) - 1;
+    const unit = match[2] || '';
+    const timePart = match[3] || '';
+    let baseDate = new Date(compStartDate);
+    if (isNaN(baseDate.getTime())) return estTimeStr; 
+    baseDate.setDate(baseDate.getDate() + dayOffset);
+    return `${baseDate.getMonth() + 1}月${baseDate.getDate()}日 ${unit} ${timePart}`;
+}
+
 window.expandedUnits = new Set();
 window.userManuallyToggledUnits = false;
 
@@ -435,8 +551,7 @@ window.toggleUnitSection = function(unitKey, contentId, arrowId) {
     const arrow = document.getElementById(arrowId);
     if (!content) return;
     
-    window.userManuallyToggledUnits = true; // 标记用户已手动点过
-    
+    window.userManuallyToggledUnits = true;
     if (content.classList.contains('hidden')) {
         content.classList.remove('hidden');
         if (arrow) arrow.innerText = '▲ 收起单元';
@@ -447,1431 +562,943 @@ window.toggleUnitSection = function(unitKey, contentId, arrowId) {
         window.expandedUnits.delete(unitKey);
     }
 };
-    function loadCheckinSchedule() {
-        const listDiv = document.getElementById('checkinList');
-        if (!listDiv.children || listDiv.children.length === 0) {
-            listDiv.innerHTML = '<div class="text-center p-10 text-emerald-600 font-bold animate-pulse">正在从系统拉取全场赛程...</div>';
-        }
-        fetch('/api/get_data?_t=' + Date.now())
-        .then(r => r.json())
-        .then(data => {
-            if (!data.schedule || data.schedule.length === 0) {
-                listDiv.innerHTML = '<div class="text-center p-10 text-gray-500 font-bold">📂 暂无检录数据，请提醒管理员在后台先进行【智能编排】</div>';
-                return;
-            }
 
-            const units = {}; 
-            data.schedule.forEach(item => {
-                const timeStr = item.estTime || '';
-                const match = timeStr.match(/第(\d+)天(上午|下午)?/);
-                const dayNum = match ? parseInt(match[1]) : 1;
-                const ampm = match ? match[2] : '上午';
-                const unitKey = `${dayNum}_${ampm}`; 
-
-                if (!units[unitKey]) {
-                    // 🌟 增加 fun (趣味项目) 独立分类
-                    units[unitKey] = { day: dayNum, ampm: ampm, track: {}, field: {}, fun: {} };
-                }
-
-                const heatKey = `${item.timeIndex}_${item.groupName}_${item.eventName}_${item.gender}_${item.heat}`;
-                
-                // 🌟 判定大项类别：优先识别趣味，其次田赛，其余为径赛
-                const eName = item.eventName || '';
-                const isFun = item.is_fun === '1' || item.isFun === true || item.type === 'fun' || 
-                              ['足球', '篮球', '投篮', '蛙跳', '跳绳', '趣味', '拔河', '毛毛虫', '沙包', '毽'].some(k => eName.includes(k));
-                
-                let category = 'track';
-                if (isFun) {
-                    category = 'fun';
-                } else if (item.isField) {
-                    category = 'field';
-                }
-
-                if (!units[unitKey][category][heatKey]) {
-                    units[unitKey][category][heatKey] = {
-                        timeStr: timeStr, timeIdx: item.timeIndex, groupName: item.groupName, 
-                        eventName: item.eventName, gender: item.gender, heat: item.heat, 
-                        isField: item.isField, category: category, athletes: []
-                    };
-                }
-                units[unitKey][category][heatKey].athletes.push(item);
-            });
-
-    if (!window.expandedHeatCards) {
-        window.expandedHeatCards = new Set();
+function loadCheckinSchedule() {
+    const listDiv = document.getElementById('checkinList');
+    if (!listDiv.children || listDiv.children.length === 0) {
+        listDiv.innerHTML = '<div class="text-center p-10 text-emerald-600 font-bold animate-pulse">正在从系统拉取全场赛程...</div>';
     }
-
-    window.toggleHeatCard = function(cardKey, elemId) {
-        const el = document.getElementById(elemId);
-        if (!el) return;
-        el.classList.toggle('hidden');
-        if (!el.classList.contains('hidden')) {
-            window.expandedHeatCards.add(cardKey);
-        } else {
-            window.expandedHeatCards.delete(cardKey);
-        }
-    };
-
-    // 🌟 抽取为独立公用表格组件，供正常卡片和折叠卡片使用
-    function renderAthletesTable(group, typeColor) {
-        return `
-        <table class="w-full text-center text-sm border-collapse">
-            <thead class="bg-gray-50 text-gray-500 text-[11px] border-b">
-                <tr>
-                    <th class="py-2.5 px-1 w-10 border-r">道次</th>
-                    <th class="py-2.5 px-1 w-12 border-r">号码</th>
-                    <th class="py-2.5 px-2 text-left">姓名与单位</th>
-                    <th class="py-2.5 px-1 w-16 text-center text-emerald-700">到位</th>
-                    <th class="py-2.5 px-1 w-16 text-center text-red-600">弃权</th>
-                </tr>
-            </thead>
-            <tbody>
-               ${group.athletes.map(p => {
-                    const state = parseInt(p.checkedIn !== undefined ? p.checkedIn : (p.checked_in !== undefined ? p.checked_in : 0));
-                    const isPresent = (state === 1);
-                    const isAbsent = (state === 2);
-                    const rowBg = isPresent ? 'bg-emerald-50/50' : (isAbsent ? 'bg-red-50/40' : '');
-
-                    return `
-                    <tr id="checkin_row_${p.id}" class="border-b border-gray-100 hover:bg-gray-50 transition ${rowBg}">
-                        <td class="py-2.5 font-black text-gray-400 border-r">${p.lane || '-'}</td>
-                        <td class="py-2.5 font-mono font-black text-${typeColor}-600 border-r text-[12px]">${p.bib || '---'}</td>
-                        <td class="py-2.5 text-left px-2">
-                            <div class="font-black text-gray-800 text-[13px] flex items-center gap-1">
-                                <span class="ath-name ${isAbsent ? 'line-through text-gray-400' : ''}">${p.name}</span>
-                                <span class="tag-absent text-[10px] bg-red-100 text-red-700 px-1 py-0.2 rounded font-bold ${isAbsent ? '' : 'hidden'}">弃权</span>
-                            </div>
-                            <div class="text-[10px] text-gray-500 mt-0.5 truncate max-w-[110px]">${p.teamName}</div>
-                        </td>
-                        <td class="py-2.5 text-center">
-                            <button type="button" 
-                                    onclick="setCheckinStatus(${p.id},${isPresent ? 0 : 1})"
-                                    class="btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition ${isPresent ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-gray-300 border-gray-300 hover:border-emerald-500'}">
-                                ✓
-                            </button>
-                        </td>
-                        <td class="py-2.5 text-center">
-                            <button type="button" 
-                                    onclick="setCheckinStatus(${p.id},${isAbsent ? 0 : 2})"
-                                    class="btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition ${isAbsent ? 'bg-red-600 text-white border-red-600 shadow-sm' : 'bg-white text-gray-300 border-gray-300 hover:border-red-500'}">
-                                ✕
-                            </button>
-                        </td>
-                    </tr>`;
-                }).join('')}
-            </tbody>
-        </table>`;
-    }
-
-    const renderHeatCard = (group, elementId) => {
-        group.athletes.sort((a,b) => parseInt(a.lane||0) - parseInt(b.lane||0));
-        const realTime = formatRealDate(group.timeStr);
-        let typeColor = 'blue';
-        if (group.category === 'fun') {
-            typeColor = 'purple';
-        } else if (group.isField) {
-            typeColor = 'orange';
-        }
-
-        const isStarter = (currentRole === 'starter');
-        const showPushBtn = isStarter && !group.isField;
-
-        // 1. 正确计算检录完成情况
-        const totalCount = group.athletes.length;
-        const handledCount = group.athletes.filter(p => {
-            const state = parseInt(p.checkedIn !== undefined ? p.checkedIn : (p.checked_in !== undefined ? p.checked_in : 0));
-            return state === 1 || state === 2;
-        }).length;
-        const isAllChecked = (totalCount > 0 && handledCount === totalCount);
-        const isAlreadyPushed = group.athletes.some(p => p.is_started === 1 || p.isStarted === 1);
-
-        // 2. 判定该组是否完结
-        const isHeatDone = isStarter ? isAlreadyPushed : isAllChecked;
-        const cardKey = `${group.groupName}_${group.eventName}_${group.gender}_${group.heat}`;
-
-        // 3. 展开逻辑（不再重复声明 isExpanded）
-        let isExpanded = false;
-        if (window.expandedHeatCards && window.expandedHeatCards.has(cardKey)) {
-            isExpanded = true;
-        } else if (!isHeatDone) {
-            isExpanded = true; // 未完成默认敞开
-        }
-
-        // 4. 如果已完成且未手动点开，折叠显示为紧凑条目
-        if (isHeatDone && !isExpanded) {
-            return `
-            <div class="bg-gray-100/90 rounded-xl border border-gray-200 overflow-hidden mb-2.5 opacity-75 hover:opacity-100 transition">
-                <div class="p-3 flex justify-between items-center cursor-pointer select-none" onclick="toggleHeatCard('${cardKey}', '${elementId}')">
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs text-gray-500 font-mono">${realTime}</span>
-                        <span class="font-bold text-gray-800 text-xs">${group.groupName} ${group.gender}组 · ${group.eventName} (第${group.heat}组)</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
-                            ${isStarter ? '🏁 已发令' : '✔ 已检录'}
-                        </span>
-                        <span class="text-xs text-blue-600 font-bold">▼</span>
-                    </div>
-                </div>
-                <div id="${elementId}" class="hidden bg-white border-t border-gray-200">
-                    ${renderAthletesTable(group, typeColor)}
-                </div>
-            </div>`;
-        }
-
-        // 5. 待办/展开状态卡片
-        return `
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-3">
-            <div class="bg-white border-b border-gray-100 p-3 flex flex-wrap justify-between items-center gap-2">
-                <div class="cursor-pointer flex-1 select-none" onclick="toggleHeatCard('${cardKey}', '${elementId}')">
-                    <div class="text-[11px] font-black text-${typeColor}-600 mb-1 flex items-center gap-1">
-                        <span>🕒</span> ${realTime}
-                        <span class="ml-2 font-mono text-[10px] ${isAllChecked ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'} px-1.5 py-0.2 rounded font-bold">
-                            ${isAllChecked ? '✔ 已检录' : `⏳ 检录中 ${handledCount}/${totalCount}`}
-                        </span>
-                    </div>
-                    <div class="font-black text-gray-800 text-sm">
-                        ${group.groupName} ${group.gender}组 · ${group.eventName}
-                    </div>
-                </div>
-                
-                <div class="flex items-center gap-2 shrink-0">
-                   ${showPushBtn ? (() => {
-                        if (isAlreadyPushed) {
-                            return `
-                                <button disabled class="bg-gray-200 text-gray-400 border border-gray-300 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1 select-none">
-                                    <span>🏁</span> <span>已发令</span>
-                                </button>
-                            `;
-                        } else if (!isAllChecked) {
-                            return `
-                                <button disabled title="需检录完毕后发令" 
-                                        class="bg-gray-100 border border-gray-300 text-gray-400 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1">
-                                    <span>🔒</span> <span>等待检录(${handledCount}/${totalCount})</span>
-                                </button>
-                            `;
-                        } else if (window.isTrackBusy) {
-                            return `
-                                <button disabled title="终点正在录入上一组成绩，请等待录完" 
-                                        class="bg-orange-50 border border-orange-300 text-orange-600 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1">
-                                    <span>⏳</span> <span>跑道使用中</span>
-                                </button>
-                            `;
-                        } else {
-                            return `
-                                <button onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this)" 
-                                        class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-black shadow-md flex items-center gap-1 transition active:scale-95 animate-bounce">
-                                    <span>🚀</span> <span>发令推送</span>
-                                </button>
-                            `;
-                        }
-                    })() : ''}
-
-                    <span class="text-xs font-bold text-${typeColor}-700 bg-${typeColor}-100 px-2 py-1 rounded-lg cursor-pointer select-none" onclick="toggleHeatCard('${cardKey}', '${elementId}')">
-                        第 ${group.heat} 组 ${isExpanded ? '▲' : '▼'}
-                    </span>
-                </div>
-            </div>
-         
-            <div id="${elementId}" class="${isExpanded ? '' : 'hidden'}">
-                ${renderAthletesTable(group, typeColor)}
-            </div>
-        </div>`;
-    };
-
-    // 🌟 修正：单次声明 html
-    let html = '';
-    const now = new Date();
-    const curHour = now.getHours();
-    const curAmpm = curHour < 12 || (curHour === 12 && now.getMinutes() < 30) ? '上午' : '下午';
-    
-    let curDayNum = 1;
-    if (compStartDate) {
-        const sDate = new Date(compStartDate);
-        sDate.setHours(0,0,0,0);
-        const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const diffDays = Math.floor((nowDateOnly - sDate) / (1000 * 60 * 60 * 24)) + 1;
-        curDayNum = Math.max(1, diffDays);
-    }
-
-    const currentActiveUnitKey = `${curDayNum}_${curAmpm}`;
-
-    const sortedUnitKeys = Object.keys(units).sort((a,b) => {
-        const ua = units[a], ub = units[b];
-        if(ua.day !== ub.day) return ua.day - ub.day;
-        return ua.ampm === '上午' ? -1 : 1;
-    });
-
-            sortedUnitKeys.forEach((uKey, uIdx) => {
-                const unit = units[uKey];
-                
-                let dateTitle = `第${unit.day}天 ${unit.ampm}`;
-                if (compStartDate) {
-                    let d = new Date(compStartDate);
-                    if (!isNaN(d.getTime())) {
-                        d.setDate(d.getDate() + (unit.day - 1));
-                        dateTitle = `${d.getMonth()+1}月${d.getDate()}日 ${unit.ampm}`;
-                    }
-                }
-
-                // 🌟 2. 核心状态判定：该单元是过去、现在还是未来
-                let isPastUnit = false;
-                if (unit.day < curDayNum) {
-                    isPastUnit = true; // 昨天及更早，必为过去
-                } else if (unit.day === curDayNum && curAmpm === '下午' && unit.ampm === '上午') {
-                    isPastUnit = true; // 今天下午了，上午必为过去
-                }
-
-                const isCurrentUnit = (uKey === currentActiveUnitKey);
-
-                let shouldExpand = false;
-                if (window.userManuallyToggledUnits) {
-                    shouldExpand = window.expandedUnits.has(uKey);
-                } else {
-                    shouldExpand = isCurrentUnit || (!isPastUnit && uIdx === 0);
-                    if (shouldExpand) window.expandedUnits.add(uKey);
-                }
-
-                const contentId = `unit_body_${uIdx}`;
-                const arrowId = `unit_arrow_${uIdx}`;
-
-                html += `
-                <div class="mb-4 bg-white shadow-sm border ${isCurrentUnit ? 'border-emerald-500 ring-2 ring-emerald-400/20' : 'border-gray-200'} rounded-2xl overflow-hidden transition-all">
-                    <!-- 🌟 单元顶部导航栏：支持整块点击折叠/展开 -->
-                    <div class="p-3.5 flex justify-between items-center cursor-pointer select-none transition ${isCurrentUnit ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white' : (isPastUnit ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : 'bg-emerald-50 text-emerald-900')}"
-                         onclick="toggleUnitSection('${uKey}', '${contentId}', '${arrowId}')">
-                        
-                        <div class="flex items-center gap-2">
-                            <span class="text-base">${isCurrentUnit ?'' : (isPastUnit ? '📁' : '📅')}</span>
-                            <span class="text-sm font-black tracking-wide">${dateTitle} 比赛单元</span>
-                            ${isCurrentUnit ? '<span class="bg-amber-400 text-gray-900 text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse">进行中</span>' : ''}
-                            ${isPastUnit ? '<span class="bg-gray-200 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded">历史单元</span>' : ''}
-                        </div>
-
-                        <div class="flex items-center gap-2">
-                            <span id="${arrowId}" class="text-xs font-black ${isCurrentUnit ? 'text-emerald-100 bg-white/20' : 'text-gray-500 bg-gray-200'} px-2.5 py-1 rounded-lg">
-                                ${shouldExpand ? '▲ 收起单元' : '▼ 展开查看'}
-                            </span>
-                        </div>
-                    </div>
-                    
-                    <!-- 单元内容区 -->
-                    <div id="${contentId}" class="${shouldExpand ? '' : 'hidden'} bg-gray-50 p-3 space-y-4">
-                        <!-- 上半部：左右两栏（径赛 vs 田赛） -->
-                        <div class="flex flex-col md:flex-row gap-4">
-                            <!-- 1. 径赛检录区 -->
-                            <div class="flex-1">
-                                <div class="font-black text-blue-800 border-b-2 border-blue-200 pb-1.5 mb-3 flex items-center gap-1.5 text-xs">
-                                    <span>🏃</span> 径赛检录区
-                                </div>
-                                <div class="space-y-3">
-                                    ${Object.keys(unit.track).length === 0 ? '<div class="text-xs text-gray-400 font-bold p-2 text-center bg-white rounded-lg border border-dashed">本单元无径赛项目</div>' : ''}
-                                    ${Object.keys(unit.track).sort((a,b) => {
-                                        const ta = unit.track[a], tb = unit.track[b];
-                                        if (ta.timeIdx !== tb.timeIdx) return ta.timeIdx - tb.timeIdx;
-                                        return (ta.timeStr || '').localeCompare(tb.timeStr || '');
-                                    }).map((k, i) => renderHeatCard(unit.track[k], `track_${uIdx}_${i}`)).join('')}
-                                </div>
-                            </div>
-
-                            <!-- 2. 田赛检录区（起点发令角色下自动隐藏） -->
-                            ${currentRole === 'starter' ? '' : `
-                            <div class="flex-1">
-                                <div class="font-black text-orange-800 border-b-2 border-orange-200 pb-1.5 mb-3 flex items-center gap-1.5 text-xs">
-                                    <span>🎯</span> 田赛检录区
-                                </div>
-                                <div class="space-y-3">
-                                    ${Object.keys(unit.field).length === 0 ? '<div class="text-xs text-gray-400 font-bold p-2 text-center bg-white rounded-lg border border-dashed">本单元无田赛项目</div>' : ''}
-                                    ${Object.keys(unit.field).sort((a,b) => unit.field[a].timeIdx - unit.field[b].timeIdx).map((k, i) => renderHeatCard(unit.field[k], `field_${uIdx}_${i}`)).join('')}
-                                </div>
-                            </div>`}
-                        </div>
-
-                        <!-- 3. 下半部：趣味项目检录区 -->
-                        ${currentRole === 'starter' ? '' : `
-                        <div class="pt-2 border-t border-gray-200">
-                            <div class="font-black text-purple-800 border-b-2 border-purple-200 pb-1.5 mb-3 flex items-center justify-between text-xs">
-                                <span class="flex items-center gap-1.5">
-                                    <span>🎈</span> 趣味项目检录区
-                                </span>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                ${Object.keys(unit.fun).length === 0 ? '<div class="col-span-full text-xs text-gray-400 font-bold p-3 text-center bg-white rounded-lg border border-dashed">本单元无趣味项目</div>' : ''}
-                                ${Object.keys(unit.fun).sort((a,b) => unit.fun[a].timeIdx - unit.fun[b].timeIdx).map((k, i) => renderHeatCard(unit.fun[k], `fun_${uIdx}_${i}`)).join('')}
-                            </div>
-                        </div>`}
-                    </div>
-                </div>`;
-            });
-            listDiv.innerHTML = html;
-        }).catch(err => {
-            console.error(err);
-            listDiv.innerHTML = '<div class="text-center p-10 text-red-500 font-bold">拉取数据失败，请检查网络并重试</div>';
-        });
-    }
-
-    function fetchMeta() {
-        const selGroup = document.getElementById('selGroup');
-        selGroup.innerHTML = '<option>正在连接服务器...</option>';
-
-        fetch('/api/get_referee_meta?_t=' + Date.now())
-            .then(r => {
-                if (!r.ok) throw new Error("HTTP error " + r.status);
-                return r.json();
-            })
-            .then(data => {
-                metaData = data; 
-                const groups = Object.keys(data).sort();
-                selGroup.innerHTML = '<option value="">-- 请选择组别 --</option>';
-                if (groups.length === 0) {
-                    selGroup.innerHTML = '<option value="">(暂无比赛数据)</option>'; return;
-                }
-                groups.forEach(g => {
-                    const opt = document.createElement('option'); opt.value = g; opt.innerText = g; selGroup.appendChild(opt);
-                });
-                showTip("✅ 连接成功", "text-green-600");
-            })
-            .catch(err => {
-                console.error(err);
-                selGroup.innerHTML = '<option value="">连接失败</option>';
-                alert("无法连接到服务器。请检查网络。");
-            });
-    }
-
-    function onGroupChange() {
-        const gName = document.getElementById('selGroup').value;
-        const selGender = document.getElementById('selGender');
-        const selEvent = document.getElementById('selEvent');
-        selGender.innerHTML = '<option value="">-- 选择性别 --</option>';
-        selEvent.innerHTML = '<option value="">--</option>';
-        selEvent.disabled = true;
-
-        if (!gName || !metaData[gName]) { selGender.disabled = true; return; }
-
-        Object.keys(metaData[gName]).sort().forEach(gen => { selGender.innerHTML += `<option value="${gen}">${gen}</option>`; });
-        selGender.disabled = false;
-    }
-
-    function isFieldOrFunEvent(eName) {
-        return eName.includes('跳') || eName.includes('投') || eName.includes('铅球') || 
-               eName.includes('实心球') || eName.includes('标枪') || eName.includes('铁饼') || 
-               eName.includes('趣味') || eName.includes('沙包') || eName.includes('毽') || eName.includes('绳');
-    }
-
-    function onGenderChange() {
-        const gName = document.getElementById('selGroup').value;
-        const gen = document.getElementById('selGender').value;
-        const selEvent = document.getElementById('selEvent');
-        selEvent.innerHTML = '<option value="">-- 选择项目 --</option>';
-        if (!gen || !metaData[gName] || !metaData[gName][gen]) { 
-            selEvent.disabled = true; 
-            return; 
-        }
-
-        let eventItems = metaData[gName][gen];
-        if (currentRole === 'timing') {
-            eventItems = eventItems.filter(item => {
-                const t = typeof item === 'object' ? item.type : '';
-                const name = typeof item === 'object' ? item.name : item;
-                return t === '径赛' || (!t.includes('田') && !t.includes('趣味')) || name.includes('米') || name.includes('接力');
-            });
-        } else if (currentRole === 'field') {
-            eventItems = eventItems.filter(item => {
-                const t = typeof item === 'object' ? item.type : '';
-                return t === '田赛' || t === '趣味' || t === '趣味项目';
-            });
-        }
-
-        if (eventItems.length === 0) {
-            selEvent.innerHTML = '<option value="">(该岗位下无匹配项目)</option>';
-            selEvent.disabled = true;
+    fetch('/api/get_data?_t=' + Date.now())
+    .then(r => r.json())
+    .then(data => {
+        if (!data.schedule || data.schedule.length === 0) {
+            listDiv.innerHTML = '<div class="text-center p-10 text-gray-500 font-bold">📂 暂无检录数据，请提醒管理员在后台先进行【智能编排】</div>';
             return;
         }
 
-       eventItems.forEach(item => {
-            const eName = typeof item === 'object' ? item.name : item;
-            const eType = typeof item === 'object' ? item.type : '';
-            const opt = document.createElement('option');
-            opt.value = eName;
-            opt.dataset.type = eType; // 
-            opt.innerText = eName;    // 
-            selEvent.appendChild(opt);
+        const units = {}; 
+        data.schedule.forEach(item => {
+            const timeStr = item.estTime || '';
+            const match = timeStr.match(/第(\d+)天(上午|下午)?/);
+            const dayNum = match ? parseInt(match[1]) : 1;
+            const ampm = match ? match[2] : '上午';
+            const unitKey = `${dayNum}_${ampm}`; 
+
+            if (!units[unitKey]) {
+                units[unitKey] = { day: dayNum, ampm: ampm, track: {}, field: {}, fun: {} };
+            }
+
+            const heatKey = `${item.timeIndex}_${item.groupName}_${item.eventName}_${item.gender}_${item.heat}`;
+            const eName = item.eventName || '';
+            const isFun = item.is_fun === '1' || item.isFun === true || item.type === 'fun' || 
+                          ['足球', '篮球', '投篮', '蛙跳', '跳绳', '趣味', '拔河', '毛毛虫', '沙包', '毽'].some(k => eName.includes(k));
+            
+            let category = 'track';
+            if (isFun) category = 'fun';
+            else if (item.isField) category = 'field';
+
+            if (!units[unitKey][category][heatKey]) {
+                units[unitKey][category][heatKey] = {
+                    timeStr: timeStr, timeIdx: item.timeIndex, groupName: item.groupName, 
+                    eventName: item.eventName, gender: item.gender, heat: item.heat, 
+                    isField: item.isField, category: category, athletes: []
+                };
+            }
+            units[unitKey][category][heatKey].athletes.push(item);
         });
-        selEvent.disabled = false;
+
+        if (!window.expandedHeatCards) window.expandedHeatCards = new Set();
+
+        window.toggleHeatCard = function(cardKey, elemId) {
+            const el = document.getElementById(elemId);
+            if (!el) return;
+            el.classList.toggle('hidden');
+            if (!el.classList.contains('hidden')) window.expandedHeatCards.add(cardKey);
+            else window.expandedHeatCards.delete(cardKey);
+        };
+
+        function renderAthletesTable(group, typeColor) {
+            return `
+            <table class="w-full text-center text-sm border-collapse">
+                <thead class="bg-gray-50 text-gray-500 text-[11px] border-b">
+                    <tr>
+                        <th class="py-2.5 px-1 w-10 border-r">道次</th>
+                        <th class="py-2.5 px-1 w-12 border-r">号码</th>
+                        <th class="py-2.5 px-2 text-left">姓名与单位</th>
+                        <th class="py-2.5 px-1 w-16 text-center text-emerald-700">到位</th>
+                        <th class="py-2.5 px-1 w-16 text-center text-red-600">弃权</th>
+                    </tr>
+                </thead>
+                <tbody>
+                   ${group.athletes.map(p => {
+                        const state = parseInt(p.checkedIn !== undefined ? p.checkedIn : (p.checked_in !== undefined ? p.checked_in : 0));
+                        const isPresent = (state === 1);
+                        const isAbsent = (state === 2);
+                        const rowBg = isPresent ? 'bg-emerald-50/50' : (isAbsent ? 'bg-red-50/40' : '');
+
+                        return `
+                        <tr id="checkin_row_${p.id}" class="border-b border-gray-100 hover:bg-gray-50 transition ${rowBg}">
+                            <td class="py-2.5 font-black text-gray-400 border-r">${p.lane || '-'}</td>
+                            <td class="py-2.5 font-mono font-black text-${typeColor}-600 border-r text-[12px]">${p.bib || '---'}</td>
+                            <td class="py-2.5 text-left px-2">
+                                <div class="font-black text-gray-800 text-[13px] flex items-center gap-1">
+                                    <span class="ath-name ${isAbsent ? 'line-through text-gray-400' : ''}">${p.name}</span>
+                                    <span class="tag-absent text-[10px] bg-red-100 text-red-700 px-1 py-0.2 rounded font-bold ${isAbsent ? '' : 'hidden'}">弃权</span>
+                                </div>
+                                <div class="text-[10px] text-gray-500 mt-0.5 truncate max-w-[110px]">${p.teamName}</div>
+                            </td>
+                            <td class="py-2.5 text-center">
+                                <button type="button" 
+                                        onclick="setCheckinStatus(${p.id},${isPresent ? 0 : 1})"
+                                        class="btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition ${isPresent ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-gray-300 border-gray-300 hover:border-emerald-500'}">
+                                    ✓
+                                </button>
+                            </td>
+                            <td class="py-2.5 text-center">
+                                <button type="button" 
+                                        onclick="setCheckinStatus(${p.id},${isAbsent ? 0 : 2})"
+                                        class="btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition ${isAbsent ? 'bg-red-600 text-white border-red-600 shadow-sm' : 'bg-white text-gray-300 border-gray-300 hover:border-red-500'}">
+                                    ✕
+                                </button>
+                            </td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>`;
+        }
+
+        const renderHeatCard = (group, elementId) => {
+            group.athletes.sort((a,b) => parseInt(a.lane||0) - parseInt(b.lane||0));
+            const realTime = formatRealDate(group.timeStr);
+            let typeColor = group.category === 'fun' ? 'purple' : (group.isField ? 'orange' : 'blue');
+
+            const isStarter = (currentRole === 'starter');
+            const showPushBtn = isStarter && !group.isField;
+
+            const totalCount = group.athletes.length;
+            const handledCount = group.athletes.filter(p => {
+                const state = parseInt(p.checkedIn !== undefined ? p.checkedIn : (p.checked_in !== undefined ? p.checked_in : 0));
+                return state === 1 || state === 2;
+            }).length;
+            const isAllChecked = (totalCount > 0 && handledCount === totalCount);
+            const isAlreadyPushed = group.athletes.some(p => p.is_started === 1 || p.isStarted === 1);
+            const isHeatDone = isStarter ? isAlreadyPushed : isAllChecked;
+            const cardKey = `${group.groupName}_${group.eventName}_${group.gender}_${group.heat}`;
+
+            let isExpanded = false;
+            if (window.expandedHeatCards && window.expandedHeatCards.has(cardKey)) {
+                isExpanded = true;
+            } else if (cardKey === window.firstActivePendingHeatKey) {
+                isExpanded = true;
+            }
+
+            if (isHeatDone && !isExpanded) {
+                return `
+                <div class="bg-gray-100/90 rounded-xl border border-gray-200 overflow-hidden mb-2.5 opacity-75 hover:opacity-100 transition">
+                    <div class="p-3 flex justify-between items-center cursor-pointer select-none" onclick="toggleHeatCard('${cardKey}', '${elementId}')">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-500 font-mono">${realTime}</span>
+                            <span class="font-bold text-gray-800 text-xs">${group.groupName} ${group.gender}组 · ${group.eventName} (第${group.heat}组)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                                ${isStarter ? '🏁 已发令' : '✔ 已检录'}
+                            </span>
+                            <span class="text-xs text-blue-600 font-bold">▼</span>
+                        </div>
+                    </div>
+                    <div id="${elementId}" class="hidden bg-white border-t border-gray-200">
+                        ${renderAthletesTable(group, typeColor)}
+                    </div>
+                </div>`;
+            }
+
+            return `
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-3">
+                <div class="bg-white border-b border-gray-100 p-3 flex flex-wrap justify-between items-center gap-2">
+                    <div class="cursor-pointer flex-1 select-none" onclick="toggleHeatCard('${cardKey}', '${elementId}')">
+                        <div class="text-[11px] font-black text-${typeColor}-600 mb-1 flex items-center gap-1">
+                            <span>🕒</span> ${realTime}
+                            <span class="ml-2 font-mono text-[10px] ${isAllChecked ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'} px-1.5 py-0.2 rounded font-bold">
+                                ${isAllChecked ? '✔ 已检录' : `⏳ 检录中 ${handledCount}/${totalCount}`}
+                            </span>
+                        </div>
+                        <div class="font-black text-gray-800 text-sm">
+                            ${group.groupName} ${group.gender}组 · ${group.eventName}
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 shrink-0">
+                       ${showPushBtn ? (() => {
+                            if (isAlreadyPushed) {
+                                return `
+                                    <button disabled class="bg-gray-200 text-gray-400 border border-gray-300 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1 select-none">
+                                        <span>🏁</span> <span>已发令</span>
+                                    </button>
+                                `;
+                            } else if (!isAllChecked) {
+                                return `
+                                    <button disabled title="需检录完毕后发令" 
+                                            class="bg-gray-100 border border-gray-300 text-gray-400 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1">
+                                        <span>🔒</span> <span>等待检录(${handledCount}/${totalCount})</span>
+                                    </button>
+                                `;
+                            } else if (window.isTrackBusy) {
+                                return `
+                                    <button disabled title="终点正在录入上一组成绩，请等待录完" 
+                                            class="bg-orange-50 border border-orange-300 text-orange-600 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1">
+                                        <span>⏳</span> <span>跑道使用中</span>
+                                    </button>
+                                `;
+                            } else {
+                                return `
+                                    <button onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this)" 
+                                            class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-black shadow-md flex items-center gap-1 transition active:scale-95 animate-bounce">
+                                        <span>🚀</span> <span>发令推送</span>
+                                    </button>
+                                `;
+                            }
+                        })() : ''}
+
+                        <span class="text-xs font-bold text-${typeColor}-700 bg-${typeColor}-100 px-2 py-1 rounded-lg cursor-pointer select-none" onclick="toggleHeatCard('${cardKey}', '${elementId}')">
+                            第 ${group.heat} 组 ${isExpanded ? '▲' : '▼'}
+                        </span>
+                    </div>
+                </div>
+             
+                <div id="${elementId}" class="${isExpanded ? '' : 'hidden'}">
+                    ${renderAthletesTable(group, typeColor)}
+                </div>
+            </div>`;
+        };
+
+        let html = '';
+        const now = new Date();
+        const curHour = now.getHours();
+        const curAmpm = curHour < 12 || (curHour === 12 && now.getMinutes() < 30) ? '上午' : '下午';
+        
+        let curDayNum = 1;
+        if (compStartDate) {
+            const sDate = new Date(compStartDate);
+            sDate.setHours(0,0,0,0);
+            const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const diffDays = Math.floor((nowDateOnly - sDate) / (1000 * 60 * 60 * 24)) + 1;
+            curDayNum = Math.max(1, diffDays);
+        }
+
+        const currentActiveUnitKey = `${curDayNum}_${curAmpm}`;
+        const sortedUnitKeys = Object.keys(units).sort((a,b) => {
+            const ua = units[a], ub = units[b];
+            if(ua.day !== ub.day) return ua.day - ub.day;
+            return ua.ampm === '上午' ? -1 : 1;
+        });
+
+        sortedUnitKeys.forEach((uKey, uIdx) => {
+            const unit = units[uKey];
+            let dateTitle = `第${unit.day}天 ${unit.ampm}`;
+            if (compStartDate) {
+                let d = new Date(compStartDate);
+                if (!isNaN(d.getTime())) {
+                    d.setDate(d.getDate() + (unit.day - 1));
+                    dateTitle = `${d.getMonth()+1}月${d.getDate()}日 ${unit.ampm}`;
+                }
+            }
+
+            let isPastUnit = false;
+            if (unit.day < curDayNum) isPastUnit = true;
+            else if (unit.day === curDayNum && curAmpm === '下午' && unit.ampm === '上午') isPastUnit = true;
+
+            const isCurrentUnit = (uKey === currentActiveUnitKey);
+            let shouldExpand = window.userManuallyToggledUnits ? window.expandedUnits.has(uKey) : (isCurrentUnit || (!isPastUnit && uIdx === 0));
+            if (shouldExpand) window.expandedUnits.add(uKey);
+
+            const contentId = `unit_body_${uIdx}`;
+            const arrowId = `unit_arrow_${uIdx}`;
+
+            html += `
+            <div class="mb-4 bg-white shadow-sm border ${isCurrentUnit ? 'border-emerald-500 ring-2 ring-emerald-400/20' : 'border-gray-200'} rounded-2xl overflow-hidden transition-all">
+                <div class="p-3.5 flex justify-between items-center cursor-pointer select-none transition ${isCurrentUnit ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white' : (isPastUnit ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : 'bg-emerald-50 text-emerald-900')}"
+                     onclick="toggleUnitSection('${uKey}', '${contentId}', '${arrowId}')">
+                    
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">${isCurrentUnit ?'' : (isPastUnit ? '📁' : '📅')}</span>
+                        <span class="text-sm font-black tracking-wide">${dateTitle} 比赛单元</span>
+                        ${isCurrentUnit ? '<span class="bg-amber-400 text-gray-900 text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse">进行中</span>' : ''}
+                        ${isPastUnit ? '<span class="bg-gray-200 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded">历史单元</span>' : ''}
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <span id="${arrowId}" class="text-xs font-black ${isCurrentUnit ? 'text-emerald-100 bg-white/20' : 'text-gray-500 bg-gray-200'} px-2.5 py-1 rounded-lg">
+                            ${shouldExpand ? '▲ 收起单元' : '▼ 展开查看'}
+                        </span>
+                    </div>
+                </div>
+                
+                <div id="${contentId}" class="${shouldExpand ? '' : 'hidden'} bg-gray-50 p-3 space-y-4">
+                    <div class="flex flex-col md:flex-row gap-4">
+                        <div class="flex-1">
+                            <div class="font-black text-blue-800 border-b-2 border-blue-200 pb-1.5 mb-3 flex items-center gap-1.5 text-xs">
+                                <span>🏃</span> 径赛检录区
+                            </div>
+                            <div class="space-y-3">
+                                ${Object.keys(unit.track).length === 0 ? '<div class="text-xs text-gray-400 font-bold p-2 text-center bg-white rounded-lg border border-dashed">本单元无径赛项目</div>' : ''}
+                                ${Object.keys(unit.track).sort((a,b) => {
+                                    const ta = unit.track[a], tb = unit.track[b];
+                                    if (ta.timeIdx !== tb.timeIdx) return ta.timeIdx - tb.timeIdx;
+                                    return (ta.timeStr || '').localeCompare(tb.timeStr || '');
+                                }).map((k, i) => renderHeatCard(unit.track[k], `track_${uIdx}_${i}`)).join('')}
+                            </div>
+                        </div>
+
+                        ${currentRole === 'starter' ? '' : `
+                        <div class="flex-1">
+                            <div class="font-black text-orange-800 border-b-2 border-orange-200 pb-1.5 mb-3 flex items-center gap-1.5 text-xs">
+                                <span>🎯</span> 田赛检录区
+                            </div>
+                            <div class="space-y-3">
+                                ${Object.keys(unit.field).length === 0 ? '<div class="text-xs text-gray-400 font-bold p-2 text-center bg-white rounded-lg border border-dashed">本单元无田赛项目</div>' : ''}
+                                ${Object.keys(unit.field).sort((a,b) => unit.field[a].timeIdx - unit.field[b].timeIdx).map((k, i) => renderHeatCard(unit.field[k], `field_${uIdx}_${i}`)).join('')}
+                            </div>
+                        </div>`}
+                    </div>
+
+                    ${currentRole === 'starter' ? '' : `
+                    <div class="pt-2 border-t border-gray-200">
+                        <div class="font-black text-purple-800 border-b-2 border-purple-200 pb-1.5 mb-3 flex items-center justify-between text-xs">
+                            <span class="flex items-center gap-1.5">
+                                <span>🎈</span> 趣味项目检录区
+                            </span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            ${Object.keys(unit.fun).length === 0 ? '<div class="col-span-full text-xs text-gray-400 font-bold p-3 text-center bg-white rounded-lg border border-dashed">本单元无趣味项目</div>' : ''}
+                            ${Object.keys(unit.fun).sort((a,b) => unit.fun[a].timeIdx - unit.fun[b].timeIdx).map((k, i) => renderHeatCard(unit.fun[k], `fun_${uIdx}_${i}`)).join('')}
+                        </div>
+                    </div>`}
+                </div>
+            </div>`;
+        });
+        listDiv.innerHTML = html;
+    }).catch(err => {
+        console.error(err);
+        listDiv.innerHTML = '<div class="text-center p-10 text-red-500 font-bold">拉取数据失败，请检查网络并重试</div>';
+    });
+}
+
+function fetchMeta() {
+    const selGroup = document.getElementById('selGroup');
+    selGroup.innerHTML = '<option>正在连接服务器...</option>';
+
+    fetch('/api/get_referee_meta?_t=' + Date.now())
+        .then(r => r.json())
+        .then(data => {
+            metaData = data; 
+            const groups = Object.keys(data).sort();
+            selGroup.innerHTML = '<option value="">-- 请选择组别 --</option>';
+            if (groups.length === 0) {
+                selGroup.innerHTML = '<option value="">(暂无比赛数据)</option>'; return;
+            }
+            groups.forEach(g => {
+                const opt = document.createElement('option'); opt.value = g; opt.innerText = g; selGroup.appendChild(opt);
+            });
+            showTip("✅ 连接成功", "text-green-600");
+        })
+        .catch(err => {
+            selGroup.innerHTML = '<option value="">连接失败</option>';
+            alert("无法连接到服务器。请检查网络。");
+        });
+}
+
+function onGroupChange() {
+    const gName = document.getElementById('selGroup').value;
+    const selGender = document.getElementById('selGender');
+    const selEvent = document.getElementById('selEvent');
+    selGender.innerHTML = '<option value="">-- 选择性别 --</option>';
+    selEvent.innerHTML = '<option value="">--</option>';
+    selEvent.disabled = true;
+
+    if (!gName || !metaData[gName]) { selGender.disabled = true; return; }
+
+    Object.keys(metaData[gName]).sort().forEach(gen => { selGender.innerHTML += `<option value="${gen}">${gen}</option>`; });
+    selGender.disabled = false;
+}
+
+function onGenderChange() {
+    const gName = document.getElementById('selGroup').value;
+    const gen = document.getElementById('selGender').value;
+    const selEvent = document.getElementById('selEvent');
+    selEvent.innerHTML = '<option value="">-- 选择项目 --</option>';
+    if (!gen || !metaData[gName] || !metaData[gName][gen]) { 
+        selEvent.disabled = true; 
+        return; 
     }
 
+    let eventItems = metaData[gName][gen];
+    if (currentRole === 'timing') {
+        eventItems = eventItems.filter(item => {
+            const t = typeof item === 'object' ? item.type : '';
+            const name = typeof item === 'object' ? item.name : item;
+            return t === '径赛' || (!t.includes('田') && !t.includes('趣味')) || name.includes('米') || name.includes('接力');
+        });
+    } else if (currentRole === 'field') {
+        eventItems = eventItems.filter(item => {
+            const t = typeof item === 'object' ? item.type : '';
+            return t === '田赛' || t === '趣味' || t === '趣味项目';
+        });
+    }
 
-    function loadAthletes() {
-        const gName = document.getElementById('selGroup')?.value || '';
-        const gender = document.getElementById('selGender')?.value || '';
-        const eName = document.getElementById('selEvent')?.value || '';
+    if (eventItems.length === 0) {
+        selEvent.innerHTML = '<option value="">(该岗位下无匹配项目)</option>';
+        selEvent.disabled = true;
+        return;
+    }
 
-        const list = document.getElementById('athleteList');
-        const normalTable = document.getElementById('normalTableSection');
-        const highJumpPanel = document.getElementById('highJumpSection');
-        const controlBar = document.getElementById('fieldControlBar');
+    eventItems.forEach(item => {
+        const eName = typeof item === 'object' ? item.name : item;
+        const eType = typeof item === 'object' ? item.type : '';
+        const opt = document.createElement('option');
+        opt.value = eName;
+        opt.dataset.type = eType; 
+        opt.innerText = eName;    
+        selEvent.appendChild(opt);
+    });
+    selEvent.disabled = false;
+}
 
-        if (!gName || !gender || !eName) {
-            if (list) {
-                list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">请在上方选择组别、性别和项目开始录入</td></tr>';
-            }
+function loadAthletes() {
+    const gName = document.getElementById('selGroup')?.value || '';
+    const gender = document.getElementById('selGender')?.value || '';
+    const eName = document.getElementById('selEvent')?.value || '';
+
+    const list = document.getElementById('athleteList');
+    const normalTable = document.getElementById('normalTableSection');
+    const highJumpPanel = document.getElementById('highJumpSection');
+    const controlBar = document.getElementById('fieldControlBar');
+
+    if (!gName || !gender || !eName) {
+        if (list) list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">请在上方选择组别、性别和项目开始录入</td></tr>';
+        if (highJumpPanel) highJumpPanel.classList.add('hidden');
+        if (normalTable) normalTable.classList.remove('hidden');
+        if (controlBar) controlBar.classList.add('hidden');
+        return;
+    }
+
+    if (list) list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-blue-500 font-bold animate-pulse">正在获取运动员名单...</td></tr>';
+
+    fetch('/api/get_event_start_list?_t=' + Date.now(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_name: eName, group_name: gName, gender: gender })
+    })
+    .then(r => r.json())
+    .then(data => {
+        const filteredData = Array.isArray(data) ? data : [];
+        if (filteredData.length === 0) {
+            if (list) list.innerHTML = `<tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">未找到【${gName} ${gender}子 ${eName}】的编排名单</td></tr>`;
             if (highJumpPanel) highJumpPanel.classList.add('hidden');
             if (normalTable) normalTable.classList.remove('hidden');
             if (controlBar) controlBar.classList.add('hidden');
             return;
         }
 
-        if (list) {
-            list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-blue-500 font-bold animate-pulse">正在获取运动员名单...</td></tr>';
-        }
+        const isHighJump = eName.includes('跳高') || eName.includes('撑竿跳');
+        const isDistanceField = !isHighJump && (
+            eName.includes('跳远') || eName.includes('三级跳') || eName.includes('铅球') || 
+            eName.includes('实心球') || eName.includes('标枪') || eName.includes('铁饼')
+        );
 
-        fetch('/api/get_event_start_list?_t=' + Date.now(), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                event_name: eName,
-                group_name: gName,
-                gender: gender
-            })
-        })
-        .then(r => {
-            if (!r.ok) throw new Error("网络响应异常");
-            return r.json();
-        })
-        .then(data => {
-            const filteredData = Array.isArray(data) ? data : [];
-
-            if (filteredData.length === 0) {
-                if (list) {
-                    list.innerHTML = `<tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">未找到【${gName} ${gender}子 ${eName}】的编排名单</td></tr>`;
-                }
-                if (highJumpPanel) highJumpPanel.classList.add('hidden');
-                if (normalTable) normalTable.classList.remove('hidden');
-                if (controlBar) controlBar.classList.add('hidden');
-                return;
-            }
-
-            const isHighJump = eName.includes('跳高') || eName.includes('撑竿跳');
-            const isDistanceField = !isHighJump && (
-                eName.includes('跳远') || 
-                eName.includes('三级跳') || 
-                eName.includes('铅球') || 
-                eName.includes('实心球') || 
-                eName.includes('标枪') || 
-                eName.includes('铁饼')
-            );
-
-            if (isHighJump) {
-                if (normalTable) normalTable.classList.add('hidden');
-                if (controlBar) controlBar.classList.add('hidden');
-                if (highJumpPanel) highJumpPanel.classList.remove('hidden');
-
-                if (typeof initHighJumpData === 'function') {
-                    initHighJumpData(filteredData);
-                }
-            } else {
-                if (highJumpPanel) highJumpPanel.classList.add('hidden');
-                if (normalTable) normalTable.classList.remove('hidden');
-
-                if (currentRole === 'field' && isDistanceField) {
-                    if (controlBar) controlBar.classList.remove('hidden');
-                    initFieldAthletesData(filteredData);
-                    renderCurrentFieldList();
-                } else {
-                    if (controlBar) controlBar.classList.add('hidden');
-                    renderNormalTrackList(filteredData);
-                }
-            }
-        })
-        .catch(err => {
-            console.error("加载名单失败:", err);
-            if (list) {
-                list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-red-500 font-bold">加载名单失败，请检查网络或刷新重试</td></tr>';
-            }
-        });
-    }
-
-   function renderCurrentFieldList() {
-        const list = document.getElementById('athleteList');
-        if (!list) return;
-        
-        if (!fieldAthletesData || fieldAthletesData.length === 0) {
-            list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">暂无有效参赛选手</td></tr>';
-            return;
-        }
-
-        let html = '';
-        fieldAthletesData.forEach((p, idx) => {
-            if (!p.orderIndex) p.orderIndex = idx + 1;
-            html += renderFieldAthleteRow(p, currentFieldRound);
-        });
-        list.innerHTML = html;
-    }
-
-    function renderFieldAthleteRow(p, roundIndex) {
-        const attempts = p.attempts || ['', '', '', '', '', ''];
-        const validScores = attempts.map(v => parseFloat(v) || 0);
-        const bestScore = Math.max(0, ...validScores);
-
-        return `
-        <tr class="border-b border-gray-100 bg-white hover:bg-orange-50/30 transition">
-            <td class="p-2.5 text-center font-bold text-gray-400 border-r w-10">${p.orderIndex || p.lane || '-'}</td>
-            <td class="p-2.5 text-center font-mono font-bold text-orange-600 text-sm border-r w-14">${p.bib || '---'}</td>
-            <td class="p-2.5">
-                <div class="font-black text-gray-800 text-[13px] flex items-center gap-1">
-                    <span>${p.name}</span>
-                    ${p.isFinalist ? '<span class="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 px-1 rounded font-bold">前8强</span>' : ''}
-                </div>
-                <div class="text-[10px] text-gray-400 truncate max-w-[110px]">${p.team_name}</div>
-
-                <div class="flex items-center gap-1 mt-1 text-[10px] font-mono">
-                    ${attempts.map((att, idx) => `
-                        <span class="px-1 rounded border ${idx + 1 === roundIndex ? 'bg-orange-600 text-white border-orange-600 font-bold' : (att ? 'bg-gray-100 text-gray-700' : 'text-gray-300')}">
-                            ${att || '-'}
-                        </span>
-                    `).join('')}
-                </div>
-            </td>
-
-            <td class="p-2 text-right w-36">
-                <div class="flex items-center justify-end gap-1">
-                    <input type="text" inputmode="decimal" value="${attempts[roundIndex - 1] || ''}" 
-                           placeholder="第${roundIndex}次"
-                           class="input-score w-20 border border-orange-300 bg-orange-50/50 rounded-lg px-1.5 py-1.5 text-center font-bold text-orange-950 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-400"
-                           onblur="saveFieldScore(${p.reg_id}, ${roundIndex}, this)">
-                    <button type="button" 
-                            onclick="quickMarkFieldAbsent(${p.reg_id}, ${roundIndex}, this)" 
-                            class="px-1 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md active:scale-95 transition"
-                            title="标记本次试跳弃权">
-                        弃权
-                    </button>
-                    
-                    <div class="text-[10px] text-gray-400 text-right min-w-[35px]">
-                        <span class="block text-[8px] text-gray-300">最好</span>
-                        <span class="font-bold text-orange-700 font-mono">${bestScore > 0 ? bestScore.toFixed(2) : '--'}</span>
-                    </div>
-                </div>
-            </td>
-        </tr>
-        `;
-    }
-
-    function renderNormalTrackList(filteredData) {
-        const list = document.getElementById('athleteList');
-        if (!list) return;
-        let html = '';
-
-        // 1. 按组次归类选手
-        const heatsMap = {};
-        filteredData.forEach(p => {
-            const h = String(p.heat || '1');
-            if (!heatsMap[h]) heatsMap[h] = [];
-            heatsMap[h].push(p);
-        });
-
-        // 记录首个未完成的输入框，用于自动对焦
-        let firstUnscoredInputId = null;
-
-        const sortedHeats = Object.keys(heatsMap).sort((a, b) => parseInt(a) - parseInt(b));
-
-        sortedHeats.forEach(heatNum => {
-            const heatItems = heatsMap[heatNum];
-            
-            // 2. 判定该组是否已经全员录完（成绩非空或为弃权）
-            const totalCount = heatItems.length;
-            const scoredCount = heatItems.filter(p => {
-                const s = String(p.score || '').trim();
-                const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn || 0));
-                return (s !== '' && s !== '-') || checkState === 2;
-            }).length;
-
-            const isHeatFinished = (totalCount > 0 && scoredCount === totalCount);
-            const heatBodyId = `timing_heat_tbody_${heatNum}`;
-            const heatArrowId = `timing_heat_arrow_${heatNum}`;
-
-            // 🌟 表头栏：支持点击随时展开/收起查看以往成绩
-            html += `
-            <tr class="border-y border-blue-200 cursor-pointer select-none transition ${isHeatFinished ? 'bg-gray-100 text-gray-600' : 'bg-blue-50 text-blue-900'}"
-                onclick="toggleTimingHeat('${heatBodyId}', '${heatArrowId}')">
-                <td colspan="4" class="p-2.5 px-3">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <span class="font-black text-sm">🚩 第 ${heatNum} 组</span>
-                            <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${isHeatFinished ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
-                                ${isHeatFinished ? '✔ 成绩已录毕' : `⏳ 录入中 (${scoredCount}/${totalCount})`}
-                            </span>
-                        </div>
-                        <span id="${heatArrowId}" class="text-xs font-bold text-blue-600">
-    ${isHeatFinished ? '' : ''}
-</span>
-                    </div>
-                </td>
-            </tr>`;
-
-            // 🌟 数据行容器：已完成组别直接加 hidden 隐藏，未完成组别默认展开
-            html += `<tbody id="${heatBodyId}" class="${isHeatFinished ? 'hidden' : ''}">`;
-
-            heatItems.forEach(p => {
-                const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn || 0));
-                const isAbsent = (checkState === 2) || (p.score && (p.score.includes('弃权') || p.score.includes('DNS')));
-                const inputId = `score_input_${p.reg_id || p.id}`;
-
-                if (!isHeatFinished && !isAbsent && !p.score && !firstUnscoredInputId) {
-                    firstUnscoredInputId = inputId;
-                }
-
-                html += `
-                <tr class="border-b border-gray-100 ${isAbsent ? 'bg-red-50/40' : 'bg-white'} hover:bg-gray-50 transition">
-                    <td class="p-2 text-center font-bold text-gray-400 border-r w-12 text-sm">${p.lane || '-'}</td>
-                    <td class="p-2 text-center font-mono font-bold ${isAbsent ? 'text-gray-400' : 'text-blue-600'} text-xs border-r w-14">${p.bib || '---'}</td>
-                    <td class="p-2">
-                        <div class="font-black text-gray-800 text-xs flex items-center gap-1">
-                            <span class="${isAbsent ? 'line-through text-gray-400' : ''}">${p.name}</span>
-                            ${isAbsent ? '<span class="text-[9px] bg-red-100 text-red-600 px-1 rounded font-bold">弃权</span>' : ''}
-                        </div>
-                        <div class="text-[10px] text-gray-400 truncate max-w-[110px]">${p.team_name}</div>
-                    </td>
-                    <td class="p-2 text-right w-40">
-                        <div class="flex items-center justify-end gap-1">
-                            <input type="text" inputmode="decimal" value="${p.score || ''}" 
-                                   id="${inputId}"
-                                   placeholder=""
-                                   data-heat="${heatNum}"
-                                   class="input-score w-24 border border-blue-200 bg-blue-50/50 rounded-lg p-1.5 text-center shadow-inner text-blue-950 font-bold text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-400"
-                                   onblur="saveScore(${p.reg_id || p.id}, this)">
-                            <button type="button" onclick="quickMarkAbsent(${p.reg_id || p.id}, this)" 
-                                    class="px-1.5 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md active:scale-95 transition shrink-0">
-                                弃权
-                            </button>
-                        </div>
-                    </td>
-                </tr>`;
-            });
-
-            html += `</tbody>`;
-        });
-
-        list.innerHTML = html;
-
-        // 自动聚焦到首个未填写的输入框
-        if (firstUnscoredInputId) {
-            setTimeout(() => {
-                const targetInput = document.getElementById(firstUnscoredInputId);
-                if (targetInput) {
-                    targetInput.focus();
-                    targetInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }, 150);
-        }
-    }
-
-    // 🌟 终点端折叠/展开组别函数
-    window.toggleTimingHeat = function(tbodyId, arrowId) {
-        const tb = document.getElementById(tbodyId);
-        const arr = document.getElementById(arrowId);
-        if (!tb) return;
-
-        if (tb.classList.contains('hidden')) {
-            tb.classList.remove('hidden');
-            if (arr) arr.innerText = '▲ 收起';
+        if (isHighJump) {
+            if (normalTable) normalTable.classList.add('hidden');
+            if (controlBar) controlBar.classList.add('hidden');
+            if (highJumpPanel) highJumpPanel.classList.remove('hidden');
+            initHighJumpData(filteredData);
         } else {
-            tb.classList.add('hidden');
-            if (arr) arr.innerText = '展开查看成绩 ▼';
-        }
-    };
+            if (highJumpPanel) highJumpPanel.classList.add('hidden');
+            if (normalTable) normalTable.classList.remove('hidden');
 
-    function saveScore(regId, input) {
-        const val = input.value.trim();
-        if (!val) return;
+            if (currentRole === 'field' && isDistanceField) {
+                if (controlBar) controlBar.classList.remove('hidden');
+                initFieldAthletesData(filteredData);
+                renderCurrentFieldList();
+            } else {
+                if (controlBar) controlBar.classList.add('hidden');
+                renderNormalTrackList(filteredData);
+            }
+        }
+    })
+    .catch(err => {
+        if (list) list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-red-500 font-bold">加载名单失败，请检查网络或刷新重试</td></tr>';
+    });
+}
+
+// 🌟 彻底补全：田赛 6 次试跳与前 8 强倒序出场系统
+let currentFieldRound = 1; 
+let fieldAthletesData = []; 
+
+function initFieldAthletesData(data) {
+    fieldAthletesData = data.map((p, idx) => {
+        let parsedAttempts = ['', '', '', '', '', ''];
+        if (p.attempts_json) {
+            try { parsedAttempts = JSON.parse(p.attempts_json); } catch(e) {}
+        } else if (p.attempts && Array.isArray(p.attempts)) {
+            parsedAttempts = p.attempts;
+        } else if (p.score) {
+            parsedAttempts[0] = String(p.score);
+        }
+        return { ...p, orderIndex: idx + 1, attempts: parsedAttempts };
+    });
+    currentFieldRound = 1;
+    document.querySelectorAll('.round-pill').forEach(btn => {
+        if (btn.dataset.round === "1") {
+            btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-black bg-orange-600 text-white shadow-xs";
+        } else if (!btn.disabled) {
+            btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200";
+        }
+    });
+}
+
+window.switchFieldRound = function(roundNum) {
+    currentFieldRound = roundNum;
+    document.querySelectorAll('.round-pill').forEach(btn => {
+        if (parseInt(btn.dataset.round) === roundNum) {
+            btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-black bg-orange-600 text-white shadow-xs";
+        } else if (!btn.disabled) {
+            btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200";
+        }
+    });
+    renderCurrentFieldList();
+};
+
+window.settleTop8ForFinals = function() {
+    fieldAthletesData.forEach(p => {
+        let s1 = parseFloat(p.attempts[0]) || 0;
+        let s2 = parseFloat(p.attempts[1]) || 0;
+        let s3 = parseFloat(p.attempts[2]) || 0;
+        p.prelimBest = Math.max(s1, s2, s3);
+    });
+    let ranked = [...fieldAthletesData].filter(p => p.prelimBest > 0);
+    ranked.sort((a, b) => b.prelimBest - a.prelimBest);
+
+    if (ranked.length === 0) {
+        alert("前3次尚未录入任何有效成绩，无法截取！");
+        return;
+    }
+
+    let top8 = ranked.slice(0, 8);
+    top8.reverse(); 
+    top8.forEach((p, idx) => { p.isFinalist = true; p.orderIndex = idx + 1; });
+
+    [4, 5, 6].forEach(r => {
+        let btn = document.getElementById(`btnRound${r}`);
+        btn.disabled = false;
+        btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200";
+    });
+
+    fieldAthletesData = top8;
+    switchFieldRound(4);
+    alert(`🎉 阶段结算完成！\n已成功锁定前 ${top8.length} 名选手晋级决赛。\n出场次序已自动按规程【倒序】重排，现已进入第4次试跳！`);
+};
+
+window.saveFieldScore = function(regId, roundNum, input) {
+    let val = input.value.trim().replace('：', '.').replace(':', '.');
+    let athlete = fieldAthletesData.find(a => a.reg_id === regId || a.id === regId);
+    if (athlete) {
+        athlete.attempts[roundNum - 1] = val;
+        let allValid = athlete.attempts.map(v => parseFloat(v) || 0);
+        let overallBest = Math.max(0, ...allValid);
+        let scoreStr = overallBest > 0 ? overallBest.toFixed(2) : (athlete.attempts.some(v => String(v).includes('弃权')) ? '弃权' : '');
+        let targetRegId = athlete.reg_id || athlete.id;
 
         input.classList.add('saving');
         fetch('/api/submit_score', {
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({ id: regId, score: val }) 
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id: targetRegId, score: String(scoreStr), attempts: JSON.stringify(athlete.attempts) })
         })
         .then(r => r.json())
         .then(res => {
             input.classList.remove('saving');
             if (res.status === 'success') {
                 input.classList.add('saved');
-                input.classList.remove('bg-yellow-50', 'border-yellow-300');
-                if (res.new_score) { input.value = res.new_score; } 
                 setTimeout(() => input.classList.remove('saved'), 1000);
+                renderCurrentFieldList(); 
             } else {
-                input.classList.add('error'); alert(res.msg);
-                setTimeout(() => input.classList.remove('error'), 2000);
+                input.classList.add('error'); alert("保存失败: " + res.msg);
             }
-        }).catch(err => {
-            input.classList.remove('saving'); input.classList.add('error');
-        });
+        }).catch(() => { input.classList.remove('saving'); input.classList.add('error'); });
     }
+};
 
-    function showTip(msg, colorClass) {
-        const tip = document.getElementById('statusTip');
-        tip.innerText = msg; tip.className = "text-xs font-bold py-2 " + colorClass;
-    }
-
-function onCheckinToggle(startId, checkbox) {
-    const isChecked = checkbox.checked ? 1 : 0;
-    
-    fetch('/api/toggle_checkin', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ id: startId, checked_in: isChecked })
-    })
-    .then(r => r.json())
-    .then(res => {
-        if (res.status === 'success') {
-
-            const tr = checkbox.closest('tr');
-            if (isChecked) {
-                tr.classList.add('bg-blue-50/50');
-            } else {
-                tr.classList.remove('bg-blue-50/50');
-            }
-        } else {
-            alert("检录状态同步失败：" + res.msg);
-            checkbox.checked = !checkbox.checked; // 失败回滚
-        }
-    })
-    .catch(err => {
-        console.error(err);
-        alert("网络错误，检录状态未保存！");
-        checkbox.checked = !checkbox.checked;
+window.finalizeFieldCompetition = function() {
+    if (!confirm("确定要结束本田赛项目的全部 6 次试跳，生成最终名次并计入总分吗？")) return;
+    fieldAthletesData.forEach(p => {
+        let allValid = (p.attempts || []).map(v => parseFloat(v) || 0);
+        p.finalBest = Math.max(0, ...allValid);
     });
-}
-
-function setCheckinStatus(startId, targetStatus) {
-    const row = document.getElementById(`checkin_row_${startId}`);
-    if (!row) return;
-
-    const btnPresent = row.querySelector('.btn-present');
-    const btnAbsent = row.querySelector('.btn-absent');
-    const nameSpan = row.querySelector('.ath-name');
-    const tagAbsent = row.querySelector('.tag-absent');
-    fetch('/api/toggle_checkin', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ id: startId, checked_in: targetStatus })
-    })
-    .then(r => r.json())
-    .then(res => {
-        if (res.status === 'success') {
-            const state = parseInt(res.checked_in !== undefined ? res.checked_in : targetStatus);
-            const isPresent = (state === 1);
-            const isAbsent = (state === 2);
-
-            row.classList.remove('bg-emerald-50/50', 'bg-red-50/40');
-            if (isPresent) row.classList.add('bg-emerald-50/50');
-            if (isAbsent) row.classList.add('bg-red-50/40');
-            if (nameSpan) {
-                if (isAbsent) nameSpan.classList.add('line-through', 'text-gray-400');
-                else nameSpan.classList.remove('line-through', 'text-gray-400');
-            }
-            if (tagAbsent) {
-                if (isAbsent) tagAbsent.classList.remove('hidden');
-                else tagAbsent.classList.add('hidden');
-            }
-            if (btnPresent) {
-                if (isPresent) {
-                    btnPresent.className = 'btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-emerald-600 text-white border-emerald-600 shadow-sm';
-                    btnPresent.setAttribute('onclick', `setCheckinStatus(${startId}, 0)`);
-                } else {
-                    btnPresent.className = 'btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-white text-gray-300 border-gray-300 hover:border-emerald-500';
-                    btnPresent.setAttribute('onclick', `setCheckinStatus(${startId}, 1)`);
-                }
-            }
-
-            if (btnAbsent) {
-                if (isAbsent) {
-                    btnAbsent.className = 'btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-red-600 text-white border-red-600 shadow-sm';
-                    btnAbsent.setAttribute('onclick', `setCheckinStatus(${startId}, 0)`);
-                } else {
-                    btnAbsent.className = 'btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-white text-gray-300 border-gray-300 hover:border-red-500';
-                    btnAbsent.setAttribute('onclick', `setCheckinStatus(${startId}, 2)`);
-                }
-            }
-        } else {
-            alert("检录状态同步失败：" + (res.msg || ""));
-        }
-    })
-    .catch(err => {
-        console.error(err);
-        alert("网络连接异常，检录状态未保存！");
+    fieldAthletesData.sort((a, b) => b.finalBest - a.finalBest);
+    let summaryText = "🏆 【田赛最终成绩与名次总评】\n\n";
+    fieldAthletesData.forEach((p, idx) => {
+        summaryText += `第${idx + 1}名: ${p.name} (${p.team_name}) - 最好成绩: ${p.finalBest > 0 ? p.finalBest.toFixed(2) + 'm' : '无成绩'}\n`;
     });
-}
-
-    window.isTrackBusy = false;
-
-    function pushHeatToFinish(gName, eName, gen, heat, btn) {
-        if (!confirm(`确认要推送【${gName} ${gen}·${eName} 第${heat}组】上道发令吗？\n推送后该组将锁定为“已发令”，终点裁判将立即收到此组信号！`)) return;
-
-        btn.disabled = true;
-        btn.innerHTML = `<span>⏳</span><span>校验跑道中...</span>`;
-
-        fetch('/api/push_active_heat', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ group_name: gName, event_name: eName, gender: gen, heat: heat })
-        })
+    alert(summaryText);
+    fetch('/api/recalculate_all_points', { method: 'POST' })
         .then(r => r.json())
         .then(res => {
-            if (res.status === 'success') {
-                btn.className = "bg-gray-200 text-gray-400 border border-gray-300 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1 select-none";
-                btn.innerHTML = `<span>🏁</span><span>已发令</span>`;
-                loadCheckinSchedule(); // 立即静默拉取更新全场状态
-            } else {
-                alert(res.msg || "发令失败");
-                btn.disabled = false;
-                btn.innerHTML = `<span>🚀</span><span>发令推送</span>`;
-            }
-        })
-        .catch(err => {
-            btn.disabled = false;
-            btn.innerHTML = `<span>🚀</span><span>发令推送</span>`;
-            alert("网络异常，未能成功通知终点！");
+            alert("✅ 田赛最终成绩已锁定，团体总分和名次已更新！");
+            loadAthletes();
         });
+};
+
+function renderCurrentFieldList() {
+    const list = document.getElementById('athleteList');
+    if (!list) return;
+    if (!fieldAthletesData || fieldAthletesData.length === 0) {
+        list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">暂无有效参赛选手</td></tr>';
+        return;
     }
+    let html = '';
+    fieldAthletesData.forEach((p, idx) => {
+        if (!p.orderIndex) p.orderIndex = idx + 1;
+        html += renderFieldAthleteRow(p, currentFieldRound);
+    });
+    list.innerHTML = html;
+}
 
-    let lastNotifiedHeatKey = null;
+function renderFieldAthleteRow(p, roundIndex) {
+    const attempts = p.attempts || ['', '', '', '', '', ''];
+    const validScores = attempts.map(v => parseFloat(v) || 0);
+    const bestScore = Math.max(0, ...validScores);
 
-    function playStartBeep() {
-        try {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) return;
-            const ctx = new AudioContext();
-            
-            const playTone = (freq, start, duration) => {
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(freq, start);
-                gain.gain.setValueAtTime(0.3, start);
-                gain.gain.exponentialRampToValueAtTime(0.01, start + duration);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(start);
-                osc.stop(start + duration);
-            };
-
-            const now = ctx.currentTime;
-            playTone(880, now, 0.15);         // 高音 A5
-            playTone(1320, now + 0.18, 0.3);  // 超高音 E6
-        } catch (e) {
-            console.log("音频播放被拦截或不支持", e);
-        }
-    }
-
-    function pollActiveHeat() {
-        if (currentRole !== 'timing') return;
-
-        fetch('/api/get_active_heat?_t=' + Date.now())
-            .then(r => r.json())
-            .then(res => {
-                const notice = document.getElementById('trackActiveNotice');
-                const info = document.getElementById('activeTrackInfo');
-                const timeEl = document.getElementById('activeTrackTime');
-
-                if (res.status === 'success' && res.data) {
-                    currentActiveHeatData = res.data;
-                    notice.classList.remove('hidden');
-                    info.innerText = `${res.data.group_name} ${res.data.gender}子 · ${res.data.event_name} (第 ${res.data.heat} 组)`;
-                    timeEl.innerText = `${res.data.push_time} 起点发令`;
-
-                    // 构造本组唯一 key
-                    const currentHeatKey = `${res.data.group_name}_${res.data.event_name}_${res.data.gender}_${res.data.heat}_${res.data.push_time}`;
-                    if (currentHeatKey !== lastNotifiedHeatKey && !res.is_finished) {
-                        lastNotifiedHeatKey = currentHeatKey;
-                        playStartBeep();
-
-                        // 2. 手机硬件震动提醒（长震-停-长震）
-                        if (window.navigator && window.navigator.vibrate) {
-                            window.navigator.vibrate([200, 100, 200]);
-                        }
-
-                        // 3. 弹出全屏醒目提醒弹窗
-                        const modal = document.getElementById('newHeatModal');
-                        document.getElementById('modalHeatInfo').innerText = `${res.data.group_name} ${res.data.gender}组 · ${res.data.event_name} (第 ${res.data.heat} 组)`;
-                        document.getElementById('modalHeatTime').innerText = `发令时刻：${res.data.push_time}`;
-                        if (modal) modal.classList.remove('hidden');
-                    }
-                } else {
-                    notice.classList.add('hidden');
-                    const modal = document.getElementById('newHeatModal');
-                    if (modal) modal.classList.add('hidden');
-                }
-            })
-            .catch(() => {});
-    }
-
-    // 🌟 弹窗确认按钮：关闭弹窗并直接载入录入界面
-    window.acceptNewHeatAndLoad = function() {
-        const modal = document.getElementById('newHeatModal');
-        if (modal) modal.classList.add('hidden');
-        switchToActiveHeat();
-    };
-
-function switchToActiveHeat() {
-        if (!currentActiveHeatData) return;
-        const { group_name, event_name, gender, heat } = currentActiveHeatData;
-        const controlBar = document.getElementById('fieldControlBar');
-        if (controlBar) controlBar.classList.add('hidden');
-        const highJumpPanel = document.getElementById('highJumpSection');
-        if (highJumpPanel) highJumpPanel.classList.add('hidden');
-        const normalTable = document.getElementById('normalTableSection');
-        if (normalTable) normalTable.classList.remove('hidden');
-
-        let cleanGender = gender;
-        if (gender.includes('女')) cleanGender = '女';
-        else if (gender.includes('男')) cleanGender = '男';
-
-        const selGroup = document.getElementById('selGroup');
-        const selGender = document.getElementById('selGender');
-        const selEvent = document.getElementById('selEvent');
-        if (selGroup) selGroup.value = group_name;
-        if (selGender) selGender.value = cleanGender;
-        if (selEvent) selEvent.value = event_name;
-
-        const list = document.getElementById('athleteList');
-        list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-blue-500 font-bold animate-pulse">正在载入已发令道次...</td></tr>';
-
-        fetch('/api/get_event_start_list?_t=' + Date.now(), {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                event_name: event_name, 
-                group_name: group_name, 
-                gender: cleanGender 
-            })
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (!data || data.length === 0) {
-                list.innerHTML = `<tr><td colspan="4" class="p-12 text-center text-gray-400 font-bold">未找到【${group_name} ${cleanGender}子 ${event_name}】的编排名单</td></tr>`;
-                return;
-            }
-            let heatAthletes = data.filter(p => String(p.heat) === String(heat));
-            if (heatAthletes.length === 0) {
-                heatAthletes = data;
-            }
-            heatAthletes = heatAthletes.map(p => ({
-                ...p,
-                score: (p.score !== undefined && p.score !== null) ? p.score : ''
-            }));
-
-            renderNormalTrackList(heatAthletes);
-
-            setTimeout(() => {
-                const firstInput = list.querySelector('input');
-                if (firstInput) firstInput.focus();
-            }, 100);
-        })
-        .catch(err => {
-            console.error("加载发令组次失败:", err);
-            list.innerHTML = '<tr><td colspan="4" class="p-12 text-center text-red-500 font-bold">加载名单失败，请检查网络后重试</td></tr>';
-        });
-    }
-let currentFieldRound = 1; 
-    let fieldAthletesData = []; 
-
-function initFieldAthletesData(data) {
-        fieldAthletesData = data.map((p, idx) => {
-            let parsedAttempts = ['', '', '', '', '', ''];
-           if (p.attempts_json) {
-                try {
-                    parsedAttempts = JSON.parse(p.attempts_json);
-                } catch(e) {}
-            } else if (p.attempts && Array.isArray(p.attempts)) {
-                parsedAttempts = p.attempts;
-            } else if (p.score) {
-                parsedAttempts[0] = String(p.score);
-            }
-            
-            return {
-                ...p,
-                orderIndex: idx + 1,
-                attempts: parsedAttempts
-            };
-        });
-        currentFieldRound = 1;
-   
-        document.querySelectorAll('.round-pill').forEach(btn => {
-            if (btn.dataset.round === "1") {
-                btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-black bg-orange-600 text-white shadow-xs";
-            } else if (!btn.disabled) {
-                btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200";
-            }
-        });
-    }
-    window.switchFieldRound = function(roundNum) {
-        currentFieldRound = roundNum;
-        document.querySelectorAll('.round-pill').forEach(btn => {
-            if (parseInt(btn.dataset.round) === roundNum) {
-                btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-black bg-orange-600 text-white shadow-xs";
-            } else if (!btn.disabled) {
-                btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200";
-            }
-        });
-        renderCurrentFieldList();
-    };
-
-    window.settleTop8ForFinals = function() {
-        fieldAthletesData.forEach(p => {
-            let s1 = parseFloat(p.attempts[0]) || 0;
-            let s2 = parseFloat(p.attempts[1]) || 0;
-            let s3 = parseFloat(p.attempts[2]) || 0;
-            p.prelimBest = Math.max(s1, s2, s3);
-        });
-        let ranked = [...fieldAthletesData].filter(p => p.prelimBest > 0);
-        ranked.sort((a, b) => b.prelimBest - a.prelimBest);
-
-        if (ranked.length === 0) {
-            alert("前3次尚未录入任何有效成绩，无法截取！");
-            return;
-        }
-
-        let top8 = ranked.slice(0, 8);
-
-        top8.reverse(); 
-        top8.forEach((p, idx) => {
-            p.isFinalist = true;
-            p.orderIndex = idx + 1; 
-        });
-
-        [4, 5, 6].forEach(r => {
-            let btn = document.getElementById(`btnRound${r}`);
-            btn.disabled = false;
-            btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200";
-        });
-
-        fieldAthletesData = top8;
-        switchFieldRound(4);
-
-        alert(`🎉 阶段结算完成！\n已成功锁定前 ${top8.length} 名选手晋级决赛。\n出场次序已自动按规程【倒序】重排，现已进入第4次试跳！`);
-    };
-
-    window.saveFieldScore = function(regId, roundNum, input) {
-        let val = input.value.trim().replace('：', '.').replace(':', '.');
-        
-        let athlete = fieldAthletesData.find(a => a.reg_id === regId || a.id === regId);
-        if (athlete) {
-            athlete.attempts[roundNum - 1] = val;
-            let allValid = athlete.attempts.map(v => parseFloat(v) || 0);
-            let overallBest = Math.max(0, ...allValid);
-            
-            // 🌟 核心修复：如果有成绩取最好成绩；如果试跳中有“弃权”且没有有效数值，成绩记为“弃权”
-            let scoreStr = '';
-            if (overallBest > 0) {
-                scoreStr = overallBest.toFixed(2);
-            } else if (athlete.attempts.some(v => String(v).includes('弃权'))) {
-                scoreStr = '弃权';
-            }
-            let targetRegId = athlete.reg_id || athlete.id;
-            if (!targetRegId) {
-                console.error("未找到有效的注册ID (reg_id)", athlete);
-                alert("保存失败：当前选手的成绩绑定ID丢失，请刷新重试！");
-                return;
-            }
-
-            input.classList.add('saving');
-           
-            fetch('/api/submit_score', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    id: targetRegId, 
-                    score: String(scoreStr),
-                    attempts: JSON.stringify(athlete.attempts)
-                })
-            })
-            .then(r => r.json())
-            .then(res => {
-                input.classList.remove('saving');
-                if (res.status === 'success') {
-                    input.classList.add('saved');
-                    setTimeout(() => input.classList.remove('saved'), 1000);
-                    renderCurrentFieldList(); 
-                } else {
-                    input.classList.add('error');
-                    alert("保存失败: " + res.msg);
-                }
-            })
-            .catch(() => {
-                input.classList.remove('saving');
-                input.classList.add('error');
-            });
-        }
-    };
-
-
-    window.finalizeFieldCompetition = function() {
-        if (!confirm("确定要结束本田赛项目的全部 6 次试跳，生成最终名次并计入总分吗？")) return;
-        fieldAthletesData.forEach(p => {
-            let allValid = (p.attempts || []).map(v => parseFloat(v) || 0);
-            p.finalBest = Math.max(0, ...allValid);
-        });
-        fieldAthletesData.sort((a, b) => b.finalBest - a.finalBest);
-        let summaryText = "🏆 【田赛最终成绩与名次总评】\n\n";
-        fieldAthletesData.forEach((p, idx) => {
-            summaryText += `第${idx + 1}名: ${p.name} (${p.team_name}) - 最好成绩: ${p.finalBest > 0 ? p.finalBest.toFixed(2) + 'm' : '无成绩'}\n`;
-        });
-        alert(summaryText);
-        fetch('/api/recalculate_all_points', { method: 'POST' })
-            .then(r => r.json())
-            .then(res => {
-                alert("✅ 田赛最终成绩已锁定，团体总分和名次已更新！");
-                loadAthletes();
-            })
-            .catch(err => {
-                console.error(err);
-                alert("总分核算请求超时，但本次成绩已成功保存！");
-                loadAthletes();
-            });
-    }; 
-
-    window.clearAllPushRecords = function() {
-        if(!confirm("确定要清空本设备上的所有【已发令】记录吗？\n(仅当管理员重新编排赛程后，且按钮显示异常时才需要执行此操作)")) return;
-        
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('pushed_')) {
-                keysToRemove.push(key);
-            }
-        }
-        keysToRemove.forEach(k => localStorage.removeItem(k));
-        
-        alert("✅ 本地发令记录已清空！将为您重新加载最新赛程。");
-        loadCheckinSchedule();
-    };
-
-    let hjHeights = ["1.00", "1.05", "1.10", "1.15", "1.20", "1.25", "1.30", "1.35", "1.40"];
-    let curHjIndex = 0;
-    let hjAthletes = [];
-
-    function initHighJumpData(data) {
-        hjAthletes = data.map(p => {
-      
-            let parsedRecords = {};
-            try {
-                if (p.attempts_json) parsedRecords = JSON.parse(p.attempts_json);
-            } catch(e) {}
-            return {
-                ...p,
-                records: parsedRecords,
-                eliminated: false,
-                bestHeight: p.score || ''
-            };
-        });
-        curHjIndex = 0;
-        renderHighJumpHeightPills();
-        renderHighJumpAthletes();
-    }
-
-    function renderHighJumpHeightPills() {
-        const container = document.getElementById('highJumpBarPills');
-        if (!container) return;
-
-        let html = hjHeights.map((h, idx) => {
-            const isCur = (idx === curHjIndex);
-            return `
-                <button onclick="switchHjHeight(${idx})" 
-                        class="px-3 py-1.5 rounded-lg text-xs font-black shrink-0 transition ${isCur ? 'bg-indigo-600 text-white shadow-md scale-105' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-                    ${h}m
+    return `
+    <tr class="border-b border-gray-100 bg-white hover:bg-orange-50/30 transition">
+        <td class="p-2.5 text-center font-bold text-gray-400 border-r w-10">${p.orderIndex || p.lane || '-'}</td>
+        <td class="p-2.5 text-center font-mono font-bold text-orange-600 text-sm border-r w-14">${p.bib || '---'}</td>
+        <td class="p-2.5">
+            <div class="font-black text-gray-800 text-[13px] flex items-center gap-1">
+                <span>${p.name}</span>
+                ${p.isFinalist ? '<span class="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 px-1 rounded font-bold">前8强</span>' : ''}
+            </div>
+            <div class="text-[10px] text-gray-400 truncate max-w-[110px]">${p.team_name}</div>
+            <div class="flex items-center gap-1 mt-1 text-[10px] font-mono">
+                ${attempts.map((att, idx) => `
+                    <span class="px-1 rounded border ${idx + 1 === roundIndex ? 'bg-orange-600 text-white border-orange-600 font-bold' : (att ? 'bg-gray-100 text-gray-700' : 'text-gray-300')}">
+                        ${att || '-'}
+                    </span>
+                `).join('')}
+            </div>
+        </td>
+        <td class="p-2 text-right w-36">
+            <div class="flex items-center justify-end gap-1">
+                <input type="text" inputmode="decimal" value="${attempts[roundIndex - 1] || ''}" 
+                       placeholder="第${roundIndex}次"
+                       class="input-score w-20 border border-orange-300 bg-orange-50/50 rounded-lg px-1.5 py-1.5 text-center font-bold text-orange-950 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-400"
+                       onblur="saveFieldScore(${p.reg_id}, ${roundIndex}, this)">
+                <button type="button" 
+                        onclick="quickMarkFieldAbsent(${p.reg_id}, ${roundIndex}, this)" 
+                        class="px-1 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md active:scale-95 transition">
+                    弃权
                 </button>
-            `;
-        }).join('');
+                <div class="text-[10px] text-gray-400 text-right min-w-[35px]">
+                    <span class="block text-[8px] text-gray-300">最好</span>
+                    <span class="font-bold text-orange-700 font-mono">${bestScore > 0 ? bestScore.toFixed(2) : '--'}</span>
+                </div>
+            </div>
+        </td>
+    </tr>`;
+}
 
-        html += `
-            <button onclick="addCustomHjHeight()" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
-                +加高
+window.quickMarkFieldAbsent = function(regId, roundNum, btn) {
+    const input = btn.previousElementSibling;
+    if (!input) return;
+    input.value = "弃权";
+    let athlete = fieldAthletesData.find(a => a.reg_id === regId || a.id === regId);
+    let targetRegId = athlete ? (athlete.reg_id || athlete.id) : regId;
+
+    input.classList.add('saving');
+    fetch('/api/submit_score', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: targetRegId, score: "弃权", attempts: athlete ? JSON.stringify(athlete.attempts) : "" })
+    })
+    .then(r => r.json())
+    .then(res => {
+        input.classList.remove('saving');
+        if (res.status === 'success') {
+            input.classList.add('saved');
+            setTimeout(() => input.classList.remove('saved'), 1000);
+            if (athlete) athlete.attempts[roundNum - 1] = "弃权";
+            renderCurrentFieldList();
+        }
+    });
+};
+
+// 🌟 彻底补全：跳高与撑竿跳高全套升杆/试跳打分系统
+let hjHeights = ["1.00", "1.05", "1.10", "1.15", "1.20", "1.25", "1.30", "1.35", "1.40"];
+let curHjIndex = 0;
+let hjAthletes = [];
+
+function initHighJumpData(data) {
+    hjAthletes = data.map(p => {
+        let parsedRecords = {};
+        try { if (p.attempts_json) parsedRecords = JSON.parse(p.attempts_json); } catch(e) {}
+        return { ...p, records: parsedRecords, eliminated: false, bestHeight: p.score || '' };
+    });
+    curHjIndex = 0;
+    renderHighJumpHeightPills();
+    renderHighJumpAthletes();
+}
+
+function renderHighJumpHeightPills() {
+    const container = document.getElementById('highJumpBarPills');
+    if (!container) return;
+
+    let html = hjHeights.map((h, idx) => {
+        const isCur = (idx === curHjIndex);
+        return `
+            <button onclick="switchHjHeight(${idx})" 
+                    class="px-3 py-1.5 rounded-lg text-xs font-black shrink-0 transition ${isCur ? 'bg-indigo-600 text-white shadow-md scale-105' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+                ${h}m
             </button>
         `;
-        container.innerHTML = html;
-        document.getElementById('currentBarText').innerText = hjHeights[curHjIndex] + 'm';
-    }
+    }).join('');
 
-    function switchHjHeight(idx) {
-        curHjIndex = idx;
-        renderHighJumpHeightPills();
-        renderHighJumpAthletes();
-    }
+    html += `
+        <button onclick="addCustomHjHeight()" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+            +加高
+        </button>
+    `;
+    container.innerHTML = html;
+    document.getElementById('currentBarText').innerText = hjHeights[curHjIndex] + 'm';
+}
 
-    function addCustomHjHeight() {
-        const val = prompt("请输入要添加的新高度 (如 1.42):");
-        if (val && !isNaN(parseFloat(val))) {
-            const formatted = parseFloat(val).toFixed(2);
-            if (!hjHeights.includes(formatted)) {
-                hjHeights.push(formatted);
-                hjHeights.sort((a, b) => parseFloat(a) - parseFloat(b));
-                curHjIndex = hjHeights.indexOf(formatted);
-                renderHighJumpHeightPills();
-                renderHighJumpAthletes();
-            }
+function switchHjHeight(idx) {
+    curHjIndex = idx;
+    renderHighJumpHeightPills();
+    renderHighJumpAthletes();
+}
+
+function addCustomHjHeight() {
+    const val = prompt("请输入要添加的新高度 (如 1.42):");
+    if (val && !isNaN(parseFloat(val))) {
+        const formatted = parseFloat(val).toFixed(2);
+        if (!hjHeights.includes(formatted)) {
+            hjHeights.push(formatted);
+            hjHeights.sort((a, b) => parseFloat(a) - parseFloat(b));
+            curHjIndex = hjHeights.indexOf(formatted);
+            renderHighJumpHeightPills();
+            renderHighJumpAthletes();
         }
     }
+}
 
-    function renderHighJumpAthletes() {
-        const container = document.getElementById('highJumpAthletesContainer');
-        if (!container) return;
+function renderHighJumpAthletes() {
+    const container = document.getElementById('highJumpAthletesContainer');
+    if (!container) return;
 
-        const curH = hjHeights[curHjIndex];
-        let aliveCount = 0;
+    const curH = hjHeights[curHjIndex];
+    let aliveCount = 0;
 
-        let html = hjAthletes.map(ath => {
-            const attempts = ath.records[curH] || [];
-            const isPassed = attempts.includes('O');
-            
-            if (!ath.eliminated) aliveCount++;
+    let html = hjAthletes.map(ath => {
+        const attempts = ath.records[curH] || [];
+        const isPassed = attempts.includes('O');
+        if (!ath.eliminated) aliveCount++;
 
-            return `
-            <div class="bg-white rounded-xl p-3 border ${isPassed ? 'border-emerald-300 bg-emerald-50/20' : (ath.eliminated ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-gray-200')} shadow-xs flex items-center justify-between transition">
-                <div>
-                    <div class="flex items-center gap-1.5">
-                        <span class="font-mono text-xs font-bold text-indigo-600">${ath.bib ? '#' + ath.bib : '--'}</span>
-                        <span class="font-black text-sm text-gray-800 ${ath.eliminated ? 'line-through text-gray-400' : ''}">${ath.name}</span>
-                        ${ath.eliminated ? '<span class="text-[9px] bg-red-100 text-red-600 px-1 rounded font-bold">淘汰</span>' : ''}
-                    </div>
-                    <div class="text-[11px] text-gray-400 mt-1">
-                        最好成绩: <span class="font-mono font-black text-indigo-700">${ath.bestHeight ? ath.bestHeight + 'm' : '--'}</span>
-                    </div>
-                </div>
-
+        return `
+        <div class="bg-white rounded-xl p-3 border ${isPassed ? 'border-emerald-300 bg-emerald-50/20' : (ath.eliminated ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-gray-200')} shadow-xs flex items-center justify-between transition">
+            <div>
                 <div class="flex items-center gap-1.5">
-                    ${[0, 1, 2].map(attIdx => {
-                        const val = attempts[attIdx] || '';
-                        let btnStyle = "bg-gray-100 text-gray-300 border-gray-200";
-                        if (val === 'O') btnStyle = "bg-emerald-600 text-white font-black shadow-xs";
-                        else if (val === 'X') btnStyle = "bg-red-100 text-red-700 font-black border border-red-200";
-                        else if (val === '-') btnStyle = "bg-gray-200 text-gray-600 font-black";
-
-                        const isDisabled = ath.eliminated || (isPassed && val !== 'O');
-
-                        return `
-                            <button onclick="cycleHjAttempt('${ath.id || ath.reg_id}', '${curH}', ${attIdx})" 
-                                    ${isDisabled ? 'disabled' : ''}
-                                    class="w-9 h-9 rounded-lg text-sm flex items-center justify-center transition active:scale-95 ${btnStyle} ${isDisabled ? 'cursor-not-allowed' : ''}">
-                                ${val || '+'}
-                            </button>
-                        `;
-                    }).join('')}
+                    <span class="font-mono text-xs font-bold text-indigo-600">${ath.bib ? '#' + ath.bib : '--'}</span>
+                    <span class="font-black text-sm text-gray-800 ${ath.eliminated ? 'line-through text-gray-400' : ''}">${ath.name}</span>
+                    ${ath.eliminated ? '<span class="text-[9px] bg-red-100 text-red-600 px-1 rounded font-bold">淘汰</span>' : ''}
                 </div>
-            </div>`;
-        }).join('');
+                <div class="text-[11px] text-gray-400 mt-1">
+                    最好成绩: <span class="font-mono font-black text-indigo-700">${ath.bestHeight ? ath.bestHeight + 'm' : '--'}</span>
+                </div>
+            </div>
 
-        container.innerHTML = html;
-        document.getElementById('highJumpAliveStat').innerText = `在场: ${aliveCount}人 / 淘汰: ${hjAthletes.length - aliveCount}人`;
+            <div class="flex items-center gap-1.5">
+                ${[0, 1, 2].map(attIdx => {
+                    const val = attempts[attIdx] || '';
+                    let btnStyle = "bg-gray-100 text-gray-300 border-gray-200";
+                    if (val === 'O') btnStyle = "bg-emerald-600 text-white font-black shadow-xs";
+                    else if (val === 'X') btnStyle = "bg-red-100 text-red-700 font-black border border-red-200";
+                    else if (val === '-') btnStyle = "bg-gray-200 text-gray-600 font-black";
+
+                    const isDisabled = ath.eliminated || (isPassed && val !== 'O');
+
+                    return `
+                        <button onclick="cycleHjAttempt('${ath.id || ath.reg_id}', '${curH}', ${attIdx})" 
+                                ${isDisabled ? 'disabled' : ''}
+                                class="w-9 h-9 rounded-lg text-sm flex items-center justify-center transition active:scale-95 ${btnStyle} ${isDisabled ? 'cursor-not-allowed' : ''}">
+                            ${val || '+'}
+                        </button>
+                    `;
+                }).join('')}
+            </div>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = html;
+    document.getElementById('highJumpAliveStat').innerText = `在场: ${aliveCount}人 / 淘汰: ${hjAthletes.length - aliveCount}人`;
+}
+
+function cycleHjAttempt(athId, height, attIdx) {
+    const ath = hjAthletes.find(a => String(a.id || a.reg_id) === String(athId));
+    if (!ath) return;
+
+    if (!ath.records[height]) ath.records[height] = [];
+    const currentVal = ath.records[height][attIdx] || '';
+    let nextVal = 'X';
+    if (currentVal === '') nextVal = 'X';
+    else if (currentVal === 'X') nextVal = 'O';
+    else if (currentVal === 'O') nextVal = '-';
+    else if (currentVal === '-') nextVal = '';
+
+    ath.records[height][attIdx] = nextVal;
+    if (nextVal === 'O') {
+        ath.bestHeight = height;
+        saveHjScoreToBackend(ath, height);
     }
-    function cycleHjAttempt(athId, height, attIdx) {
-        const ath = hjAthletes.find(a => String(a.id || a.reg_id) === String(athId));
-        if (!ath) return;
+    renderHighJumpAthletes();
+}
 
-        if (!ath.records[height]) ath.records[height] = [];
-        const currentVal = ath.records[height][attIdx] || '';
-        let nextVal = 'X';
-        if (currentVal === '') nextVal = 'X';
-        else if (currentVal === 'X') nextVal = 'O';
-        else if (currentVal === 'O') nextVal = '-';
-        else if (currentVal === '-') nextVal = '';
-
-        ath.records[height][attIdx] = nextVal;
-
-        if (nextVal === 'O') {
-            ath.bestHeight = height;
-            saveHjScoreToBackend(ath, height);
-        }
-
-        renderHighJumpAthletes();
-    }
-
-    function highJumpPassAllUnjumped() {
-        const curH = hjHeights[curHjIndex];
-        hjAthletes.forEach(ath => {
-            if (!ath.eliminated && (!ath.records[curH] || ath.records[curH].length === 0)) {
-                ath.records[curH] = ['O'];
-                ath.bestHeight = curH;
-                saveHjScoreToBackend(ath, curH);
-            }
-        });
-        renderHighJumpAthletes();
-    }
-
-    function highJumpNextBar() {
-        if (curHjIndex < hjHeights.length - 1) {
-            switchHjHeight(curHjIndex + 1);
-        } else {
-            addCustomHjHeight();
-        }
-    }
-
-    function saveHjScoreToBackend(ath, score) {
-        const targetId = ath.reg_id || ath.id;
-        fetch('/api/submit_score', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                id: targetId, 
-                score: String(score),
-                attempts: JSON.stringify(ath.records) 
-            })
-        });
-    }
-// 🌟 页面加载时自动检查是否已经登录过
-document.addEventListener("DOMContentLoaded", function() {
-    fetch('/api/check_session?_t=' + Date.now())
-        .then(r => r.json())
-        .then(res => {
-            // 如果后端确认当前已是裁判或管理员登录状态
-            if (res.status === 'success' && (res.role === 'referee' || res.role === 'admin')) {
-                // 1. 自动隐藏登录框，展开控制台
-                document.getElementById('loginSection').classList.add('hidden');
-                document.getElementById('mainConsoleSection').classList.remove('hidden');
-                document.getElementById('bodyWrap').classList.remove('bg-green-800');
-                document.getElementById('bodyWrap').classList.add('console-bg');
-
-                // 2. 尝试读取裁判之前停留的岗位（检录、发令、终点或田赛）
-                const savedRole = localStorage.getItem('last_referee_role') || 'checkin';
-                
-                initConsoleData();
-                selectRole(savedRole); // 自动进入上次所在的岗位界面
-            }
-        })
-        .catch(err => console.log("检查登录态异常:", err));
-});
-// 🌟 裁判手机端极速录入与震动反馈增强
-document.addEventListener('DOMContentLoaded', function() {
-    const listContainer = document.getElementById('athleteList');
-    if (!listContainer) return;
-
-    // 监听按键：回车键（或手机输入法上的“前往/下一项/Done”）直接保存并跳入下一道
-    listContainer.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' || e.keyCode === 13) {
-            e.preventDefault();
-            const currentInput = e.target;
-            if (!currentInput.classList.contains('input-score')) return;
-
-            // 1. 立即触发失焦保存
-            currentInput.blur();
-
-            // 2. 找到当前同组的下一个道次输入框
-            const allInputs = Array.from(listContainer.querySelectorAll('.input-score:not([disabled])'));
-            const currentIndex = allInputs.indexOf(currentInput);
-
-            if (currentIndex >= 0 && currentIndex < allInputs.length - 1) {
-                const nextInput = allInputs[currentIndex + 1];
-                nextInput.focus();
-                nextInput.select();
-                // 平滑滚动居中，防止被手机软键盘挡住
-                nextInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
+function highJumpPassAllUnjumped() {
+    const curH = hjHeights[curHjIndex];
+    hjAthletes.forEach(ath => {
+        if (!ath.eliminated && (!ath.records[curH] || ath.records[curH].length === 0)) {
+            ath.records[curH] = ['O'];
+            ath.bestHeight = curH;
+            saveHjScoreToBackend(ath, curH);
         }
     });
-});
+    renderHighJumpAthletes();
+}
 
-// 🌟 升级原版的 saveScore 函数，保存成功时触发手机硬件短震动
-const rawSaveScore = window.saveScore;
-window.saveScore = function(regId, input) {
+function highJumpNextBar() {
+    if (curHjIndex < hjHeights.length - 1) switchHjHeight(curHjIndex + 1);
+    else addCustomHjHeight();
+}
+
+function saveHjScoreToBackend(ath, score) {
+    const targetId = ath.reg_id || ath.id;
+    fetch('/api/submit_score', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: targetId, score: String(score), attempts: JSON.stringify(ath.records) })
+    });
+}
+
+function renderNormalTrackList(filteredData) {
+    const list = document.getElementById('athleteList');
+    if (!list) return;
+    let html = '';
+
+    const heatsMap = {};
+    filteredData.forEach(p => {
+        const h = String(p.heat || '1');
+        if (!heatsMap[h]) heatsMap[h] = [];
+        heatsMap[h].push(p);
+    });
+
+    let firstUnscoredInputId = null;
+    const sortedHeats = Object.keys(heatsMap).sort((a, b) => parseInt(a) - parseInt(b));
+
+    sortedHeats.forEach(heatNum => {
+        const heatItems = heatsMap[heatNum];
+        const totalCount = heatItems.length;
+        const scoredCount = heatItems.filter(p => {
+            const s = String(p.score || '').trim();
+            const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn || 0));
+            return (s !== '' && s !== '-') || checkState === 2;
+        }).length;
+
+        const isHeatFinished = (totalCount > 0 && scoredCount === totalCount);
+        const heatBodyId = `timing_heat_tbody_${heatNum}`;
+        const heatArrowId = `timing_heat_arrow_${heatNum}`;
+
+        html += `
+        <tr class="border-y border-blue-200 cursor-pointer select-none transition ${isHeatFinished ? 'bg-gray-100 text-gray-600' : 'bg-blue-50 text-blue-900'}"
+            onclick="toggleTimingHeat('${heatBodyId}', '${heatArrowId}')">
+            <td colspan="4" class="p-2.5 px-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="font-black text-sm">🚩 第 ${heatNum} 组</span>
+                        <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${isHeatFinished ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+                            ${isHeatFinished ? '✔ 成绩已录毕' : `⏳ 录入中 (${scoredCount}/${totalCount})`}
+                        </span>
+                    </div>
+                    <span id="${heatArrowId}" class="text-xs font-bold text-blue-600"></span>
+                </div>
+            </td>
+        </tr>`;
+
+        html += `<tbody id="${heatBodyId}" class="${isHeatFinished ? 'hidden' : ''}">`;
+
+        heatItems.forEach(p => {
+            const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn || 0));
+            const isAbsent = (checkState === 2) || (p.score && (p.score.includes('弃权') || p.score.includes('DNS')));
+            const inputId = `score_input_${p.reg_id || p.id}`;
+
+            if (!isHeatFinished && !isAbsent && !p.score && !firstUnscoredInputId) {
+                firstUnscoredInputId = inputId;
+            }
+
+            html += `
+            <tr class="border-b border-gray-100 ${isAbsent ? 'bg-red-50/40' : 'bg-white'} hover:bg-gray-50 transition">
+                <td class="p-2 text-center font-bold text-gray-400 border-r w-12 text-sm">${p.lane || '-'}</td>
+                <td class="p-2 text-center font-mono font-bold ${isAbsent ? 'text-gray-400' : 'text-blue-600'} text-xs border-r w-14">${p.bib || '---'}</td>
+                <td class="p-2">
+                    <div class="font-black text-gray-800 text-xs flex items-center gap-1">
+                        <span class="${isAbsent ? 'line-through text-gray-400' : ''}">${p.name}</span>
+                        ${isAbsent ? '<span class="text-[9px] bg-red-100 text-red-600 px-1 rounded font-bold">弃权</span>' : ''}
+                    </div>
+                    <div class="text-[10px] text-gray-400 truncate max-w-[110px]">${p.team_name}</div>
+                </td>
+                <td class="p-2 text-right w-40">
+                    <div class="flex items-center justify-end gap-1">
+                        <input type="text" inputmode="decimal" value="${p.score || ''}" 
+                               id="${inputId}"
+                               placeholder=""
+                               data-heat="${heatNum}"
+                               class="input-score w-24 border border-blue-200 bg-blue-50/50 rounded-lg p-1.5 text-center shadow-inner text-blue-950 font-bold text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-400"
+                               oninput="this.dataset.userEdited = 'true'"
+                               onblur="saveScore(${p.reg_id || p.id}, this)">
+                        <button type="button" onclick="quickMarkAbsent(${p.reg_id || p.id}, this)" 
+                                class="px-1.5 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md active:scale-95 transition shrink-0">
+                            弃权
+                        </button>
+                    </div>
+                </td>
+            </tr>`;
+        });
+        html += `</tbody>`;
+    });
+
+    list.innerHTML = html;
+    if (firstUnscoredInputId) {
+        setTimeout(() => {
+            const targetInput = document.getElementById(firstUnscoredInputId);
+            if (targetInput) {
+                targetInput.focus();
+                targetInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 150);
+    }
+}
+
+window.toggleTimingHeat = function(tbodyId, arrowId) {
+    const tb = document.getElementById(tbodyId);
+    const arr = document.getElementById(arrowId);
+    if (!tb) return;
+    if (tb.classList.contains('hidden')) {
+        tb.classList.remove('hidden');
+        if (arr) arr.innerText = '▲ 收起';
+    } else {
+        tb.classList.add('hidden');
+        if (arr) arr.innerText = '展开查看成绩 ▼';
+    }
+};
+
+function saveScore(regId, input) {
     const val = input.value.trim();
     if (!val) return;
 
@@ -1886,32 +1513,262 @@ window.saveScore = function(regId, input) {
         input.classList.remove('saving');
         if (res.status === 'success') {
             input.classList.add('saved');
-            input.classList.remove('bg-yellow-50', 'border-yellow-300');
-            if (res.new_score) { input.value = res.new_score; }
-            
-            // 📳 手机触觉震动反馈（50毫秒清脆短震），在强光下无需看屏幕也知道已存入服务器
-            if (window.navigator && window.navigator.vibrate) {
-                window.navigator.vibrate(50);
-            }
-            
+            input.classList.remove('bg-yellow-50', 'border-yellow-300', 'bg-cyan-50', 'border-cyan-400');
+            if (res.new_score) { input.value = res.new_score; } 
+            if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(50);
             setTimeout(() => input.classList.remove('saved'), 1000);
         } else {
-            input.classList.add('error');
-            alert("保存失败：" + res.msg);
+            input.classList.add('error'); alert(res.msg);
             setTimeout(() => input.classList.remove('error'), 2000);
         }
     }).catch(err => {
-        input.classList.remove('saving');
-        input.classList.add('error');
+        input.classList.remove('saving'); input.classList.add('error');
     });
+}
+
+function showTip(msg, colorClass) {
+    const tip = document.getElementById('statusTip');
+    tip.innerText = msg; tip.className = "text-xs font-bold py-2 " + colorClass;
+}
+
+function setCheckinStatus(startId, targetStatus) {
+    const row = document.getElementById(`checkin_row_${startId}`);
+    if (!row) return;
+
+    fetch('/api/toggle_checkin', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: startId, checked_in: targetStatus })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') loadCheckinSchedule();
+        else alert("检录状态同步失败：" + (res.msg || ""));
+    })
+    .catch(() => alert("网络连接异常，检录状态未保存！"));
+}
+
+window.isTrackBusy = false;
+
+function pushHeatToFinish(gName, eName, gen, heat, btn) {
+    if (!confirm(`确认要推送【${gName} ${gen}·${eName} 第${heat}组】上道发令吗？`)) return;
+
+    btn.disabled = true;
+    btn.innerHTML = `<span>⏳</span><span>校验跑道中...</span>`;
+
+    fetch('/api/push_active_heat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ group_name: gName, event_name: eName, gender: gen, heat: heat })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') {
+            btn.className = "bg-gray-200 text-gray-400 border border-gray-300 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1 select-none";
+            btn.innerHTML = `<span>🏁</span><span>已发令</span>`;
+            loadCheckinSchedule();
+        } else {
+            alert(res.msg || "发令失败");
+            btn.disabled = false;
+            btn.innerHTML = `<span>🚀</span><span>发令推送</span>`;
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = `<span>🚀</span><span>发令推送</span>`;
+        alert("网络异常，未能成功通知终点！");
+    });
+}
+
+let lastNotifiedHeatKey = null;
+
+function playStartBeep() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        
+        const playTone = (freq, start, duration) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, start);
+            gain.gain.setValueAtTime(0.3, start);
+            gain.gain.exponentialRampToValueAtTime(0.01, start + duration);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(start);
+            osc.stop(start + duration);
+        };
+
+        const now = ctx.currentTime;
+        playTone(880, now, 0.15);
+        playTone(1320, now + 0.18, 0.3);
+    } catch (e) {}
+}
+
+// ==========================================
+// 🌟 发令指令语音合成与枪声音效引擎
+// ==========================================
+function playCommandSound(cmd) {
+    try {
+        // 1. 各就位、预备：使用 Web Speech API 中文语音播报
+        if (cmd === 'set' || cmd === 'ready') {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // 停止上一段未说完的声音
+                const text = (cmd === 'set') ? '各就位' : '预备';
+                const utter = new SpeechSynthesisUtterance(text);
+                utter.lang = 'zh-CN';
+                utter.rate = 1.0;
+                utter.pitch = 1.0;
+                window.speechSynthesis.speak(utter);
+            }
+        } 
+        // 2. 枪响：使用 Web Audio API 合成真实的短促发令枪爆鸣声与哨音
+        else if (cmd === 'gun') {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+            
+            // 白噪声发令枪声模拟
+            const bufferSize = ctx.sampleRate * 0.25; 
+            const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.04));
+            }
+            const noise = ctx.createBufferSource();
+            noise.buffer = buffer;
+
+            // 低通滤波器模拟爆炸重音
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1000, ctx.currentTime);
+            filter.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.25);
+
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(1.0, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(ctx.destination);
+            noise.start();
+        }
+        // 3. 抢跑犯规召回：连续急促双短哨音
+        else if (cmd === 'false_start') {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+            const playBeep = (freq, start, dur) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.frequency.setValueAtTime(freq, start);
+                gain.gain.setValueAtTime(0.5, start);
+                gain.gain.exponentialRampToValueAtTime(0.01, start + dur);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(start);
+                osc.stop(start + dur);
+            };
+            const now = ctx.currentTime;
+            playBeep(1200, now, 0.12);
+            playBeep(1200, now + 0.16, 0.12);
+            playBeep(1200, now + 0.32, 0.3);
+        }
+    } catch (e) {
+        console.log("音频播放限制或未初始化:", e);
+    }
+}
+function pollActiveHeat() {
+    if (currentRole !== 'timing' && currentRole !== 'camera') return;
+
+    fetch('/api/get_active_heat?_t=' + Date.now())
+        .then(r => r.json())
+        .then(res => {
+            if (res.status === 'success' && res.data) {
+                currentActiveHeatData = res.data;
+                currentHeatAthletesMap = res.data.athletes || {}; // 👈 存入名单
+
+                const camInfo = document.getElementById('camHeatInfo');
+                if (camInfo) camInfo.innerText = `🚩 ${res.data.group_name} ${res.data.gender}子 · ${res.data.event_name} (第 ${res.data.heat} 组)`;
+
+                if (currentRole === 'camera') {
+                    drawCalibrationOverlay(); // 立即渲染名字
+                }
+
+                const notice = document.getElementById('trackActiveNotice');
+                const info = document.getElementById('activeTrackInfo');
+                const timeEl = document.getElementById('activeTrackTime');
+                if (notice) notice.classList.remove('hidden');
+                if (info) info.innerText = `${res.data.group_name} ${res.data.gender}子 · ${res.data.event_name} (第 ${res.data.heat} 组)`;
+                if (timeEl) timeEl.innerText = `${res.data.push_time} 起点发令`;
+
+                const currentHeatKey = `${res.data.group_name}_${res.data.event_name}_${res.data.gender}_${res.data.heat}_${res.data.push_time}`;
+                if (currentHeatKey !== lastNotifiedHeatKey && !res.is_finished) {
+                    lastNotifiedHeatKey = currentHeatKey;
+                    if (currentRole === 'timing') {
+                        playStartBeep();
+                        if (window.navigator && window.navigator.vibrate) window.navigator.vibrate([200, 100, 200]);
+                        const modal = document.getElementById('newHeatModal');
+                        document.getElementById('modalHeatInfo').innerText = `${res.data.group_name} ${res.data.gender}组 · ${res.data.event_name} (第 ${res.data.heat} 组)`;
+                        document.getElementById('modalHeatTime').innerText = `发令时刻：${res.data.push_time}`;
+                        if (modal) modal.classList.remove('hidden');
+                    }
+                }
+            }
+        })
+        .catch(() => {});
+}
+window.acceptNewHeatAndLoad = function() {
+    const modal = document.getElementById('newHeatModal');
+    if (modal) modal.classList.add('hidden');
+    switchToActiveHeat();
 };
 
-    window.cycleHjAttempt = cycleHjAttempt;
-    window.switchHjHeight = switchHjHeight;
-    window.addCustomHjHeight = addCustomHjHeight;
-    window.highJumpPassAllUnjumped = highJumpPassAllUnjumped;
-    window.highJumpNextBar = highJumpNextBar;
-// 径赛/普通项目一键快捷标记弃权
+function switchToActiveHeat() {
+    if (!currentActiveHeatData) return;
+    const { group_name, event_name, gender, heat } = currentActiveHeatData;
+    const controlBar = document.getElementById('fieldControlBar');
+    if (controlBar) controlBar.classList.add('hidden');
+    const highJumpPanel = document.getElementById('highJumpSection');
+    if (highJumpPanel) highJumpPanel.classList.add('hidden');
+    const normalTable = document.getElementById('normalTableSection');
+    if (normalTable) normalTable.classList.remove('hidden');
+
+    let cleanGender = gender.includes('女') ? '女' : '男';
+
+    const selGroup = document.getElementById('selGroup');
+    const selGender = document.getElementById('selGender');
+    const selEvent = document.getElementById('selEvent');
+    if (selGroup) selGroup.value = group_name;
+    if (selGender) selGender.value = cleanGender;
+    if (selEvent) selEvent.value = event_name;
+
+    const list = document.getElementById('athleteList');
+    list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-blue-500 font-bold animate-pulse">正在载入已发令道次...</td></tr>';
+
+    fetch('/api/get_event_start_list?_t=' + Date.now(), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ event_name: event_name, group_name: group_name, gender: cleanGender })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data || data.length === 0) {
+            list.innerHTML = `<tr><td colspan="4" class="p-12 text-center text-gray-400 font-bold">未找到【${group_name} ${cleanGender}子 ${event_name}】的编排名单</td></tr>`;
+            return;
+        }
+        let heatAthletes = data.filter(p => String(p.heat) === String(heat));
+        if (heatAthletes.length === 0) heatAthletes = data;
+        heatAthletes = heatAthletes.map(p => ({ ...p, score: (p.score !== undefined && p.score !== null) ? p.score : '' }));
+        renderNormalTrackList(heatAthletes);
+    })
+    .catch(err => {
+        list.innerHTML = '<tr><td colspan="4" class="p-12 text-center text-red-500 font-bold">加载名单失败，请检查网络后重试</td></tr>';
+    });
+}
+
 window.quickMarkAbsent = function(regId, btn) {
     const input = btn.previousElementSibling;
     if (!input) return;
@@ -1919,42 +1776,575 @@ window.quickMarkAbsent = function(regId, btn) {
     saveScore(regId, input);
 };
 
-window.quickMarkFieldAbsent = function(regId, roundNum, btn) {
-    const input = btn.previousElementSibling;
-    if (!input) return;
-    input.value = "弃权";
-    
-    let athlete = fieldAthletesData.find(a => a.reg_id === regId || a.id === regId);
-    let targetRegId = athlete ? (athlete.reg_id || athlete.id) : regId;
+// ========================================================
+// 🌟 起点发令控制台逻辑
+// ========================================================
+let lastGunClickTime = 0;
+let isTimingStarted = false;
+let currentStarterHeat = null;
 
-    input.classList.add('saving');
-    fetch('/api/submit_score', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ 
-            id: targetRegId, 
-            score: "弃权",
-            attempts: athlete ? JSON.stringify(athlete.attempts) : ""
-        })
-    })
-    .then(r => r.json())
-    .then(res => {
-        input.classList.remove('saving');
-        if (res.status === 'success') {
-            input.classList.add('saved');
-            setTimeout(() => input.classList.remove('saved'), 1000);
-            if (athlete) {
-                athlete.attempts[roundNum - 1] = "弃权";
-            }
-            renderCurrentFieldList();
-        } else {
-            alert("标记弃权失败: " + res.msg);
-        }
-    })
-    .catch(() => {
-        input.classList.remove('saving');
-    });
+const rawPushHeatToFinish = window.pushHeatToFinish;
+window.pushHeatToFinish = function(gName, eName, gen, heat, btn) {
+    currentStarterHeat = { group_name: gName, event_name: eName, gender: gen, heat: heat };
+    rawPushHeatToFinish(gName, eName, gen, heat, btn);
+    /*
+    const panel = document.getElementById('starterControlPanel');
+    const fab = document.getElementById('btnStarterPanelFab');
+    document.getElementById('starterPanelTitle').innerText = `${gName} ${gen}·${eName} (第${heat}组)`;
+    panel.classList.remove('hidden');
+    fab.classList.add('hidden');
+    */
 };
+
+function toggleStarterPanel() {
+    const panel = document.getElementById('starterControlPanel');
+    const fab = document.getElementById('btnStarterPanelFab');
+    panel.classList.toggle('hidden');
+    fab.classList.toggle('hidden');
+}
+
+function handleGunClick() {
+    const now = Date.now();
+    const tip = document.getElementById('starterStatusTip');
+
+    if (isTimingStarted && (now - lastGunClickTime < 2500)) {
+        isTimingStarted = false;
+        sendStarterCmd('false_start');
+        tip.innerText = "⚠️ 警告：检测到犯规发令，已发出召回指令，计时清零！";
+        tip.className = "text-[11px] text-center text-red-400 mt-2 font-black animate-bounce";
+        if (window.navigator.vibrate) window.navigator.vibrate([100, 50, 100, 50, 200]);
+        return;
+    }
+
+    isTimingStarted = true;
+    lastGunClickTime = now;
+    sendStarterCmd('gun');
+    tip.innerText = "⏱️ 比赛正在计时中... (若抢跑请立即再次点击枪响)";
+    tip.className = "text-[11px] text-center text-emerald-400 mt-2 font-bold";
+    if (window.navigator.vibrate) window.navigator.vibrate(100);
+}
+
+function sendStarterCmd(cmd) {
+    if (cmd === 'reset') isTimingStarted = false;
+    
+    // 起点端本机立即发声反馈
+    playCommandSound(cmd);
+
+    socket.emit('starter_command', {
+        cmd: cmd,
+        timestamp: Date.now(),
+        heat_info: currentStarterHeat || currentActiveHeatData
+    });
+}
+// ========================================================
+// 🌟 终点摄像裁判：交互标定与自动推送
+// ========================================================
+let videoStream = null;
+let startClockTime = 0;
+let stopwatchTimer = null;
+let recordedLaneTimes = {}; 
+const TOTAL_LANES = 8;
+let laneYCoordinates = []; 
+let finishLineX = 0;       
+let activeDragging = null; 
+
+async function startFinishCamera() {
+    try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert("⚠️ 浏览器未激活相机 API，请确认通过 HTTPS 访问或已配置 Chrome 局域网白名单！");
+            return;
+        }
+
+        if (window.videoStream) window.videoStream.getTracks().forEach(t => t.stop());
+
+        const constraints = {
+            video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        window.videoStream = stream;
+        const video = document.getElementById('finishVideo');
+        video.srcObject = stream;
+        video.setAttribute('playsinline', 'true');
+        video.muted = true;
+        await video.play();
+
+        setTimeout(() => {
+            initCalibrationGrid();
+            bindCanvasDragEvents();
+            startMotionDetection();
+            autoCalibrateTrackLines();
+        }, 300);
+
+    } catch (e) {
+        alert("❌ 无法打开摄像头: " + (e.message || e.name));
+    }
+}
+
+function exitCameraRole() {
+    if (window.videoStream) {
+        window.videoStream.getTracks().forEach(t => t.stop());
+        window.videoStream = null;
+    }
+    document.getElementById('finishCameraSection')?.classList.add('hidden');
+    resetRoleSelection();
+}
+
+function initCalibrationGrid() {
+    const canvas = document.getElementById('calibrationCanvas');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width || window.innerWidth;
+    canvas.height = rect.height || window.innerHeight;
+
+    // 默认垂直终点线位于画面右侧 62%
+    finishLineX = Math.floor(canvas.width * 0.62);
+
+    laneYCoordinates = [];
+    const H = canvas.height;
+    
+    // 🌟 针对俯斜视角的“近大远小”几何模型（基于 1.45 指数幂衰减）
+    // 8道在最底部最宽，1道在最上方最窄
+    const topMargin = H * 0.08;   // 远处 1 道顶部预留天空/终点后侧
+    const bottomMargin = H * 0.98; // 近处 8 道底部
+    const effectiveHeight = bottomMargin - topMargin;
+    
+    laneYCoordinates.push(Math.floor(topMargin));
+    for (let i = 1; i <= TOTAL_LANES; i++) {
+        // 使用非线性对数/幂函数分配跑道垂直跨度
+        const ratio = Math.pow(i / TOTAL_LANES, 1.55);
+        laneYCoordinates.push(Math.floor(topMargin + effectiveHeight * ratio));
+    }
+    
+    drawCalibrationOverlay();
+}
+function resetCalibrationLines() {
+    initCalibrationGrid();
+}
+
+// 记录当前道次顺序：true 表示 1 道在最下方(近)，false 表示 8 道在最下方(近)
+let isTrackReversed = false; 
+
+function autoCalibrateTrackLines() {
+    const video = document.getElementById('finishVideo');
+    const canvas = document.getElementById('calibrationCanvas');
+    if (!video || !canvas || video.videoWidth === 0) return;
+
+    const tempCanvas = document.createElement('canvas');
+    const w = tempCanvas.width = 320;
+    const h = tempCanvas.height = 180;
+    const ctx = tempCanvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h).data;
+
+    // 1. 蓝色跑道专用高对比度白漆过滤 (Mask)
+    const whiteMask = new Uint8Array(w * h);
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        const brightness = (r + g + b) / 3;
+        const colorDiff = Math.max(Math.abs(r - g), Math.abs(r - b), Math.abs(g - b));
+        // 过滤蓝胶面与草坪绿，提取纯白分道线与白字
+        if (brightness > 160 && colorDiff < 35 && b > 80) {
+            whiteMask[i / 4] = 1;
+        }
+    }
+
+    // 2. 精确吸附纵向终点白线 (扫描 X 轴高密度贯通垂直线)
+    const colDensity = new Float32Array(w);
+    for (let x = Math.floor(w * 0.25); x < Math.floor(w * 0.85); x++) {
+        let count = 0;
+        for (let y = 15; y < h - 15; y++) {
+            if (whiteMask[y * w + x]) count++;
+        }
+        colDensity[x] = count;
+    }
+
+    let maxColVal = 0;
+    let targetColX = Math.floor(w * 0.42);
+    for (let x = Math.floor(w * 0.25); x < Math.floor(w * 0.85); x++) {
+        if (colDensity[x] > maxColVal) {
+            maxColVal = colDensity[x];
+            targetColX = x;
+        }
+    }
+    if (maxColVal > 35) {
+        finishLineX = Math.floor(targetColX * (canvas.width / w));
+    }
+
+    // 3. 扫描水平横向分道线
+    const rowEnergy = new Float32Array(h);
+    for (let y = 5; y < h - 5; y++) {
+        let sum = 0;
+        for (let x = 10; x < w - 10; x++) {
+            if (whiteMask[y * w + x]) sum++;
+        }
+        rowEnergy[y] = sum;
+    }
+
+    // 提取横向白线的准确 Y 坐标峰值
+    const rawPeaks = [];
+    for (let y = 10; y < h - 10; y++) {
+        if (rowEnergy[y] > 18 &&
+            rowEnergy[y] >= rowEnergy[y - 1] && rowEnergy[y] >= rowEnergy[y + 1] &&
+            rowEnergy[y] >= rowEnergy[y - 2] && rowEnergy[y] >= rowEnergy[y + 2]) {
+            rawPeaks.push(y);
+            y += 5; 
+        }
+    }
+
+    const scale = canvas.height / h;
+
+    // 4. 自动判别 1 道在近还是 8 道在近
+    // 取画面底部 30% 区域与顶部 30% 区域的白色笔画特征判断
+    let bottomWhiteMass = 0;
+    let topWhiteMass = 0;
+    for (let y = Math.floor(h * 0.65); y < h; y++) {
+        for (let x = Math.floor(w * 0.35); x < Math.floor(w * 0.65); x++) {
+            if (whiteMask[y * w + x]) bottomWhiteMass++;
+        }
+    }
+    for (let y = 0; y < Math.floor(h * 0.35); y++) {
+        for (let x = Math.floor(w * 0.35); x < Math.floor(w * 0.65); x++) {
+            if (whiteMask[y * w + x]) topWhiteMass++;
+        }
+    }
+    
+    // 如果底部出现巨大白色笔画重心（如巨大的"1"字），则近处是 1 道
+    isTrackReversed = (bottomWhiteMass > topWhiteMass * 1.4);
+
+    if (rawPeaks.length >= 6) {
+        // 场景 A：识别到真实白线，直接将 Y 边界按白线位置划定
+        const topY = rawPeaks[0] * scale;
+        const bottomY = rawPeaks[rawPeaks.length - 1] * scale;
+        const totalSpan = bottomY - topY;
+
+        laneYCoordinates = [];
+        laneYCoordinates.push(Math.max(0, Math.floor(topY)));
+        for (let i = 1; i <= TOTAL_LANES; i++) {
+            const ratio = Math.pow(i / TOTAL_LANES, 1.48);
+            laneYCoordinates.push(Math.min(canvas.height, Math.floor(topY + totalSpan * ratio)));
+        }
+    } else {
+        // 场景 B：基准透视默认值
+        const topY = canvas.height * 0.22;
+        const bottomY = canvas.height * 0.92;
+        const totalSpan = bottomY - topY;
+
+        laneYCoordinates = [];
+        laneYCoordinates.push(Math.floor(topY));
+        for (let i = 1; i <= TOTAL_LANES; i++) {
+            const ratio = Math.pow(i / TOTAL_LANES, 1.48);
+            laneYCoordinates.push(Math.floor(topY + totalSpan * ratio));
+        }
+    }
+
+    drawCalibrationOverlay();
+}
+
+function drawCalibrationOverlay() {
+    const canvas = document.getElementById('calibrationCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = 0; i < TOTAL_LANES; i++) {
+        // 自适应倒序：如果 1 道在下方，则从下往上编号 1~8；否则从上往下 1~8
+        const laneNum = String(isTrackReversed ? (TOTAL_LANES - i) : (i + 1));
+        const yTop = laneYCoordinates[i];
+        const yBottom = laneYCoordinates[i + 1];
+
+        // 1. 跑道分道线（青色虚线）
+        ctx.strokeStyle = 'rgba(34, 211, 238, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 4]);
+        ctx.beginPath();
+        ctx.moveTo(0, yBottom);
+        ctx.lineTo(canvas.width, yBottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 2. 运动员姓名与道次标签
+        const ath = currentHeatAthletesMap ? currentHeatAthletesMap[laneNum] : null;
+        let labelText = `第${laneNum}道`;
+        if (ath && ath.name) {
+            labelText += ` · ${ath.name} (${ath.team || ''})`;
+        }
+
+        const tagHeight = Math.max(16, Math.min(22, (yBottom - yTop) * 0.45));
+        const fontSize = Math.max(10, Math.min(12, tagHeight - 4));
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        const textWidth = ctx.measureText(labelText).width;
+
+        // 标签背景块
+        ctx.fillStyle = (ath && ath.name) ? 'rgba(6, 78, 59, 0.85)' : 'rgba(15, 23, 42, 0.75)';
+        ctx.fillRect(8, yTop + 3, textWidth + 12, tagHeight);
+
+        // 边框
+        ctx.strokeStyle = (ath && ath.name) ? 'rgba(52, 211, 153, 0.7)' : 'rgba(56, 189, 248, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(8, yTop + 3, textWidth + 12, tagHeight);
+
+        // 文字
+        ctx.fillStyle = (ath && ath.name) ? '#6ee7b7' : '#7dd3fc';
+        ctx.fillText(labelText, 14, yTop + 3 + fontSize);
+    }
+
+    // 3. 终点垂直红线
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(finishLineX, 0);
+    ctx.lineTo(finishLineX, canvas.height);
+    ctx.stroke();
+
+    // 终点标牌
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(finishLineX - 26, 6, 52, 20);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText('终点线', finishLineX - 16, 20);
+}
+let currentHeatAthletesMap = {}; 
+
+// 监听发车广播
+socket.on('heat_activated', function(payload) {
+    if (currentRole === 'timing') {
+        pollActiveHeat(); 
+    } else if (currentRole === 'camera') {
+        const infoEl = document.getElementById('camHeatInfo');
+        if (infoEl) infoEl.innerText = `🚩 ${payload.group_name} ${payload.gender}子 · ${payload.event_name} (第${payload.heat}组)`;
+        
+        // 🌟 提取姓名映射并重新在跑道上标绘
+        currentHeatAthletesMap = payload.athletes || {};
+        if (typeof drawCalibrationOverlay === 'function') {
+            drawCalibrationOverlay();
+        }
+    } else if (currentRole === 'starter' || currentRole === 'checkin') {
+        window.isTrackBusy = true;
+        loadCheckinSchedule();
+    }
+});
+function bindCanvasDragEvents() {
+    const canvas = document.getElementById('calibrationCanvas');
+    if (!canvas || canvas.dataset.dragBound) return;
+    canvas.dataset.dragBound = "true";
+
+    const getPos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: clientX - rect.left, y: clientY - rect.top };
+    };
+
+    const startDrag = (e) => {
+        const pos = getPos(e);
+        if (Math.abs(pos.x - finishLineX) < 35) { activeDragging = 'vertical'; return; }
+        for (let i = 1; i < TOTAL_LANES; i++) {
+            if (Math.abs(pos.y - laneYCoordinates[i]) < 25) { activeDragging = i; return; }
+        }
+    };
+
+    const moveDrag = (e) => {
+        if (!activeDragging) return;
+        e.preventDefault();
+        const pos = getPos(e);
+        if (activeDragging === 'vertical') {
+            finishLineX = Math.max(canvas.width * 0.2, Math.min(canvas.width * 0.85, pos.x));
+        } else if (typeof activeDragging === 'number') {
+            const idx = activeDragging;
+            const minY = laneYCoordinates[idx - 1] + 20;
+            const maxY = laneYCoordinates[idx + 1] - 20;
+            laneYCoordinates[idx] = Math.max(minY, Math.min(maxY, pos.y));
+        }
+        drawCalibrationOverlay();
+    };
+
+    canvas.addEventListener('mousedown', startDrag);
+    window.addEventListener('mousemove', moveDrag);
+    window.addEventListener('mouseup', () => activeDragging = null);
+    canvas.addEventListener('touchstart', startDrag, { passive: false });
+    window.addEventListener('touchmove', moveDrag, { passive: false });
+    window.addEventListener('touchend', () => activeDragging = null);
+}
+
+let prevImageData = null;
+// 升级版：带“冲线穿透深度分析”的撞线检测
+function startMotionDetection() {
+    const video = document.getElementById('finishVideo');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    const checkFrame = () => {
+        const camSection = document.getElementById('finishCameraSection');
+        if (!camSection || camSection.classList.contains('hidden') || !isTimingStarted || video.paused || video.ended) {
+            requestAnimationFrame(checkFrame);
+            return;
+        }
+
+        canvas.width = 320;
+        canvas.height = 180;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const currentFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const calCanvas = document.getElementById('calibrationCanvas');
+
+        if (prevImageData && calCanvas && calCanvas.width > 0) {
+            const scaleX = canvas.width / calCanvas.width;
+            const scaleY = canvas.height / calCanvas.height;
+            const targetX = Math.floor(finishLineX * scaleX);
+
+            let currentFrameTriggers = []; // 收集本帧内所有触发的道次及其穿透程度
+
+            for (let lane = 1; lane <= TOTAL_LANES; lane++) {
+                if (!recordedLaneTimes[lane]) {
+                    const y1 = Math.floor(laneYCoordinates[lane - 1] * scaleY);
+                    const y2 = Math.floor(laneYCoordinates[lane] * scaleY);
+
+                    // 向上取道次中间 60% 高度区域（重点锁定躯干，避开手臂甩动与地面摆腿）
+                    const torsoY1 = Math.floor(y1 + (y2 - y1) * 0.2);
+                    const torsoY2 = Math.floor(y2 - (y2 - y1) * 0.2);
+
+                    let diffCount = 0;
+                    let maxPenetrationX = targetX; // 越过红线的最远突变像素 X 坐标
+
+                    for (let y = torsoY1; y < torsoY2; y += 2) {
+                        for (let x = Math.max(0, targetX - 4); x <= Math.min(canvas.width - 1, targetX + 10); x += 2) {
+                            const idx = (y * canvas.width + x) * 4;
+                            const rDiff = Math.abs(currentFrame.data[idx] - prevImageData.data[idx]);
+                            const gDiff = Math.abs(currentFrame.data[idx + 1] - prevImageData.data[idx + 1]);
+                            const bDiff = Math.abs(currentFrame.data[idx + 2] - prevImageData.data[idx + 2]);
+
+                            if (rDiff + gDiff + bDiff > 90) {
+                                diffCount++;
+                                if (x > maxPenetrationX) {
+                                    maxPenetrationX = x; // 记录过线最深点
+                                }
+                            }
+                        }
+                    }
+
+                    if (diffCount > 14) {
+                        currentFrameTriggers.push({
+                            lane: lane,
+                            penetrationDepth: maxPenetrationX - targetX // 穿透深度（越大说明越早过线）
+                        });
+                    }
+                }
+            }
+
+            // 🌟 核心：如果同一帧有多人过线，按穿透深度降序排序，人为细分 0.01~0.02 秒的先后差距
+            if (currentFrameTriggers.length > 0) {
+                // 深度大的排在前面（更早过线）
+                currentFrameTriggers.sort((a, b) => b.penetrationDepth - a.penetrationDepth);
+
+                const baseElapsed = (Date.now() - startClockTime) / 1000;
+
+                currentFrameTriggers.forEach((trg, rankOffset) => {
+                    // 后过线的人在同一帧时间基准上依次增加 0.01 秒的时间微差，确保不产生绝对并列死锁
+                    const finalSec = (baseElapsed + rankOffset * 0.01).toFixed(2);
+                    recordedLaneTimes[trg.lane] = finalSec;
+                    renderLaneTimesBadge(trg.lane, finalSec);
+                });
+
+                // 自动推送到记录端
+                socket.emit('camera_times_pushed', {
+                    heat_info: currentActiveHeatData || {},
+                    lane_times: recordedLaneTimes
+                });
+            }
+        }
+        prevImageData = currentFrame;
+        requestAnimationFrame(checkFrame);
+    };
+    requestAnimationFrame(checkFrame);
+}
+function renderLaneTimesBadge(lane, timeStr) {
+    const container = document.getElementById('laneResultTags');
+    if (!container) return;
+    const tag = document.createElement('div');
+    tag.className = "bg-gray-800 border border-emerald-500/60 p-1.5 rounded-lg text-center shadow animate-bounce";
+    tag.innerHTML = `<span class="text-gray-400 text-[10px]">第${lane}道</span><div class="text-emerald-400 font-mono font-black text-sm">${timeStr}s</div>`;
+    container.appendChild(tag);
+}
+
+// 🟢 替换后的代码：摄像端完全静音，只负责毫秒计时与撞线抓拍
+socket.on('starter_action', function(payload) {
+    const cmd = payload.cmd;
+    const timeDisplay = document.getElementById('camStopwatch');
+
+    if (cmd === 'gun') {
+        startClockTime = payload.timestamp || Date.now();
+        isTimingStarted = true;
+        recordedLaneTimes = {};
+        document.getElementById('laneResultTags').innerHTML = '';
+
+        if (stopwatchTimer) clearInterval(stopwatchTimer);
+        stopwatchTimer = setInterval(() => {
+            const diff = Date.now() - startClockTime;
+            const mins = Math.floor(diff / 60000);
+            const secs = Math.floor((diff % 60000) / 1000);
+            const ms = Math.floor((diff % 1000) / 10);
+            if (timeDisplay) {
+                timeDisplay.innerText = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}.${String(ms).padStart(2,'0')}`;
+            }
+        }, 30);
+
+    } else if (cmd === 'false_start') {
+        isTimingStarted = false;
+        clearInterval(stopwatchTimer);
+        if (timeDisplay) timeDisplay.innerText = "00:00.00 (抢跑召回)";
+        recordedLaneTimes = {};
+        alert("⚠️ 起点裁判判定抢跑犯规，发令召回，计时已重置！");
+
+    } else if (cmd === 'reset') {
+        isTimingStarted = false;
+        clearInterval(stopwatchTimer);
+        if (timeDisplay) timeDisplay.innerText = "00:00.00";
+    }
+});
+// 🌟 彻底补全：自动检查登录态
+document.addEventListener("DOMContentLoaded", function() {
+    fetch('/api/check_session?_t=' + Date.now())
+        .then(r => r.json())
+        .then(res => {
+            if (res.status === 'success' && (res.role === 'referee' || res.role === 'admin')) {
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('mainConsoleSection').classList.remove('hidden');
+                document.getElementById('bodyWrap').classList.remove('bg-green-800');
+                document.getElementById('bodyWrap').classList.add('console-bg');
+
+                const savedRole = localStorage.getItem('last_referee_role') || 'checkin';
+                initConsoleData();
+                resetRoleSelection();
+            }
+        })
+        .catch(err => console.log("检查登录态异常:", err));
+});
+
+// 🌟 彻底补全：输入成绩回车自动跳转下一道
+document.addEventListener('DOMContentLoaded', function() {
+    const listContainer = document.getElementById('athleteList');
+    if (!listContainer) return;
+
+    listContainer.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.keyCode === 13) {
+            e.preventDefault();
+            const currentInput = e.target;
+            if (!currentInput.classList.contains('input-score')) return;
+
+            currentInput.blur();
+            const allInputs = Array.from(listContainer.querySelectorAll('.input-score:not([disabled])'));
+            const currentIndex = allInputs.indexOf(currentInput);
+
+            if (currentIndex >= 0 && currentIndex < allInputs.length - 1) {
+                const nextInput = allInputs[currentIndex + 1];
+                nextInput.focus();
+                nextInput.select();
+                nextInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    });
+});
 </script>
 </body>
 </html>

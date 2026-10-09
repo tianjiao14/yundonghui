@@ -1068,7 +1068,6 @@ def push_active_heat():
                     WHERE s.group_name = ? AND s.event_name = ? AND s.gender = ? AND s.heat = ?
                 """
                 active_ath = c.execute(chk_sql, (cur_active['group_name'], cur_active['event_name'], cur_active['gender'], cur_active['heat'])).fetchall()
-                
                 valid_ath = [a for a in active_ath if a['checked_in'] != 2]
                 unscored_count = sum(1 for a in valid_ath if not a['score'] or str(a['score']).strip() == '')
                 
@@ -1076,7 +1075,7 @@ def push_active_heat():
                     conn.close()
                     return jsonify({
                         "status": "error", 
-                        "msg": f"⚠️ 跑道正忙！终点裁判正在录入【{cur_active['group_name']} {cur_active['event_name']} 第{cur_active['heat']}组】的成绩，尚余 {unscored_count} 人未录完，请稍候！"
+                        "msg": f"⚠️ 跑道正忙！终点正在录入【{cur_active['group_name']} {cur_active['event_name']} 第{cur_active['heat']}组】成绩，尚余 {unscored_count} 人未录完！"
                     })
             except Exception:
                 pass
@@ -1084,12 +1083,30 @@ def push_active_heat():
         clean_gender = '女' if '女' in gender else ('男' if '男' in gender else gender)
         push_time = datetime.now().strftime('%H:%M:%S')
 
+        # 🌟 关键：查询出本组所有道次的选手名字与单位，供摄像机道次实时渲染
+        ath_rows = c.execute("""
+            SELECT lane, name, team_name, bib 
+            FROM start_list 
+            WHERE group_name = ? AND event_name = ? AND gender = ? AND heat = ?
+            ORDER BY CAST(lane AS INTEGER) ASC
+        """, (g_name, e_name, clean_gender, heat)).fetchall()
+
+        lane_athletes_map = {}
+        for r in ath_rows:
+            lane_num = str(r['lane']).strip()
+            lane_athletes_map[lane_num] = {
+                'name': r['name'],
+                'team': r['team_name'],
+                'bib': r['bib']
+            }
+
         heat_payload = {
             "group_name": g_name,
             "event_name": e_name,
             "gender": clean_gender,
             "heat": heat,
-            "push_time": push_time
+            "push_time": push_time,
+            "athletes": lane_athletes_map  # 👈 携带选手道次名单
         }
 
         c.execute("INSERT OR REPLACE INTO system_settings (key, value) VALUES ('active_track_heat', ?)", 
@@ -1102,7 +1119,8 @@ def push_active_heat():
         """, (g_name, e_name, clean_gender, heat))
 
         conn.commit()
-        # 实时通知所有裁判终端与大屏幕
+        
+        # 实时通知所有裁判端（包括摄像端）
         socketio.emit('heat_activated', heat_payload)
         return jsonify({"status": "success", "msg": "发车成功", "data": heat_payload})
     except Exception as e:
@@ -1110,7 +1128,6 @@ def push_active_heat():
         return jsonify({"status": "error", "msg": str(e)})
     finally:
         conn.close()
-
 @app.route('/api/get_active_heat', methods=['GET'])
 def get_active_heat():
     conn = get_db_connection()
@@ -1754,6 +1771,8 @@ def save_relay_legs():
     c = conn.cursor()
     try:
         c.execute("BEGIN IMMEDIATE")
+        
+        # 1. 重置本班在 registrations 表中的该项目棒次
         c.execute("""
             UPDATE registrations 
             SET relay_leg = '' 
@@ -1761,12 +1780,47 @@ def save_relay_legs():
               AND (gender = ? OR ? = '' OR gender = '混合')
               AND (event_name LIKE ? OR event_name = ?)
         """, (team_id, gender, gender, f"%{clean_core}%", event_name))
+        
+        # 2. 写入新棒次
         for leg_num, reg_id in legs.items():
             if reg_id:
                 c.execute("UPDATE registrations SET relay_leg = ? WHERE id = ?", (str(leg_num), int(reg_id)))
-                
+        
+        # 🌟 3. 核心穿透：实时把排好的棒次名字直接写入 start_list 道次表！
+        t_row = c.execute("SELECT name, group_id FROM cfg_teams WHERE id = ?", (team_id,)).fetchone()
+        team_name = t_row['name'] if t_row else ''
+        
+        if team_name:
+            # 查出当前排好棒次的队员名单
+            runners = c.execute("""
+                SELECT name, relay_leg FROM registrations 
+                WHERE team_id = ? AND (gender = ? OR ? = '') 
+                  AND (event_name LIKE ? OR event_name = ?)
+                  AND relay_leg != '' AND relay_leg IS NOT NULL
+                ORDER BY CAST(relay_leg AS INTEGER) ASC
+            """, (team_id, gender, gender, f"%{clean_core}%", event_name)).fetchall()
+
+            if runners:
+                display_relay_name = "  ".join([f"{r['relay_leg']}棒:{r['name']}" for r in runners])
+                # 直接更新 start_list 道次表里的显示名字
+                c.execute("""
+                    UPDATE start_list 
+                    SET name = ? 
+                    WHERE team_name = ? AND (gender = ? OR ? = '')
+                      AND (event_name LIKE ? OR event_name = ?)
+                """, (display_relay_name, team_name, gender, gender, f"%{clean_core}%", event_name))
+
         conn.commit()
-        return jsonify({"status": "success", "msg": "接力棒次保存成功！"})
+
+        # 🌟 4. 清理所有缓存，杜绝手机端读到老数据
+        if '_cache_store' in globals():
+            _cache_store.clear()
+
+        # 🌟 5. 广播通知裁判端刷新名单
+        if 'socketio' in globals() and socketio:
+            socketio.emit('score_updated', {})
+
+        return jsonify({"status": "success", "msg": "接力棒次保存成功，裁判端检录名单已实时同步！"})
     except Exception as e:
         conn.rollback()
         return jsonify({"status": "error", "msg": str(e)})
@@ -2174,6 +2228,195 @@ def batch_submit_team_athletes():
     except Exception as e:
         conn.rollback()
         return jsonify({"status": "error", "msg": f"保存失败: {str(e)}"}), 500
+    finally:
+        conn.close()
+@app.route('/api/auto_schedule', methods=['POST'])
+@login_required('admin')
+def auto_schedule():
+    """
+    智能赛程编排（田径规程专业版）：
+    1. 同一项目全场集中：所有组别的 100米 必须紧凑连续完成，严禁 100米与 200米穿插！
+    2. 项目内推进顺序：先女后男，组别从低到高递进（如：初一女->初一男->初二女->初二男...）。
+    3. 项目间标准顺序：短跑 -> 中长跑 -> 接力收尾；预赛与决赛分单元排定。
+    """
+    data = request.json or {}
+    days = int(data.get('days', 2))
+    morning_start = data.get('morning_start', '08:30')
+    morning_end = data.get('morning_end', '11:40')
+    afternoon_start = data.get('afternoon_start', '14:00')
+    afternoon_end = data.get('afternoon_end', '17:30')
+
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    try:
+        c.execute("BEGIN IMMEDIATE")
+
+        # 1. 读取组别自定义排序权重
+        group_rows = c.execute("SELECT name, IFNULL(sort_order, id) as s_order FROM cfg_groups").fetchall()
+        group_order_map = {r['name']: r['s_order'] for r in group_rows}
+
+        # 2. 读取项目设置及类型耗时
+        c.execute("SELECT name, type, duration, is_fun FROM cfg_events")
+        event_settings = {}
+        duration_settings = {}
+        for row in c.fetchall():
+            raw_t = (row['type'] or '').strip()
+            if str(row['is_fun']) == '1' or raw_t == '趣味':
+                raw_t = '趣味项目'
+            
+            name_key = (row['name'] or '').strip()
+            event_settings[name_key] = raw_t
+            dur = float(row['duration']) if row['duration'] is not None and str(row['duration']).strip() != '' else 0
+            duration_settings[name_key] = dur
+
+            clean_k = re.sub(r'[\(（].*?[\)）]', '', name_key).strip()
+            if clean_k:
+                event_settings[clean_k] = raw_t
+                if clean_k not in duration_settings:
+                    duration_settings[clean_k] = dur
+
+        # 3. 提取所有编排道次记录
+        athletes = c.execute("""
+            SELECT id, group_name, event_name, gender, heat, lane
+            FROM start_list
+            ORDER BY id ASC
+        """).fetchall()
+
+        if not athletes:
+            conn.close()
+            return jsonify({"status": "error", "msg": "未找到编排名单，请先进行【分组分道】！"})
+
+        # 4. 按 (group_name, event_name, gender, heat) 聚合成组次卡片
+        heat_dict = {}
+        for a in athletes:
+            e_name = a['event_name'].strip()
+            
+            matched_type = None
+            matched_dur = 0
+            if e_name in event_settings:
+                matched_type = event_settings[e_name]
+                matched_dur = duration_settings.get(e_name, 0)
+            else:
+                for s_name, s_type in event_settings.items():
+                    if s_name in e_name:
+                        matched_type = s_type
+                        matched_dur = duration_settings.get(s_name, 0)
+                        break
+
+            if matched_type == '健康测试':
+                cat = 'fitness'
+                default_dur = 10
+            elif matched_type in ['趣味', '趣味项目']:
+                cat = 'fun'
+                default_dur = 15
+            elif matched_type == '田赛':
+                cat = 'field'
+                default_dur = 25
+            elif matched_type == '径赛':
+                cat = 'track'
+                default_dur = 6
+            else:
+                cat = 'track'
+                default_dur = 6
+
+            final_dur = matched_dur if matched_dur > 0 else default_dur
+            key = (a['group_name'], a['event_name'], a['gender'], str(a['heat']))
+            if key not in heat_dict:
+                heat_dict[key] = {
+                    'group_name': a['group_name'],
+                    'event_name': a['event_name'],
+                    'gender': a['gender'],
+                    'heat': str(a['heat']),
+                    'category': cat,
+                    'duration': final_dur,
+                    'athlete_ids': []
+                }
+            heat_dict[key]['athlete_ids'].append(a['id'])
+
+        # 5. 定义项目间绝对优先级（确保100米集中，200米集中，不交叉）
+        def get_event_priority(evt_name):
+            clean = re.sub(r'[\(（].*?[\)）]', '', evt_name).strip()
+            is_final = 1 if '决赛' in evt_name and '预赛' not in evt_name else 0
+
+            # 权重规则：短跑 -> 中跑 -> 长跑 -> 接力
+            base_p = 90
+            if any(k in clean for k in ['栏', '跨栏']): base_p = 10
+            elif '50米' in clean or '60米' in clean: base_p = 20
+            elif '100米' in clean: base_p = 30
+            elif '200米' in clean: base_p = 40
+            elif '400米' in clean: base_p = 50
+            elif '800米' in clean: base_p = 60
+            elif '1500米' in clean or '1000米' in clean: base_p = 70
+            elif '3000米' in clean: base_p = 80
+            elif any(k in clean for k in ['4x', '4×', '接力']): base_p = 100
+
+            # 预赛在前，决赛在后
+            return base_p + (is_final * 5)
+
+        # 6. 对组次进行专业排序
+        # 排序键：[项目类别优先级] -> [项目名称一致性] -> [预赛在前/决赛在后] -> [女性优先(女0男1)] -> [组别年级顺序] -> [组次 1,2,3...]
+        sorted_heats = list(heat_dict.values())
+        sorted_heats.sort(key=lambda x: (
+            get_event_priority(x['event_name']),
+            re.sub(r'[\(（].*?[\)）]|预赛|决赛|男子|女子|男|女', '', x['event_name']).strip(),
+            0 if '预赛' in x['event_name'] else 1,
+            0 if x['gender'] == '女' else 1,
+            group_order_map.get(x['group_name'], 999),
+            int(x['heat']) if str(x['heat']).isdigit() else 1
+        ))
+
+        # 7. 分池排期
+        pools = {'track': [], 'field': [], 'fun': [], 'fitness': []}
+        for item in sorted_heats:
+            pools[item['category']].append(item)
+
+        # 8. 构建比赛单元时间轴（上午/下午）
+        sessions = []
+        for d in range(1, days + 1):
+            sessions.append({'day': d, 'unit': '上午', 'start': morning_start})
+            sessions.append({'day': d, 'unit': '下午', 'start': afternoon_start})
+
+        total_sessions = len(sessions)
+
+        def schedule_pool(item_list, fallback_mins):
+            if not item_list:
+                return
+            items_per_session = max(1, (len(item_list) + total_sessions - 1) // total_sessions)
+            for idx, item in enumerate(item_list):
+                s_idx = min(idx // items_per_session, total_sessions - 1)
+                sess = sessions[s_idx]
+                
+                sh, sm = map(int, sess['start'].split(':'))
+                dur_step = item['duration'] if item['duration'] > 0 else fallback_mins
+                offset = (idx % items_per_session) * int(dur_step)
+                tot = sh * 60 + sm + offset
+                est_time_str = f"第{sess['day']}天{sess['unit']} {tot // 60:02d}:{tot % 60:02d}"
+
+                time_idx = idx + 1
+                is_f = 1 if item['category'] == 'field' else 0
+                c.executemany("""
+                    UPDATE start_list 
+                    SET est_time = ?, time_index = ?, is_field = ?
+                    WHERE id = ?
+                """, [(est_time_str, time_idx, is_f, aid) for aid in item['athlete_ids']])
+
+        schedule_pool(pools['track'], 6)
+        schedule_pool(pools['field'], 25)
+        schedule_pool(pools['fun'], 15)
+        schedule_pool(pools['fitness'], 10)
+
+        conn.commit()
+        if '_cache_store' in globals():
+            _cache_store.clear()
+
+        return jsonify({
+            "status": "success", 
+            "msg": f"智能编排完成！径赛已按“同项目全组别连续推进、先女后男”规则排定（共 {len(pools['track'])} 组）。"
+        })
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "msg": f"编排失败: {str(e)}"})
     finally:
         conn.close()
 @app.route('/api/save_schedule_to_db', methods=['POST'])
@@ -2995,9 +3238,11 @@ def export_registrations():
 
 @app.route('/api/import_registrations', methods=['POST'])
 def import_registrations():
-    if 'file' not in request.files: return jsonify({"status": "error", "msg": "未上传文件"})
+    if 'file' not in request.files: 
+        return jsonify({"status": "error", "msg": "未上传文件"})
     file = request.files['file']
-    if not file.filename.endswith('.csv'): return jsonify({"status": "error", "msg": "请上传 .csv 文件"})
+    if not file.filename.endswith('.csv'): 
+        return jsonify({"status": "error", "msg": "请上传 .csv 文件"})
 
     try:
         stream = StringIO(file.stream.read().decode("utf-8-sig"), newline=None)
@@ -3009,7 +3254,9 @@ def import_registrations():
         
         groups_map = {row['name']: row['id'] for row in c.execute("SELECT id, name FROM cfg_groups").fetchall()}
         teams_map = {row['name']: row['id'] for row in c.execute("SELECT id, name FROM cfg_teams").fetchall()}
-        event_types = {row['name']: row['type'] for row in c.execute("SELECT name, type FROM cfg_events").fetchall()}
+        
+        # 1. 读取所有项目的类型与趣味标记
+        event_cfgs = {row['name']: dict(row) for row in c.execute("SELECT name, type, is_fun, is_relay, gender FROM cfg_events").fetchall()}
         
         sys_config = {row['key']: row['value'] for row in c.execute("SELECT key, value FROM sys_config").fetchall()}
         MAX_TOTAL = int(sys_config.get('maxTotal', 20))
@@ -3030,19 +3277,52 @@ def import_registrations():
             
             if not gid or not tid: continue
 
+            # 解析该学生报的所有项目
             event_list = [item.strip() for col in row[5:] for item in col.replace('，', ',').split(',') if item.strip()]
-            unique_events = list(set(event_list))
+            unique_events = list(dict.fromkeys(event_list))
+            if not unique_events: continue
 
+            # 🌟 判断项目是否属于趣味或健康测试
+            def is_fun_event(e_name):
+                cfg = event_cfgs.get(e_name)
+                if cfg:
+                    e_type = str(cfg.get('type') or '')
+                    return ('趣味' in e_type) or ('健康' in e_type) or (str(cfg.get('is_fun')) == '1')
+                return any(k in e_name for k in ['趣味', '健康', '跳绳', '投篮', '垫球', '绕杆', '仰卧', '引体'])
+
+            # 🌟 检查该学生是否包含常规田赛/径赛单项
+            has_track_or_field = any(not is_fun_event(e) for e in unique_events)
+
+            # 🌟 如果该学生包含田径竞技项目，才做班级总人数（MAX_TOTAL）拦截
+            is_new_athlete = not c.execute("SELECT 1 FROM registrations WHERE team_id=? AND name=?", (tid, name)).fetchone()
+            if is_new_athlete and has_track_or_field:
+                # 统计当前队伍已经报了田径竞技项目的总人数
+                curr_comp_total = c.execute("""
+                    SELECT COUNT(DISTINCT r.name) 
+                    FROM registrations r
+                    WHERE r.team_id = ? 
+                      AND r.event_name NOT IN (
+                          SELECT name FROM cfg_events WHERE type IN ('趣味', '趣味项目', '健康测试') OR is_fun = '1'
+                      )
+                """, (tid,)).fetchone()[0]
+                
+                if curr_comp_total >= MAX_TOTAL:
+                    # 如果田径名额已满，只允许报趣味/健康测试项目
+                    unique_events = [e for e in unique_events if is_fun_event(e)]
+                    if not unique_events:
+                        continue
+
+            # 遍历写入每个项目
             for sub_evt in unique_events:
                 exists = c.execute("SELECT 1 FROM registrations WHERE team_id=? AND name=? AND event_name=?", (tid, name, sub_evt)).fetchone()
                 if exists: continue
                 
-                evt_type = event_types.get(sub_evt)
-                is_fun = evt_type and ('趣味' in str(evt_type))
+                is_fun = is_fun_event(sub_evt)
                 
+                # 仅对常规田径项目进行单项名额限制（每项每队限3人等）
                 if not is_fun:
-                    evt_meta = c.execute("SELECT is_relay, gender FROM cfg_events WHERE name=?", (sub_evt,)).fetchone()
-                    is_relay = to_bool_str(evt_meta['is_relay']) == '1' if evt_meta else False
+                    evt_meta = event_cfgs.get(sub_evt)
+                    is_relay = (to_bool_str(evt_meta['is_relay']) == '1') if evt_meta else False
                     is_mixed = (evt_meta['gender'] == '混合') if evt_meta else False
                     
                     if is_mixed and is_relay:
@@ -3059,12 +3339,6 @@ def import_registrations():
                     
                     if curr_evt_count >= current_limit: 
                         continue
-                
-                is_new_athlete = not c.execute("SELECT 1 FROM registrations WHERE team_id=? AND name=?", (tid, name)).fetchone()
-                if is_new_athlete:
-                     curr_team_total = c.execute("SELECT COUNT(DISTINCT name) FROM registrations WHERE team_id=?", (tid,)).fetchone()[0]
-                     if curr_team_total >= MAX_TOTAL: 
-                         continue 
 
                 c.execute('''INSERT INTO registrations (group_id, group_name, team_id, team_name, name, gender, bib, event_name, submit_time) 
                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
@@ -3072,6 +3346,10 @@ def import_registrations():
                 success_count += 1
 
         conn.commit()
+        # 🌟 清理缓存，确保前台立即显示真实统计
+        if '_cache_store' in globals():
+            _cache_store.clear()
+
         return jsonify({"status": "success", "msg": f"✅ 成功导入 {success_count} 条记录！"})
     except Exception as e:
         if 'conn' in locals(): conn.rollback()
@@ -3405,9 +3683,13 @@ def export_handbook_word():
         config = {r['key']: r['value'] for r in cfg_rows}
         title = config.get('title', '田径运动会')
 
-        groups = [dict(r) for r in c.execute("SELECT * FROM cfg_groups ORDER BY id ASC").fetchall()]
-        teams = [dict(r) for r in c.execute("SELECT * FROM cfg_teams ORDER BY group_id ASC, id ASC").fetchall()]
+        groups = [dict(r) for r in c.execute("SELECT * FROM cfg_groups ORDER BY IFNULL(sort_order, id) ASC").fetchall()]
+        teams = [dict(r) for r in c.execute("SELECT * FROM cfg_teams ORDER BY group_id ASC, IFNULL(sort_order, id) ASC").fetchall()]
         events = [dict(r) for r in c.execute("SELECT * FROM cfg_events ORDER BY id ASC").fetchall()]
+
+        # 读取最新保存的开赛日期
+        c_date = c.execute("SELECT value FROM system_settings WHERE key='start_date'").fetchone()
+        base_start_date = c_date[0] if (c_date and c_date[0]) else ""
 
         qualify_map = {}
         for e in events:
@@ -3422,54 +3704,85 @@ def export_handbook_word():
             ORDER BY group_name ASC, team_name ASC, gender ASC, bib ASC, name ASC
         """).fetchall()]
 
+        # 严格按照 start_list 数据库中的真实物理存储排期读取
         schedule = [dict(r) for r in c.execute("""
             SELECT id, group_name, event_name, gender, heat, lane, bib, name, team_name, type, est_time, time_index, is_field
             FROM start_list
-            ORDER BY time_index ASC, CAST(heat AS INTEGER) ASC, CAST(lane AS INTEGER) ASC
+            ORDER BY 
+                CAST(IFNULL(time_index, 0) AS INTEGER) ASC, 
+                group_name ASC,
+                gender ASC,
+                event_name ASC,
+                CAST(IFNULL(heat, 1) AS INTEGER) ASC, 
+                CAST(IFNULL(lane, 1) AS INTEGER) ASC,
+                id ASC
         """).fetchall()]
+
+        active_time_slots = []
+        for s in schedule:
+            if not s.get('name'): continue
+            est_raw = s.get('est_time', '')
+            m = re.search(r"第(\d+)天(上午|下午)?", est_raw)
+            if m:
+                d_num = int(m.group(1))
+                ampm = m.group(2) or "上午"
+                slot_key = (d_num, 0 if ampm == "上午" else 1, ampm)
+                if slot_key not in active_time_slots:
+                    active_time_slots.append(slot_key)
+
+        active_time_slots.sort(key=lambda x: (x[0], x[1]))
+
+        cn_numbers = {1: "一", 2: "二", 3: "三", 4: "四", 5: "五", 6: "六", 7: "七", 8: "八", 9: "九", 10: "十"}
+        cn_to_num = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+
+        def get_unit_sort_weight(title_str):
+            m = re.search(r"第([一二三四五六七八九十\d]+)单元", title_str)
+            if m:
+                val = m.group(1)
+                return cn_to_num.get(val, int(val) if val.isdigit() else 99)
+            return 99
+        slot_unit_title_map = {}
+        for unit_idx, (d_num, _, ampm) in enumerate(active_time_slots, start=1):
+            date_val = ""
+            if base_start_date:
+                try:
+                    base_d = datetime.strptime(base_start_date, "%Y-%m-%d")
+                    cur_d = base_d + timedelta(days=d_num - 1)
+                    date_val = cur_d.strftime("%Y年%m月%d日")
+                except Exception:
+                    pass
+            if not date_val:
+                date_val = datetime.now().strftime("%Y年%m月%d日")
+
+            u_cn = cn_numbers.get(unit_idx, str(unit_idx))
+            slot_unit_title_map[(d_num, ampm)] = f"第{u_cn}单元 ({date_val}  {ampm})"
 
         def parse_unit_date(est_time_str):
             if not est_time_str:
-                return "第一单元 (比赛日 上午)", "08:30"
+                return "第一单元 (比赛日)", "08:30"
             m = re.search(r"第(\d+)天(上午|下午)?\s*(\d+[:：]\d+)?", est_time_str)
-            digits_cn = {"1": "一", "2": "二", "3": "三", "4": "四", "5": "五", "6": "六"}
             if m:
-                d_num = m.group(1)
-                u_cn = digits_cn.get(d_num, d_num)
+                d_num = int(m.group(1))
                 ampm = m.group(2) or "上午"
-                t_str = m.group(3) or "09:00"
-                date_val = ""
-                try:
-                    c_date = c.execute("SELECT value FROM system_settings WHERE key='start_date'").fetchone()
-                    if c_date and c_date[0]:
-                        base_d = datetime.strptime(c_date[0], "%Y-%m-%d")
-                        cur_d = base_d + timedelta(days=int(d_num)-1)
-                        date_val = cur_d.strftime("%Y年%m月%d日")
-                except Exception:
-                    pass
-                if not date_val:
-                    date_val = datetime.now().strftime("%Y年%m月%d日")
+                t_str = (m.group(3) or "09:00").replace('：', ':')
+                u_title = slot_unit_title_map.get((d_num, ampm), f"第{d_num}天 ({ampm})")
+                return u_title, t_str
+            return "第一单元 (比赛日)", "09:00"
 
-                return f"第{u_cn}单元 ({date_val}  {ampm})", t_str.replace('：', ':')
-            return "第一单元 (比赛日 上午)", "09:00"
-
+        # 1. 参赛单位名单构建
         team_athletes_map = {}
         for t in teams:
-            team_athletes_map[t['name']] = {
-                'leader': t.get('leader', ''),
-                'groups': {}
-            }
+            team_athletes_map[t['name']] = {'leader': t.get('leader', ''), 'coach': t.get('coach', ''), 'groups': {}}
 
         seen_ath = set()
         for r in regs:
             ath_key = (r['team_name'], r['name'], r['group_name'], r['gender'])
-            if ath_key in seen_ath:
-                continue
+            if ath_key in seen_ath: continue
             seen_ath.add(ath_key)
 
             t_n = r['team_name']
             if t_n not in team_athletes_map:
-                team_athletes_map[t_n] = {'leader': '', 'groups': {}}
+                team_athletes_map[t_n] = {'leader': '', 'coach': '', 'groups': {}}
 
             prefix = f"{'男' if r['gender'] == '男' else '女'}子"
             g_clean = r['group_name'].replace('男子', '').replace('女子', '')
@@ -3480,35 +3793,36 @@ def export_handbook_word():
 
             raw_bib = str(r['bib'] or '').strip()
             bib_str = raw_bib.zfill(4) if raw_bib.isdigit() else raw_bib
-            team_athletes_map[t_n]['groups'][g_label].append({
-                'bib': bib_str,
-                'name': r['name']
-            })
+            team_athletes_map[t_n]['groups'][g_label].append({'bib': bib_str, 'name': r['name']})
 
-        teams_html = """
-        <h1 style='text-align:center; font-size:26pt; font-weight:bold; letter-spacing:4px; margin-bottom:10pt;'>代表队名单</h1>
-        <div style='text-align:center; font-size:16pt; font-weight:bold; margin-bottom:25pt;'>(参赛单位)</div>
-        """
+        def get_team_grade_weight(team_name):
+            tn = team_name.strip()
+            # 年级权重：初一(10) -> 初二(20) -> 初三(30) -> 高一(40) -> 高二(50) -> 高三(60)
+            if re.search(r'初一|七年级|初1|七1|7年级', tn): return 10
+            if re.search(r'初二|八年级|初2|八2|8年级', tn): return 20
+            if re.search(r'初三|九年级|初3|九3|9年级', tn): return 30
+            if re.search(r'高一|高1|10年级', tn): return 40
+            if re.search(r'高二|高2|11年级', tn): return 50
+            if re.search(r'高三|高3|12年级', tn): return 60
+            return 99
 
-        for t_name, t_info in team_athletes_map.items():
-            if not t_info['groups']:
-                continue
+        # 主排序：年级由低到高；次排序：班级数字自然递增（1班、2班...）
+        sorted_team_names = sorted(
+            [t_name for t_name, t_info in team_athletes_map.items() if t_info['groups']],
+            key=lambda name: (get_team_grade_weight(name), [int(text) if text.isdigit() else text for text in re.split(r'(\d+)', name)])
+        )
+
+        teams_html = "<h1 style='text-align:center; font-size:26pt; font-weight:bold; letter-spacing:4px; margin-bottom:10pt;'>代表队名单</h1><div style='text-align:center; font-size:16pt; font-weight:bold; margin-bottom:25pt;'>(参赛单位)</div>"
+        for t_name in sorted_team_names:
+            t_info = team_athletes_map[t_name]
             leader_txt = t_info['leader'] if t_info['leader'] else "—"
-            teams_html += f"""
-            <div style='margin-bottom:28pt; page-break-inside:avoid;'>
-                <div style='text-align:center; font-size:18pt; font-weight:bold; margin-bottom:12pt;'>{t_name}</div>
-                <div style='font-size:11pt; line-height:1.6;'>领队：{leader_txt}</div>
-                <div style='font-size:11pt; line-height:1.6; margin-bottom:8pt;'>教练：{leader_txt}</div>
-            """
+            coach_txt = t_info['coach'] if t_info.get('coach') else leader_txt
+            teams_html += f"<div style='margin-bottom:28pt; page-break-inside:avoid;'><div style='text-align:center; font-size:18pt; font-weight:bold; margin-bottom:12pt;'>{t_name}</div><div style='font-size:11pt; line-height:1.6;'>领队：{leader_txt}</div><div style='font-size:11pt; line-height:1.6; margin-bottom:8pt;'>教练：{coach_txt}</div>"
             for g_label, ath_list in t_info['groups'].items():
-                teams_html += f"""
-                <div style='font-size:12pt; font-weight:bold; margin-top:8pt; margin-bottom:4pt;'>{g_label}</div>
-                <table style='width:100%; border-collapse:collapse; font-size:10.5pt; table-layout:fixed; border:none; margin-bottom:8pt;'>
-                """
+                teams_html += f"<div style='font-size:12pt; font-weight:bold; margin-top:8pt; margin-bottom:4pt;'>{g_label}</div><table style='width:100%; border-collapse:collapse; font-size:10.5pt; table-layout:fixed; border:none; margin-bottom:8pt;'>"
                 col_count = 6
                 header_tds = "".join([f"<td style='border:none; width:8%; font-weight:bold;'>编号</td><td style='border:none; width:8.6%; font-weight:bold;'>姓名</td>" for _ in range(col_count)])
                 teams_html += f"<tr style='height:22px;'>{header_tds}</tr>"
-
                 for i in range(0, len(ath_list), col_count):
                     chunk = ath_list[i:i+col_count]
                     teams_html += "<tr style='height:22px;'>"
@@ -3520,14 +3834,43 @@ def export_handbook_word():
                 teams_html += "</table>"
             teams_html += "</div>"
 
-        schedule_unit_map = {}
-        for s in schedule:
-            if not s['name'] or '待定' in s['name'] or s['team_name'] == '预赛出线':
-                continue
-            u_title, time_val = parse_unit_date(s.get('est_time', ''))
-            is_field = 1 if (s.get('is_field') == 1 or any(k in s['event_name'] for k in ['跳', '投', '球', '掷'])) else 0
-            category = "田  赛" if is_field else "径  赛"
+        # 2. 项目分类规则
+        event_setting_rules = []
+        for e in sorted(events, key=lambda x: len(x.get('name', '')), reverse=True):
+            raw_t = (e.get('type') or '').strip()
+            if str(e.get('is_fun')) == '1' or raw_t == '趣味': raw_t = '趣味项目'
+            name_clean = (e.get('name') or '').strip()
+            if name_clean:
+                event_setting_rules.append((name_clean, raw_t))
 
+        def get_exact_category(event_full_name, is_field_flag):
+            efn = event_full_name.strip()
+            for s_name, s_type in event_setting_rules:
+                if s_name in efn:
+                    if s_type == '健康测试' or '健康' in s_type: return '健康测试'
+                    elif s_type in ['趣味', '趣味项目']: return '趣味项目'
+                    elif s_type == '田赛': return '田  赛'
+                    elif s_type == '径赛': return '径  赛'
+
+            if any(k in efn for k in ['仰卧', '引体', '体前屈', '肺活量', '视力', '立定跳远', '健康', '体测']):
+                return '健康测试'
+            elif any(k in efn for k in ['篮球', '绕杆', '排球', '趣味', '拔河', '跳绳', '投篮', '穿梭', '袋鼠', '毛毛虫']):
+                return '趣味项目'
+            elif any(k in efn for k in ['跳高', '跳远', '三级跳', '铅球', '实心球', '标枪', '铁饼']):
+                return '田  赛'
+            return '田  赛' if is_field_flag == 1 else '径  赛'
+
+        # 3. 构建竞赛日程表数据映射
+        schedule_unit_map = {}
+        # 🌟 修复关键：补齐 heats_task_map 的初始化与聚类逻辑！
+        heats_task_map = {}
+
+        for s in schedule:
+            if not s['name']: continue
+            u_title, time_val = parse_unit_date(s.get('est_time', ''))
+            category = get_exact_category(s['event_name'], s.get('is_field', 0))
+
+            # A. 日程表映射
             task_key = (u_title, category, s['group_name'], s['event_name'], s['gender'])
             if task_key not in schedule_unit_map:
                 schedule_unit_map[task_key] = {
@@ -3539,12 +3882,32 @@ def export_handbook_word():
             schedule_unit_map[task_key]['heats'].add(s['heat'])
             schedule_unit_map[task_key]['count'] += 1
 
+            # B. 分组名单映射 (heats_task_map)
+            s_name = str(s.get('name') or '').strip()
+            s_team = str(s.get('team_name') or '').strip()
+            if '待定' in s_name or '预赛出线' in s_team:
+                continue
+
+            ek = (u_title, category, s['group_name'], s['event_name'], s['gender'])
+            if ek not in heats_task_map:
+                heats_task_map[ek] = {}
+            h_no = str(s['heat'])
+            if h_no not in heats_task_map[ek]:
+                heats_task_map[ek][h_no] = []
+            heats_task_map[ek][h_no].append(s)
+
         unit_schedule_tree = {}
         for (u_title, cat, g_name, e_name, gen), info in schedule_unit_map.items():
             if u_title not in unit_schedule_tree:
-                unit_schedule_tree[u_title] = {'径  赛': [], '田  赛': []}
+                unit_schedule_tree[u_title] = {'径  赛': [], '田  赛': [], '趣味项目': [], '健康测试': []}
+            if cat not in unit_schedule_tree[u_title]:
+                unit_schedule_tree[u_title][cat] = []
 
             clean_core = re.sub(r'[\(（].*?[\)）]', '', e_name).replace('预赛', '').replace('决赛', '').strip()
+            for prefix_k in ['男子', '女子', '男', '女', g_name]:
+                if clean_core.startswith(prefix_k):
+                    clean_core = clean_core[len(prefix_k):].strip()
+
             round_str = "预赛" if '预赛' in e_name else "决赛"
             prefix = f"{'男' if gen == '男' else '女'}子"
             g_clean = g_name.replace('男子', '').replace('女子', '')
@@ -3562,85 +3925,62 @@ def export_handbook_word():
                 'qualify': q_principle
             })
 
-        schedule_html = """
-        <h1 style='text-align:center; font-size:26pt; font-weight:bold; letter-spacing:10px; margin-bottom:12pt;'>竞 赛 日 程</h1>
-        """
+        schedule_html = "<h1 style='text-align:center; font-size:24pt; font-weight:bold; letter-spacing:8px; margin-bottom:14pt;'>竞 赛 日 程</h1>"
 
-        for u_title, cats in unit_schedule_tree.items():
-            schedule_html += f"""
-            <div style='text-align:center; font-size:15pt; font-weight:bold; margin-top:20pt; margin-bottom:8pt;'>
-                <u>{u_title}</u>
-            </div>
-            """
-            for cat_title in ['径  赛', '田  赛']:
-                items = cats[cat_title]
-                if not items:
-                    continue
-                items.sort(key=lambda x: x['time_index'])
+        for u_title in sorted(unit_schedule_tree.keys(), key=get_unit_sort_weight):
+            schedule_html += f"<div style='text-align:center; font-size:14pt; font-weight:bold; margin-top:12pt; margin-bottom:6pt;'><u>{u_title}</u></div>"
+            cats = unit_schedule_tree[u_title]
+
+            for cat_title in ['径  赛', '田  赛', '趣味项目', '健康测试']:
+                items = cats.get(cat_title, [])
+                if not items: continue
+                items.sort(key=lambda x: (x['time_index'], x['time']))
 
                 schedule_html += f"""
-                <div style='text-align:center; font-size:14pt; font-weight:bold; margin-top:10pt; margin-bottom:6pt;'>{cat_title}</div>
-                <table style='width:100%; border-collapse:collapse; text-align:center; font-size:10.5pt; margin-bottom:16pt; border-top:1.5pt solid #000; border-bottom:1.5pt solid #000;'>
-                    <tr style='height:28px; border-bottom:1pt solid #000;'>
-                        <th style='width:45px; border:none;'>序号</th>
-                        <th style='width:75px; border:none;'>比赛时间</th>
-                        <th style='border:none; text-align:left; padding-left:10px;'>项目名称</th>
-                        <th style='width:60px; border:none;'>赛次</th>
-                        <th style='width:60px; border:none;'>人数</th>
-                        <th style='width:60px; border:none;'>组数</th>
-                        <th style='width:140px; border:none; text-align:left;'>录取原则</th>
+                <div style='text-align:center; font-size:13pt; font-weight:bold; margin-top:8pt; margin-bottom:4pt;'>{cat_title}</div>
+                <table style='width:100%; border-collapse:collapse; text-align:center; font-size:9.5pt; margin-bottom:12pt; border-top:1.5pt solid #000; border-bottom:1.5pt solid #000; table-layout:fixed;'>
+                    <tr style='height:22px; border-bottom:0.75pt solid #000; font-weight:bold;'>
+                        <th style='width:36px; border:none;'>序号</th>
+                        <th style='width:65px; border:none;'>比赛时间</th>
+                        <th style='width:32%; border:none; text-align:left; padding-left:8px; white-space:nowrap;'>项目名称</th>
+                        <th style='width:45px; border:none;'>赛次</th>
+                        <th style='width:45px; border:none;'>人数</th>
+                        <th style='width:45px; border:none;'>组数</th>
+                        <th style='border:none; text-align:left; padding-left:6px; white-space:nowrap;'>录取原则</th>
                     </tr>
                 """
                 for idx, row in enumerate(items, 1):
                     schedule_html += f"""
-                    <tr style='height:26px; border:none;'>
+                    <tr style='height:19px; border:none;'>
                         <td style='border:none;'>{idx}</td>
-                        <td style='border:none; font-family:\"Times New Roman\";'>{row['time']}</td>
-                        <td style='border:none; text-align:left; padding-left:10px;'>{row['event_full_name']}</td>
+                        <td style='border:none; font-family:"Times New Roman";'>{row['time']}</td>
+                        <td style='border:none; text-align:left; padding-left:8px; white-space:nowrap; overflow:hidden; font-weight:bold;'>{row['event_full_name']}</td>
                         <td style='border:none;'>{row['round']}</td>
                         <td style='border:none;'>{row['count_str']}</td>
                         <td style='border:none;'>{row['heats_str']}</td>
-                        <td style='border:none; text-align:left;'>{row['qualify']}</td>
+                        <td style='border:none; text-align:left; padding-left:6px; white-space:nowrap;'>{row['qualify']}</td>
                     </tr>
                     """
                 schedule_html += "</table>"
 
-        heats_task_map = {}
-        for s in schedule:
-            if not s['name'] or '待定' in s['name'] or s['team_name'] == '预赛出线':
-                continue
-            u_title, _ = parse_unit_date(s.get('est_time', ''))
-            is_f = 1 if (s.get('is_field') == 1 or any(k in s['event_name'] for k in ['跳', '投', '球', '掷'])) else 0
-            category = "田赛" if is_f else "径赛"
-
-            ek = (u_title, category, s['group_name'], s['event_name'], s['gender'])
-            if ek not in heats_task_map:
-                heats_task_map[ek] = {}
-            h_no = str(s['heat'])
-            if h_no not in heats_task_map[ek]:
-                heats_task_map[ek][h_no] = []
-            heats_task_map[ek][h_no].append(s)
-
-        groups_html = f"""
-        <h1 style='text-align:center; font-size:26pt; font-weight:bold; letter-spacing:4px; margin-bottom:12pt;'>竞赛分组名单</h1>
-        """
-
-        units_ordered = sorted(list(set([k[0] for k in heats_task_map.keys()])))
-
+        # 4. 构建竞赛分组名单（紧凑排版）
+        groups_html = "<h1 style='text-align:center; font-size:24pt; font-weight:bold; letter-spacing:4px; margin-bottom:14pt;'>竞赛分组名单</h1>"
+        units_ordered = sorted(list(set([k[0] for k in heats_task_map.keys()])), key=get_unit_sort_weight)
         for u_title in units_ordered:
-            groups_html += f"""
-            <div style='text-align:center; font-size:15pt; font-weight:bold; margin-top:20pt; margin-bottom:12pt;'>
-                <u>{u_title}</u>
-            </div>
-            """
-            for cat_type in ["径赛", "田赛"]:
-                groups_html += f"<div style='font-size:15pt; font-weight:bold; margin-top:14pt; margin-bottom:8pt;'>{cat_type}</div>"
-                
+            groups_html += f"<div style='text-align:center; font-size:14pt; font-weight:bold; margin-top:14pt; margin-bottom:10pt;'><u>{u_title}</u></div>"
+            for cat_type in ['径  赛', '田  赛', '趣味项目', '健康测试']:
                 target_keys = [k for k in heats_task_map.keys() if k[0] == u_title and k[1] == cat_type]
+                if not target_keys: continue
+
+                groups_html += f"<div style='font-size:14pt; font-weight:bold; margin-top:10pt; margin-bottom:6pt; border-bottom:1pt solid #000; padding-bottom:2pt;'>{cat_type}</div>"
                 item_idx = 1
 
                 for (u_t, cat, g_name, e_name, gen) in target_keys:
                     clean_core = re.sub(r'[\(（].*?[\)）]', '', e_name).replace('预赛', '').replace('决赛', '').strip()
+                    for prefix_k in ['男子', '女子', '男', '女', g_name]:
+                        if clean_core.startswith(prefix_k):
+                            clean_core = clean_core[len(prefix_k):].strip()
+
                     round_str = "预赛" if '预赛' in e_name else "决赛"
                     prefix = f"{'男' if gen == '男' else '女'}子"
                     g_clean = g_name.replace('男子', '').replace('女子', '')
@@ -3649,118 +3989,124 @@ def export_handbook_word():
                     heat_dict = heats_task_map[(u_t, cat, g_name, e_name, gen)]
                     total_p = sum(len(lst) for lst in heat_dict.values())
                     total_h = len(heat_dict)
-
+                    if total_p == 0:
+                        continue
                     unit_label = "人" if ('接力' not in e_name and '4x' not in e_name.lower()) else "队"
 
-                    if cat_type == "径赛":
-                        groups_html += f"""
-                        <div style='font-size:13pt; font-weight:bold; margin-top:14pt; margin-bottom:6pt; page-break-inside:avoid;'>
-                            {item_idx} . {full_event_title}  共{total_p}{unit_label}  共{total_h}组
-                        </div>
-                        """
+                    # 区分径赛（单组单排）与田赛/趣味项目（人数多分多排）
+                    is_track_event = ('径' in cat_type)
+
+                    if is_track_event:
+                        groups_html += f"<div style='font-size:11.5pt; font-weight:bold; margin-top:8pt; margin-bottom:2pt; page-break-after:avoid;'>{item_idx} . {full_event_title}  共{total_p}{unit_label}  共{total_h}组</div>"
                         item_idx += 1
 
                         for h_no in sorted(heat_dict.keys(), key=lambda x: int(x)):
                             h_athletes = heat_dict[h_no]
-                            h_athletes.sort(key=lambda x: int(x['lane']) if str(x['lane']).isdigit() else 99)
-                            
+                            h_athletes.sort(key=lambda x: int(x['lane']) if str(x.get('lane', '')).isdigit() else 99)
+
                             t_display = "09:00"
                             m = re.search(r"\d+[:：]\d+", h_athletes[0].get('est_time', ''))
-                            if m:
-                                t_display = m.group(0).replace('：', ':')
+                            if m: t_display = m.group(0).replace('：', ':')
 
-                            lane_map = {int(a['lane']): a for a in h_athletes if str(a['lane']).isdigit()}
+                            lane_map = {int(a['lane']): a for a in h_athletes if str(a.get('lane', '')).isdigit()}
                             max_lane = max(8, max(lane_map.keys()) if lane_map else 8)
+
+                            groups_html += f"""
+                            <div style='margin-bottom:8pt; page-break-inside:avoid;'>
+                                <div style='font-size:10pt; font-weight:bold; margin-top:5pt; margin-bottom:2pt;'>第{h_no}组 {t_display}</div>
+                                <table style='width:100%; border-collapse:collapse; font-size:9pt; table-layout:fixed; border:none;'>
+                            """
 
                             lane_th_row = ""
                             bib_td_row = ""
                             name_td_row = ""
                             team_td_row = ""
-
                             is_relay = ('接力' in e_name or '4x' in e_name.lower())
 
                             for l_idx in range(1, max_lane + 1):
                                 ath = lane_map.get(l_idx)
-                                lane_th_row += f"<td style='border:none; width:{100/max_lane:.2f}%; text-align:center;'>{l_idx if ath else ''}</td>"
+                                w_pct = f"{100/max_lane:.2f}%"
+                                lane_th_row += f"<td style='border-top:0.75pt solid #000; border-bottom:0.75pt solid #000; border-left:none; border-right:none; width:{w_pct}; text-align:center; padding:2px 0;'>{l_idx if ath else ''}</td>"
                                 if ath:
                                     raw_b = str(ath.get('bib') or '').strip()
                                     b_txt = raw_b.zfill(4) if raw_b.isdigit() else raw_b
-                                    bib_td_row += f"<td style='border:none; text-align:center; font-family:\"Times New Roman\";'>{b_txt if not is_relay else ''}</td>"
-                                    name_td_row += f"<td style='border:none; text-align:center; font-weight:bold;'>{ath['name'] if not is_relay else ''}</td>"
-                                    team_td_row += f"<td style='border:none; text-align:center; font-size:9pt;'>{ath['team_name']}</td>"
+                                    bib_td_row += f"<td style='border:none; text-align:center; font-family:\"Times New Roman\"; padding:1px 0;'>{b_txt if not is_relay else ''}</td>"
+                                    name_td_row += f"<td style='border:none; text-align:center; font-weight:bold; padding:1px 0;'>{ath['name'] if not is_relay else ''}</td>"
+                                    team_td_row += f"<td style='border:none; text-align:center; font-size:8pt; padding:1px 0; overflow:hidden; white-space:nowrap;'>{ath['team_name']}</td>"
                                 else:
                                     bib_td_row += "<td style='border:none;'></td>"
                                     name_td_row += "<td style='border:none;'></td>"
                                     team_td_row += "<td style='border:none;'></td>"
 
                             groups_html += f"""
-                            <div style='margin-bottom:12pt; page-break-inside:avoid;'>
-                                <div style='font-size:11pt; font-weight:bold; margin-bottom:3pt;'>第{h_no}组  {t_display}</div>
-                                <table style='width:100%; border-collapse:collapse; font-size:10pt; table-layout:fixed; border-top:1pt solid #000; border-bottom:1pt solid #000; margin-bottom:8pt;'>
-                                    <tr style='height:20px; border-bottom:0.5pt solid #888;'>{lane_th_row}</tr>
-                                    {f"<tr style='height:20px;'>{bib_td_row}</tr>" if not is_relay else ""}
-                                    {f"<tr style='height:20px;'>{name_td_row}</tr>" if not is_relay else ""}
-                                    <tr style='height:20px;'>{team_td_row}</tr>
+                                    <tr style='height:18px;'>{lane_th_row}</tr>
+                                    {f"<tr style='height:16px;'>{bib_td_row}</tr>" if not is_relay else ""}
+                                    {f"<tr style='height:16px;'>{name_td_row}</tr>" if not is_relay else ""}
+                                    <tr style='height:16px;'>{team_td_row}</tr>
                                 </table>
                             </div>
                             """
                     else:
+                        # 田赛、趣味项目、健康测试：分排输出（每排固定 8 人）
                         h_athletes = heat_dict[list(heat_dict.keys())[0]]
-                        h_athletes.sort(key=lambda x: int(x['lane']) if str(x['lane']).isdigit() else 99)
+                        h_athletes.sort(key=lambda x: int(x['lane']) if str(x.get('lane', '')).isdigit() else 99)
 
-                        t_display = "14:30"
+                        t_display = "10:00"
                         m = re.search(r"\d+[:：]\d+", h_athletes[0].get('est_time', ''))
-                        if m:
-                            t_display = m.group(0).replace('：', ':')
+                        if m: t_display = m.group(0).replace('：', ':')
 
                         groups_html += f"""
-                        <div style='font-size:13pt; font-weight:bold; margin-top:14pt; margin-bottom:6pt; page-break-inside:avoid;'>
-                            {item_idx} . {full_event_title}  共{total_p}人  共{total_h}组  <u>{t_display}</u>
-                        </div>
+                        <div style='margin-top:10pt; margin-bottom:6pt; page-break-inside:avoid;'>
+                            <div style='font-size:11.5pt; font-weight:bold; margin-bottom:4pt;'>
+                                {item_idx} . {full_event_title}  共{total_p}人  共{total_h}组  <u>{t_display}</u>
+                            </div>
                         """
                         item_idx += 1
 
-                        chunk_size = 8
+                        chunk_size = 10
                         for i in range(0, len(h_athletes), chunk_size):
-                            chunk = h_athletes[i:i+chunk_size]
+                            chunk = h_athletes[i:i + chunk_size]
 
                             th_cells = ""
                             bib_cells = ""
                             name_cells = ""
                             team_cells = ""
 
-                            for seq_idx, ath in enumerate(chunk, start=i+1):
+                            for seq_idx, ath in enumerate(chunk, start=i + 1):
                                 raw_b = str(ath.get('bib') or '').strip()
                                 b_txt = raw_b.zfill(4) if raw_b.isdigit() else raw_b
-                                th_cells += f"<td style='border:none; width:12.5%; text-align:center;'>{seq_idx}</td>"
-                                bib_cells += f"<td style='border:none; text-align:center; font-family:\"Times New Roman\";'>{b_txt}</td>"
-                                name_cells += f"<td style='border:none; text-align:center; font-weight:bold;'>{ath['name']}</td>"
-                                team_cells += f"<td style='border:none; text-align:center; font-size:9pt;'>{ath['team_name']}</td>"
 
-                            for _ in range(chunk_size - len(chunk)):
-                                th_cells += "<td style='border:none; width:12.5%;'></td>"
+                                th_cells += f"<td style='border-top:0.75pt solid #000; border-bottom:0.75pt solid #000; border-left:none; border-right:none; width:10%; text-align:center; padding:2px 0;'>{seq_idx}</td>"
+                                bib_cells += f"<td style='border:none; text-align:center; font-family:\"Times New Roman\"; padding:1px 0;'>{b_txt}</td>"
+                                name_cells += f"<td style='border:none; text-align:center; font-weight:bold; padding:1px 0;'>{ath['name']}</td>"
+                                team_cells += f"<td style='border:none; text-align:center; font-size:8pt; padding:1px 0; overflow:hidden; white-space:nowrap;'>{ath['team_name']}</td>"
+
+                            rem_count = chunk_size - len(chunk)
+                            for _ in range(rem_count):
+                                th_cells += "<td style='border-top:0.75pt solid #000; border-bottom:0.75pt solid #000; border-left:none; border-right:none; width:12.5%; text-align:center;'></td>"
                                 bib_cells += "<td style='border:none;'></td>"
                                 name_cells += "<td style='border:none;'></td>"
                                 team_cells += "<td style='border:none;'></td>"
 
                             groups_html += f"""
-                            <div style='margin-bottom:10pt; page-break-inside:avoid;'>
-                                <table style='width:100%; border-collapse:collapse; font-size:10pt; table-layout:fixed; border-top:1pt solid #000; border-bottom:1pt solid #000; margin-bottom:6pt;'>
-                                    <tr style='height:20px; border-bottom:0.5pt solid #888;'>{th_cells}</tr>
-                                    <tr style='height:20px;'>{bib_cells}</tr>
-                                    <tr style='height:20px;'>{name_cells}</tr>
-                                    <tr style='height:20px;'>{team_cells}</tr>
-                                </table>
-                            </div>
+                            <table style='width:100%; border-collapse:collapse; font-size:9pt; table-layout:fixed; border:none; margin-bottom:6pt;'>
+                                <tr style='height:18px;'>{th_cells}</tr>
+                                <tr style='height:16px;'>{bib_cells}</tr>
+                                <tr style='height:16px;'>{name_cells}</tr>
+                                <tr style='height:16px;'>{team_cells}</tr>
+                            </table>
                             """
+
+                        groups_html += "</div>"
 
         full_word_html = f"""<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
         <head>
             <meta charset='utf-8'>
             <title>{title} 竞赛秩序册</title>
             <style>
-                @page {{ size: A4 portrait; margin: 2.5cm 2.0cm; }}
-                body {{ font-family: 'SimSun', 'Songti SC', serif; color: #000; line-height: 1.35; }}
+                @page {{ size: A4 portrait; margin: 1.8cm 1.5cm; }}
+                body {{ font-family: 'SimSun', 'Songti SC', serif; color: #000; line-height: 1.15; }}
+                td, th {{ padding: 1px 2px; }}
             </style>
         </head>
         <body>
@@ -3785,7 +4131,6 @@ def export_handbook_word():
         return jsonify({"status": "error", "msg": str(e)})
     finally:
         conn.close()
-
 @app.route('/api/batch_save_events', methods=['POST'])
 @login_required('admin')
 def batch_save_events():
@@ -3892,8 +4237,36 @@ def auto_db_backup_task():
                     except Exception: pass
         except Exception as err:
             print(f"⚠️ [自动热备份异常]: {err}")
-
+# ---------------- 起点发令控制台与终点计时联动 ---------------- #
+@socketio.on('starter_command')
+def handle_starter_command(data):
+    """
+    cmd 类型:
+      - 'set': 各就位
+      - 'ready': 预备
+      - 'gun': 枪响（开始计时）
+      - 'false_start': 犯规召回（连续按枪响触发）
+      - 'reset': 回零
+    """
+    cmd = data.get('cmd')
+    payload = {
+        'cmd': cmd,
+        'timestamp': data.get('timestamp', time.time() * 1000),
+        'heat_info': data.get('heat_info', {})
+    }
+    # 全局广播给所有在线终端（包括终点摄像头手机）
+    emit('starter_action', payload, broadcast=True)
 threading.Thread(target=auto_db_backup_task, daemon=True).start()
+@socketio.on('camera_times_pushed')
+def handle_camera_times_pushed(data):
+    """
+    终点摄像机位识别出冲线成绩后，毫秒级自动广播给所有终点记录裁判
+    data: {
+        'heat_info': { group_name, event_name, gender, heat },
+        'lane_times': { '1': '12.35', '2': '12.80', ... }
+    }
+    """
+    emit('receive_camera_times', data, broadcast=True)
 # 1. 轻量化搜索接口
 @app.route('/api/search_query', methods=['GET'])
 def search_query():
@@ -3971,10 +4344,10 @@ def get_athlete_profile():
 if __name__ == '__main__':
     local_ip = get_host_ip()
     print("✅ 启动成功！")
-    print(f"👉 领队端: http://{local_ip}:5000/bm")
-    print(f"👉 管理端: http://{local_ip}:5000/admin/login")
-    print(f"👉 裁判端: http://{local_ip}:5000/referee/login")
+    print(f"👉 领队端: http://{local_ip}:5005/bm")
+    print(f"👉 管理端: http://{local_ip}:5005/admin/login")
+    print(f"👉 裁判端: http://{local_ip}:5005/referee/login")
     
     app.jinja_env.auto_reload = True
     app.config['TEMPLATES_AUTO_RELOAD'] = True
-    socketio.run(app, host='0.0.0.0', port=5000)
+    socketio.run(app, host='0.0.0.0', port=5005)
