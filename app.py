@@ -4344,10 +4344,10 @@ def get_athlete_profile():
 if __name__ == '__main__':
     local_ip = get_host_ip()
     print("✅ 启动成功！")
-    print(f"👉 领队端: http://{local_ip}:5005/bm")
-    print(f"👉 管理端: http://{local_ip}:5005/admin/login")
-    print(f"👉 裁判端: http://{local_ip}:5005/referee/login")
+    print(f"👉 领队端: http://{local_ip}:5000/bm")
+    print(f"👉 管理端: http://{local_ip}:5000/admin/login")
+    print(f"👉 裁判端: http://{local_ip}:5000/referee/login")
     
     app.jinja_env.auto_reload = True
     app.config['TEMPLATES_AUTO_RELOAD'] = True
-    socketio.run(app, host='0.0.0.0', port=5005)
+    socketio.run(app, host='0.0.0.0', port=5000)
