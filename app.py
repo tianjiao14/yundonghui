@@ -1030,15 +1030,16 @@ def save_competition_date():
     try:
         data = request.json or {}
         start_date = data.get('start_date', '')
+        end_date = data.get('end_date', '')  # 👈 新增接收 end_date
         c.execute("""CREATE TABLE IF NOT EXISTS system_settings (key TEXT PRIMARY KEY, value TEXT)""")
         c.execute("INSERT OR REPLACE INTO system_settings (key, value) VALUES ('start_date', ?)", (start_date,))
+        c.execute("INSERT OR REPLACE INTO system_settings (key, value) VALUES ('end_date', ?)", (end_date,))  # 👈 落盘保存
         conn.commit()
-        return jsonify({"success": True, "message": "比赛时间配置成功！"})
+        return jsonify({"success": True, "message": "比赛起止时间配置成功！"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
     finally:
         conn.close()
-
 # 起点裁判与终点裁判联动 API
 @app.route('/api/push_active_heat', methods=['POST'])
 @login_required('referee')
@@ -1169,13 +1170,17 @@ def get_competition_date():
     c = conn.cursor()
     try:
         c.execute("CREATE TABLE IF NOT EXISTS system_settings (key TEXT PRIMARY KEY, value TEXT)")
-        res = c.execute("SELECT value FROM system_settings WHERE key='start_date'").fetchone()
-        return jsonify({"success": True, "start_date": res[0] if res else ""})
+        res_start = c.execute("SELECT value FROM system_settings WHERE key='start_date'").fetchone()
+        res_end = c.execute("SELECT value FROM system_settings WHERE key='end_date'").fetchone()  # 👈 读取 end_date
+        return jsonify({
+            "success": True, 
+            "start_date": res_start[0] if res_start else "",
+            "end_date": res_end[0] if res_end else ""
+        })
     except Exception:
-        return jsonify({"success": False, "start_date": ""})
+        return jsonify({"success": False, "start_date": "", "end_date": ""})
     finally:
         conn.close()
-
 @app.route('/api/calculate_detailed_matrix', methods=['POST'])
 def calculate_detailed_matrix():
     data = request.json or {}
@@ -4344,10 +4349,10 @@ def get_athlete_profile():
 if __name__ == '__main__':
     local_ip = get_host_ip()
     print("✅ 启动成功！")
-    print(f"👉 领队端: http://{local_ip}:5000/bm")
-    print(f"👉 管理端: http://{local_ip}:5000/admin/login")
-    print(f"👉 裁判端: http://{local_ip}:5000/referee/login")
+    print(f"👉 领队端: http://{local_ip}:5005/bm")
+    print(f"👉 管理端: http://{local_ip}:5005/admin/login")
+    print(f"👉 裁判端: http://{local_ip}:5005/referee/login")
     
     app.jinja_env.auto_reload = True
     app.config['TEMPLATES_AUTO_RELOAD'] = True
-    socketio.run(app, host='0.0.0.0', port=5000)
+    socketio.run(app, host='0.0.0.0', port=5005)

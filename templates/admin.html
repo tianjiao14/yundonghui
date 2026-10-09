@@ -1129,7 +1129,7 @@
                 window.competitionStartDate = data.start_date;
             }
             const savedEndDate = localStorage.getItem('competition_end_date') || "";
-            if (savedEndDate) {
+            if (data.end_date) {
                 document.getElementById('competition_end_date').value = savedEndDate;
                 window.competitionEndDate = savedEndDate;
             }
@@ -1170,7 +1170,7 @@
         fetch('/api/save_competition_date', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ start_date: startDate })
+            body: JSON.stringify({ start_date: startDate, end_date: endDate })
         })
         .then(res => res.json())
         .then(data => {
@@ -1597,19 +1597,23 @@ window.saveRegDeadline = function(val) {
     }
 
     if (typeof renderDailyTimeConfig === 'function') renderDailyTimeConfig();
-    if (typeof refreshSchOptions === 'function') refreshSchOptions();
-    if (typeof initGroupOrder === 'function') initGroupOrder();
-    if (typeof renderStep5EventDurations === 'function') renderStep5EventDurations(); 
     if (typeof renderManualScheduleGrid === 'function') renderManualScheduleGrid();
 
-    // 🌟 核心：如果后端数据库已有发布的赛程，直接呈现，绝不擅自重排！
-    if (db && db.schedule && db.schedule.length > 0) {
-        renderScheduleResult();
-    } else {
-        if (typeof calculateEventTimeBudget === 'function') {
-            calculateEventTimeBudget();
-        }
+    const schOut = document.getElementById('scheduleOutput');
+    if (schOut && (!schOut.children || schOut.children.length === 0)) {
+        schOut.innerHTML = '<div class="text-center py-10 text-gray-400 font-bold text-xs animate-pulse">正在载入赛程检录表...</div>';
     }
+
+    clearTimeout(window._step4LoadTimer);
+    window._step4LoadTimer = setTimeout(() => {
+        if (db && db.schedule && db.schedule.length > 0) {
+            renderScheduleResult();
+        } else {
+            if (typeof calculateEventTimeBudget === 'function') {
+                calculateEventTimeBudget();
+            }
+        }
+    }, 40); 
     break;
             case 5: 
                 if (typeof initResGroupTabs === 'function') initResGroupTabs();
@@ -1984,8 +1988,6 @@ return `
     };
 
     window.calculateEventTimeBudget = function() {
-        renderManualScheduleGrid();
-        
         const container = document.getElementById('timeBudgetContainer');
         if (!container) return;
 
@@ -2145,29 +2147,41 @@ return `
     };
 
    window.removeJobFromUnit = function(unitKey, jobKey) {
-        if(window.manualScheduleMap[unitKey]) {
-            window.manualScheduleMap[unitKey] = window.manualScheduleMap[unitKey].filter(item => item.jobKey !== jobKey);
-            localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
-            if (typeof window.syncSandtableToServer === 'function') window.syncSandtableToServer();
+        if (!window.manualScheduleMap[unitKey]) return;
+        window.manualScheduleMap[unitKey] = window.manualScheduleMap[unitKey].filter(item => item.jobKey !== jobKey);
+        localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
+        renderManualScheduleGrid();
+        recalculateUnitTimelines();
+        clearTimeout(window._sandtableSyncTimer);
+        window._sandtableSyncTimer = setTimeout(() => {
+            if (typeof window.syncSandtableToServer === 'function') {
+                window.syncSandtableToServer();
+            }
             window.isManualRescheduling = true;
             calculateEventTimeBudget();
             window.isManualRescheduling = false;
-        }
+        }, 120);
     };
 
     window.clearManualSchedule = function() {
-        if(confirm("确定要全部推倒重排，清空日程盘吗？")) {
-            window.manualScheduleMap = {};
-            localStorage.removeItem('manual_schedule_map');
-            db.schedule = [];
-            fetch('/api/save_sandtable', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ map: {} })
-            }).then(() => {
-                calculateEventTimeBudget();
-            });
-        }
+        if (!confirm("确定要全部推倒重排，清空日程盘吗？")) return;
+
+        window.manualScheduleMap = {};
+        localStorage.removeItem('manual_schedule_map');
+        db.schedule = [];
+
+        // 🌟 核心：立刻主动重绘沙盘为空白单元（达到图2效果）并清空检录表
+        renderManualScheduleGrid();
+        renderScheduleResult();
+        recalculateUnitTimelines();
+
+        fetch('/api/save_sandtable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ map: {} })
+        }).then(() => {
+            calculateEventTimeBudget();
+        });
     };
 
     function recalculateUnitTimelines() {
@@ -3156,20 +3170,90 @@ function selectView(m, id, n) {
     }
 
    function syncScheduleToCloud() {
-    // 🌟 1. 核心修复：发布前强制调用全量编译，将沙盘上的最新拖拽位置和最新日期时间刷入 db.schedule！
-    if (typeof compileFinalScheduleData === 'function') {
-        compileFinalScheduleData();
-    }
-
     if (!db.schedule || db.schedule.length === 0) return alert("请先点击【一键编排】生成数据！");
-    if (!confirm("⚠️ 确定要发布当前的最新编排吗？\n\n【注意】：重新编排发布后将开启一场新比赛，所有过往录入的成绩、团体总分以及生成的决赛单将被全部清空重置！")) return;
+    if (!confirm("⚠️ 确定要发布当前的最新编排吗？\n\n【注意】：发布后将把当前排定的道次、组次与比赛时间同步至云端数据库！")) return;
+
+    // 🌟 核心：发布时绝不调用重新随机分组，只根据沙盘当前位置精准刷新每个项目的比赛时间 estTime 与 timeIndex！
+    if (window.manualScheduleMap && Object.keys(window.manualScheduleMap).length > 0) {
+        const formatMins = (base, offset) => {
+            let total = base + offset;
+            return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.floor(total%60)).padStart(2,'0')}`;
+        };
+
+        Object.keys(window.manualScheduleMap).forEach(unitKey => {
+            const match = unitKey.match(/Day(\d+)_(AM|PM)/);
+            if (!match) return;
+            const dayNum = parseInt(match[1]);
+            const unitType = match[2];
+            const dayConf = (window.dailyScheduleTimes && window.dailyScheduleTimes[dayNum]) || { amStart: "08:30", pmStart: "14:30" };
+            const baseStartMins = (unitType === "AM") ? parseTimeVal(dayConf.amStart || "08:30") : parseTimeVal(dayConf.pmStart || "14:30");
+
+            let trackPointer = 0;
+            let fieldHighPointer = 0;
+            let fieldLongPointer = 0;
+            let fieldThrowPointer = 0;
+
+            window.manualScheduleMap[unitKey].forEach(job => {
+                const cleanEvt = job.ename.replace(" (预赛)", "").replace(" (决赛)", "").replace(/[\(（]场地\d+[\)）]/, "").trim();
+                const evtCfg = (db.events || []).find(e => e.name === cleanEvt || e.name === job.ename) || {};
+                const isFun = (evtCfg.type === '趣味项目' || evtCfg.type === '趣味' || String(evtCfg.isFun) === 'true' || String(evtCfg.is_fun) === '1' || job.isFun === true);
+                const isField = !isFun && (evtCfg.type === '田赛' || job.isField === true || cleanEvt.includes('跳') || cleanEvt.includes('投') || cleanEvt.includes('铅球') || cleanEvt.includes('实心球'));
+
+                let fType = 'throw';
+                if (cleanEvt.includes('跳高') || cleanEvt.includes('撑竿跳')) fType = 'high';
+                else if (cleanEvt.includes('跳远') || cleanEvt.includes('三级跳') || cleanEvt.includes('蛙跳')) fType = 'long';
+
+                let currentPointer = 0;
+                if (isFun) {
+                    currentPointer = 0;
+                } else if (isField) {
+                    currentPointer = (fType === 'high' ? fieldHighPointer : (fType === 'long' ? fieldLongPointer : fieldThrowPointer));
+                } else {
+                    currentPointer = trackPointer;
+                }
+
+                const singleDuration = parseFloat(evtCfg.duration) || 5;
+                const jobMins = parseInt(job.minutes) || 5;
+
+                // 遍历现有 db.schedule，原汁原味保留选手与道次，仅校准更新时间 estTime 和 timeIndex
+                const matchedAthletes = db.schedule.filter(s => s.groupName === job.gname && s.gender === job.gender && s.eventName === job.ename);
+                const heatGroups = {};
+                matchedAthletes.forEach(s => {
+                    const h = String(s.heat || '1');
+                    if (!heatGroups[h]) heatGroups[h] = [];
+                    heatGroups[h].push(s);
+                });
+
+                Object.keys(heatGroups).forEach((hStr, hIdx) => {
+                    const heatOffset = currentPointer + (isField ? 0 : hIdx * singleDuration);
+                    const heatEstTimeStr = `第${dayNum}天${unitType === 'AM' ? '上午' : '下午'} ${formatMins(baseStartMins, heatOffset)}`;
+                    const heatTimeIndexValue = dayNum * 100000 + (unitType === 'PM' ? 5000 : 0) + heatOffset;
+
+                    heatGroups[hStr].forEach(s => {
+                        s.estTime = heatEstTimeStr;
+                        s.timeIndex = heatTimeIndexValue;
+                    });
+                });
+
+                if (!isFun) {
+                    if (isField) {
+                        if (fType === 'high') fieldHighPointer += jobMins;
+                        else if (fType === 'long') fieldLongPointer += jobMins;
+                        else fieldThrowPointer += jobMins;
+                    } else {
+                        trackPointer += jobMins;
+                    }
+                }
+            });
+        });
+    }
 
     const btn = document.querySelector('button[onclick="syncScheduleToCloud()"]');
     const oldText = btn.innerText; 
     btn.innerText = "正在发布并同步沙盘..."; 
     btn.disabled = true;
 
-    // 🌟 2. 存沙盘 + 存数据库最新赛程
+    // 存沙盘 + 存数据库赛程（人员、道次 100% 保持锁定不变）
     fetch('/api/save_sandtable', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3177,9 +3261,7 @@ function selectView(m, id, n) {
     })
     .then(r => r.json())
     .then(sandRes => {
-        if (sandRes.status !== 'success') {
-            throw new Error("沙盘同步失败: " + sandRes.msg);
-        }
+        if (sandRes.status !== 'success') throw new Error("沙盘同步失败: " + sandRes.msg);
         localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
 
         return fetch('/api/save_schedule_to_db', { 
@@ -3193,7 +3275,7 @@ function selectView(m, id, n) {
         btn.innerText = oldText; 
         btn.disabled = false; 
         if (res.status === 'success') {
-            alert("✅ 最新赛程已成功写入数据库！现在可以点击【导出秩序册 Word】了。");
+            alert("✅ 最新赛程与道次已成功固化发布！分组与道次已绝对锁定。");
             fetchLatestData();
         } else {
             alert("❌ 发布失败: " + res.msg); 
@@ -4925,13 +5007,13 @@ fetch('/api/batch_save_events', {
 
     window.draggedJobElement = null;
 
-    if (!window.hasInitializedGlobalDrag) {
+   if (!window.hasInitializedGlobalDrag) {
         document.addEventListener('dragstart', function(e) {
             const target = e.target.closest('.draggable-job');
             if (target) {
                 window.draggedJobElement = target;
-                target.style.opacity = '0.5';
                 target.classList.add('dragging');
+                document.body.classList.add('is-dragging'); // 👈 激活轻量级拖拽模式
                 e.dataTransfer.setData('text/plain', target.dataset.jobkey || '');
                 e.dataTransfer.effectAllowed = 'move';
             }
@@ -4939,53 +5021,70 @@ fetch('/api/batch_save_events', {
 
         document.addEventListener('dragend', function(e) {
             if (window.draggedJobElement) {
-                window.draggedJobElement.style.opacity = '1';
                 window.draggedJobElement.classList.remove('dragging');
                 window.draggedJobElement = null;
             }
+            document.body.classList.remove('is-dragging'); // 👈 恢复正常状态
         });
         window.hasInitializedGlobalDrag = true;
     }
 
+   // 🌟 空间换时间：缓存元素位置，不再在拖动中高频调用 getBoundingClientRect
     function getDragAfterElement(container, y) {
         const draggableElements = [...container.querySelectorAll('.draggable-job:not(.dragging)')];
-        return draggableElements.reduce((closest, child) => {
+        let closest = null;
+        let closestOffset = Number.NEGATIVE_INFINITY;
+
+        for (let i = 0; i < draggableElements.length; i++) {
+            const child = draggableElements[i];
             const box = child.getBoundingClientRect();
             const offset = y - box.top - box.height / 2;
-            if (offset < 0 && offset > closest.offset) {
-                return { offset: offset, element: child };
-            } else {
-                return closest;
+            if (offset < 0 && offset > closestOffset) {
+                closestOffset = offset;
+                closest = child;
             }
-        }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+        return closest;
     }
 
+    let _dragRafId = null;
     window.bindDragAndDropEvents = function() {
         document.querySelectorAll('.drop-zone').forEach(zone => {
             zone.ondragover = function(e) {
                 e.preventDefault();
-                this.classList.add('bg-indigo-50/80', 'border-indigo-500');
+                e.stopPropagation();
 
-                const container = this.querySelector('.job-container');
-                if (window.draggedJobElement && container) {
-                    const afterElement = getDragAfterElement(container, e.clientY);
-                    if (afterElement == null) {
-                        container.appendChild(window.draggedJobElement);
-                    } else {
-                        container.insertBefore(window.draggedJobElement, afterElement);
+                if (_dragRafId) return; // 🌟 双重锁：确保每一帧（16.6ms）最多只执行一次 DOM 移动
+                _dragRafId = requestAnimationFrame(() => {
+                    const container = zone.querySelector('.job-container');
+                    if (window.draggedJobElement && container) {
+                        const afterElement = getDragAfterElement(container, e.clientY);
+                        if (afterElement == null) {
+                            if (container.lastElementChild !== window.draggedJobElement) {
+                                container.appendChild(window.draggedJobElement);
+                            }
+                        } else if (afterElement !== window.draggedJobElement) {
+                            container.insertBefore(window.draggedJobElement, afterElement);
+                        }
                     }
-                }
+                    _dragRafId = null;
+                });
             };
 
             zone.ondragleave = function(e) {
-                this.classList.remove('bg-indigo-50/80', 'border-indigo-500');
+                // 仅当光标真正移出容器时清除高亮，避免内部子元素触发频闪
+                if (!zone.contains(e.relatedTarget)) {
+                    this.classList.remove('bg-indigo-50/80', 'border-indigo-500');
+                }
             };
 
-           zone.ondrop = function(e) {
+            zone.ondrop = function(e) {
                 e.preventDefault();
+                e.stopPropagation();
                 this.classList.remove('bg-indigo-50/80', 'border-indigo-500');
                 if (!window.draggedJobElement) return;
 
+                // 立即更新内存中的沙盘对象
                 const newMap = {};
                 document.querySelectorAll('.drop-zone').forEach(dz => {
                     const unitKey = dz.dataset.unit;
@@ -5002,7 +5101,7 @@ fetch('/api/batch_save_events', {
                                 minutes: parseInt(jobDiv.dataset.minutes) || 0,
                                 isField: (jobDiv.dataset.isfield === 'true'),
                                 isFun: (jobDiv.dataset.isfun === 'true'),
-                                totalVenues: parseInt(jobDiv.dataset.totalvenues) || 1 // 👈 补齐总场地数
+                                totalVenues: parseInt(jobDiv.dataset.totalvenues) || 1
                             });
                         }
                     });
@@ -5010,15 +5109,24 @@ fetch('/api/batch_save_events', {
 
                 window.manualScheduleMap = newMap;
                 localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
-                if (typeof window.syncSandtableToServer === 'function') window.syncSandtableToServer();
 
-                // 🌟 核心：强制标记重排，确保触发 compileFinalScheduleData 全量重新生成所有组次
-                window.isManualRescheduling = true;
-                calculateEventTimeBudget();
-                window.isManualRescheduling = false;
+                // 🌟 核心：松手瞬间立即重绘沙盘！将拖过来的待排池大卡片直接变成“深绿色紧凑发车条”样式！
+                renderManualScheduleGrid();
+                recalculateUnitTimelines();
+
+                // 异步防抖处理后端落盘与检录大表刷新
+                clearTimeout(window._scheduleRescheduleTimer);
+                window._scheduleRescheduleTimer = setTimeout(() => {
+                    if (typeof window.syncSandtableToServer === 'function') {
+                        window.syncSandtableToServer();
+                    }
+                    window.isManualRescheduling = true;
+                    calculateEventTimeBudget();
+                    window.isManualRescheduling = false;
+                }, 120);
             };
-        }); // 👈 补齐：闭合 document.querySelectorAll('.drop-zone').forEach
-    };     // 👈
+        });
+    };
 
 // 🌟 运动员个人项目兼项冲突检测函数（仅检查田赛和径赛个人项目，过滤趣味和团体/接力，阈值：40分钟）
 window.checkAthleteScheduleConflicts = function() {
@@ -5232,19 +5340,34 @@ window.closeConflictModal = function() {
 
         let allJobs = [];
 
+        const teamGroupMap = {};
+        (db.teams || []).forEach(t => {
+            teamGroupMap[String(t.id)] = String(t.groupId || t.group_id);
+        });
+
+        const athleteIndex = {};
+        (db.athletes || []).forEach(a => {
+            const gid = teamGroupMap[String(a.teamId)];
+            if (!gid) return;
+            (a.events || []).forEach(evName => {
+                const cEvt = evName.replace(" (预赛)", "").replace(" (决赛)", "").trim();
+                const key = `${gid}_${a.gender}_${cEvt}`;
+                if (!athleteIndex[key]) athleteIndex[key] = [];
+                athleteIndex[key].push(a);
+            });
+        });
+
         db.groups.forEach(g => {
             ['男', '女'].forEach(gender => {
                 db.events.forEach(e => {
                     const cleanEvt = e.name.replace(" (预赛)", "").replace(" (决赛)", "").trim();
-                    let rawEntries = db.athletes.filter(a => { 
-                        const t = db.teams.find(x => x.id == a.teamId); 
-                        return t && String(t.groupId) === String(g.id) && a.gender === gender && a.events.includes(cleanEvt); 
-                    });
-                    if (!rawEntries.length) return; 
+                    const rawEntries = athleteIndex[`${g.id}_${gender}_${cleanEvt}`] || [];
+                    
+                    if (rawEntries.length === 0) return;
 
                     let totalCount = (String(e.isRelay) === 'true' || e.name.includes('接力')) ? new Set(rawEntries.map(a => a.teamId)).size : rawEntries.length;
                     const isFun = (e.type === '趣味项目' || e.type === '趣味' || String(e.isFun) === 'true' || String(e.is_fun) === '1');
-let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name.includes('投') || e.name.includes('铅球') || e.name.includes('实心球') || e.name.includes('标枪') || e.name.includes('铁饼'));
+                    let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name.includes('投') || e.name.includes('铅球') || e.name.includes('实心球') || e.name.includes('标枪') || e.name.includes('铁饼'));
                     
                     let fType = '';
                     if (isField) {
@@ -5282,10 +5405,9 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
                             jobKey: `${g.id}_${cleanEvt}(决赛)_${gender}`, gname: g.name, ename: cleanEvt + ' (决赛)', coreEvt: coreEvt,
                             gender: gender, minutes: finalMins, isField: false, fType: fType, isSprint: isSprint, weight: weight + 1, round: 'final'
                         });
-                   } else {
+                    } else {
                         let vc = parseInt(e.venueCount) || 1;
                         if (isField && vc > 1) {
-                            // 🌟 多场地并行：拆分为多个场地卡片，每个场地人数均分
                             let peoplePerVenue = Math.ceil(totalCount / vc);
                             let singleMins = Math.ceil(peoplePerVenue * 3 * 1.2 + 10);
                             for (let v = 1; v <= vc; v++) {
@@ -5573,6 +5695,7 @@ let isField = !isFun && (e.type === '田赛' || e.name.includes('跳') || e.name
         });
 
         localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
+        renderManualScheduleGrid();
         calculateEventTimeBudget(); 
         window.isManualRescheduling = false;
     };
