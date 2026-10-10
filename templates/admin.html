@@ -710,7 +710,7 @@
     <div class="flex-1 flex flex-col lg:flex-row gap-2.5 min-h-0 overflow-y-auto lg:overflow-hidden print:overflow-visible print:block">
         
         <!-- 1. 待排项目池：移动端全宽自适应，电脑端占 25% (lg:w-1/4) -->
-        <div class="w-full lg:w-1/4 bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden shadow-xs shrink-0 transition-all duration-300 no-print">
+        <div class="w-full lg:w-1/6 bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden shadow-xs shrink-0 transition-all duration-300 no-print">
             <div class="p-2.5 bg-gray-50 border-b font-black text-xs text-gray-700 flex justify-between items-center cursor-pointer select-none" onclick="togglePoolMobile()">
                 <span class="flex items-center gap-1">📦 待排项目池 <span class="lg:hidden text-[10px] text-blue-600 font-normal" id="poolToggleTip">(点击展开)</span></span>
                 <span id="unscheduledCount" class="bg-indigo-100 text-indigo-800 text-[10px] px-2 py-0.5 rounded-full font-bold">0项</span>
@@ -719,7 +719,7 @@
         </div>
 
         <!-- 2. 运动会沙盘区域：移动端全宽自适应，电脑端占 25% (lg:w-1/4) -->
-        <div class="w-full lg:w-1/4 bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden shadow-xs shrink-0 transition-all duration-300 no-print">
+        <div class="w-full lg:w-2/6 bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden shadow-xs shrink-0 transition-all duration-300 no-print">
             <div class="p-2.5 bg-gray-50 border-b font-black text-xs text-gray-700 shrink-0 flex justify-between items-center cursor-pointer select-none" onclick="toggleGridMobile()">
                 <span class="flex items-center gap-1">
                     📅 运动会沙盘 
@@ -731,7 +731,7 @@
         </div>
 
         <!-- 3. 检录表预览：移动端全宽，电脑端占 50% (lg:w-2/4) -->
-        <div class="w-full lg:w-2/4 flex-1 min-h-0 bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col shadow-xs print:w-full print:h-auto print:border-none print:overflow-visible print:block">
+        <div class="w-full lg:w-3/6 flex-1 min-h-0 bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col shadow-xs print:w-full print:h-auto print:border-none print:overflow-visible print:block">
             <div class="p-2.5 bg-gray-50 border-b font-bold text-xs text-gray-700 flex justify-between items-center shrink-0 no-print">
                 <span class="flex items-center gap-1.5 font-black text-gray-800">
                     <span>📑</span> <span>检录表预览</span>
@@ -2135,32 +2135,79 @@ return `
             });
         });
 
-        document.getElementById('unscheduledCount').innerText = unscheduledCount + ' 项待排';
+       document.getElementById('unscheduledCount').innerText = unscheduledCount + ' 项待排';
         container.innerHTML = html || '<div class="text-center py-12 text-green-600 font-bold text-xs">🎉 赞！所有项目已全部分配完毕！</div>';
         
         recalculateUnitTimelines();
-        if (window.isManualRescheduling || !db.schedule || db.schedule.length === 0 || Object.keys(window.manualScheduleMap).some(k => (window.manualScheduleMap[k]||[]).length > 0)) {
-            compileFinalScheduleData();
+
+        const schOut = document.getElementById('scheduleOutput');
+        const schStatus = document.getElementById('scheduleStatus');
+
+        // 清除上一次的更新计时器
+        clearTimeout(window._autoCompileScheduleTimer);
+
+        if (unscheduledCount > 0) {
+            // 🌟 1. 待排池 > 0 时：挂起右侧大表，展示微调等待提示，保持页面操作 0 延迟
+            if (schOut) {
+                schOut.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-96 text-gray-400 space-y-3 select-none">
+                        <div class="text-4xl animate-bounce">⏳</div>
+                        <div class="text-sm font-black text-gray-700">沙盘微调中 · 待排池尚余 <span class="text-indigo-600 font-mono text-base font-bold">${unscheduledCount}</span> 项</div>
+                        <div class="text-xs text-gray-400 max-w-xs text-center leading-relaxed">
+                            为保证拖拽流畅，检录表已挂起。<br>待项目全部归位入盘后，将<b>自动生成最新检录预览</b>。
+                        </div>
+                    </div>`;
+            }
+            if (schStatus) schStatus.innerText = '微调中...';
         } else {
-            renderScheduleResult();
+            // 🌟 2. 待排池 == 0 时：
+            // 如果是一键编排刚执行完毕（没有处于手动微调标记），直接瞬时渲染
+            if (!window._isUserTweaking) {
+                if (window.isManualRescheduling || !db.schedule || db.schedule.length === 0 || Object.keys(window.manualScheduleMap).some(k => (window.manualScheduleMap[k]||[]).length > 0)) {
+                    compileFinalScheduleData();
+                } else {
+                    renderScheduleResult();
+                }
+            } else {
+                // 🌟 3. 用户微调后待排池重新为 0：给出倒计时提示，1秒后自动触发更新！
+               if (schOut) {
+                    schOut.innerHTML = `
+                        <div class="flex flex-col items-center justify-center h-96 text-gray-400 space-y-3 select-none">
+                            <div class="text-4xl animate-spin">⏱️</div>
+                            <div class="text-sm font-black text-emerald-700">项目已全部入盘！</div>
+                            <div class="text-xs text-gray-500 max-w-xs text-center leading-relaxed font-mono">
+                                将在 <span id="autoUpdateCountDown" class="text-indigo-600 font-bold text-sm">1</span> 秒后自动同步更新检录预览表...
+                            </div>
+                        </div>`;
+                }
+                if (schStatus) schStatus.innerText = '即将更新...';
+
+                window._autoCompileScheduleTimer = setTimeout(() => {
+                    window._isUserTweaking = false; // 微调完成
+                    window.isManualRescheduling = true;
+                    compileFinalScheduleData();
+                    window.isManualRescheduling = false;
+                }, 1000);
+            }
         }
     };
 
    window.removeJobFromUnit = function(unitKey, jobKey) {
         if (!window.manualScheduleMap[unitKey]) return;
+
+        window._isUserTweaking = true; // 👈 标记：用户开始微调
+
         window.manualScheduleMap[unitKey] = window.manualScheduleMap[unitKey].filter(item => item.jobKey !== jobKey);
         localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
+
         renderManualScheduleGrid();
         recalculateUnitTimelines();
-        clearTimeout(window._sandtableSyncTimer);
-        window._sandtableSyncTimer = setTimeout(() => {
-            if (typeof window.syncSandtableToServer === 'function') {
-                window.syncSandtableToServer();
-            }
-            window.isManualRescheduling = true;
-            calculateEventTimeBudget();
-            window.isManualRescheduling = false;
-        }, 120);
+
+        calculateEventTimeBudget();
+
+        if (typeof window.syncSandtableToServer === 'function') {
+            window.syncSandtableToServer();
+        }
     };
 
     window.clearManualSchedule = function() {
@@ -5084,7 +5131,8 @@ fetch('/api/batch_save_events', {
                 this.classList.remove('bg-indigo-50/80', 'border-indigo-500');
                 if (!window.draggedJobElement) return;
 
-                // 立即更新内存中的沙盘对象
+                window._isUserTweaking = true; // 👈 标记：用户手动调整/拖放
+
                 const newMap = {};
                 document.querySelectorAll('.drop-zone').forEach(dz => {
                     const unitKey = dz.dataset.unit;
@@ -5110,20 +5158,14 @@ fetch('/api/batch_save_events', {
                 window.manualScheduleMap = newMap;
                 localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
 
-                // 🌟 核心：松手瞬间立即重绘沙盘！将拖过来的待排池大卡片直接变成“深绿色紧凑发车条”样式！
                 renderManualScheduleGrid();
                 recalculateUnitTimelines();
 
-                // 异步防抖处理后端落盘与检录大表刷新
-                clearTimeout(window._scheduleRescheduleTimer);
-                window._scheduleRescheduleTimer = setTimeout(() => {
-                    if (typeof window.syncSandtableToServer === 'function') {
-                        window.syncSandtableToServer();
-                    }
-                    window.isManualRescheduling = true;
-                    calculateEventTimeBudget();
-                    window.isManualRescheduling = false;
-                }, 120);
+                calculateEventTimeBudget();
+
+                if (typeof window.syncSandtableToServer === 'function') {
+                    window.syncSandtableToServer();
+                }
             };
         });
     };
@@ -6987,40 +7029,34 @@ window.refreshAthleteView = function(btnEl) {
 // 🌟 管理端 Socket.IO 全局长连接与事件驱动中心
 // =======================================================
 const socket = io();
-
 // 1. 跑道起点发令广播 -> 实时刷新赛事监控进度
 socket.on('heat_activated', function(payload) {
     if (currentStepId === 9 && typeof renderProcessMonitor === 'function') {
         renderProcessMonitor();
     }
 });
-
 // 2. 检录打钩/弃权广播 -> 实时刷新赛事监控与进度条
 socket.on('checkin_updated', function(payload) {
     if (currentStepId === 9 && typeof renderProcessMonitor === 'function') {
         renderProcessMonitor();
     }
 });
-
 // 3. 裁判录入成绩广播 -> 实时刷新后台成绩单、总分榜与监控进度
 socket.on('score_updated', function(payload) {
-    // 刷新 Step 9 进程监控
     if (currentStepId === 9 && typeof renderProcessMonitor === 'function') {
         renderProcessMonitor();
     }
-    // 刷新 Step 5 成绩管理与决赛表
     if (currentStepId === 5 && typeof renderResultSheet === 'function') {
         renderResultSheet();
     }
-    // 刷新 Step 6 团体总分排行榜
     if (currentStepId === 6 && typeof calculateTeamRanking === 'function') {
         calculateTeamRanking(window.currentRankGroupName);
     }
-    // 刷新 Step 10 体能数据分析
     if (currentStepId === 10 && typeof fetchPhysicalAnalysisData === 'function') {
         fetchPhysicalAnalysisData();
     }
 });
+
 // 4. 监听跑道成绩录完释放广播
 socket.on('track_released', function(payload) {
     if (currentStepId === 9 && typeof renderProcessMonitor === 'function') {
