@@ -1,28 +1,51 @@
+# =========================
+# Stage 1: 编译阶段 (构建轮子)
+# =========================
+FROM python:3.11-slim AS builder
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# 替换软件源并安装编译工具
+RUN (sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
+     sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list) && \
+    apt-get update && apt-get install -y --no-install-recommends \
+        gcc \
+        python3-dev \
+        libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+# 将依赖全部编译安装到 /install 目录下
+RUN pip install --no-cache-dir --prefix=/install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
+
+
+# =========================
+# Stage 2: 最终运行镜像 (极简轻量)
+# =========================
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# 设置时区与环境变量
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     TZ=Asia/Shanghai
 
-# 安装编译所需的依赖（Gevent 依赖部分 C 扩展）
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    python3-dev \
-    tzdata \
-    && rm -rf /var/lib/apt/lists/*
+# 使用软链接配置时区（0 体积，不装 tzdata）
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# 复制依赖配置并安装
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+# 从编译阶段仅拷贝安装好的 Python 依赖库
+COPY --from=builder /install /usr/local
 
-# 拷贝项目源代码
+# 拷贝业务代码
 COPY . .
 
-# 暴露端口
+# 创建持久化数据目录
+RUN mkdir -p /app/data && chmod 777 /app/data
+
 EXPOSE 5000
 
-# 启动命令（单 Worker 保证内存单例广播无需额外 Redis 依赖）
-CMD ["gunicorn", "-k", "geventwebsocket.gunicorn.workers.GeventWebSocketWorker", "-w", "1", "-b", "0.0.0.0:5000", "--threads", "1", "app:app"]
+# 与 app.py 中的 eventlet 保持一致，单 Worker 保证 SQLite 与内存全局锁安全
+CMD ["gunicorn", "-k", "eventlet", "-w", "1", "-b", "0.0.0.0:5000", "app:app"]
