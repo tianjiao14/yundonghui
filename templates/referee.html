@@ -343,7 +343,6 @@ socket.on('checkin_updated', function(payload) {
         loadCheckinSchedule();
     }
 });
-
 // 4. 监听摄像端自动推送成绩
 socket.on('receive_camera_times', function(payload) {
     if (currentRole !== 'timing') return;

@@ -204,7 +204,7 @@
                     <thead>
                         <tr>
                             <th class="text-left pl-3">项目 (性别)</th>
-                            <th class="w-16">姓名</th>
+                            <th class="w-24 whitespace-nowrap">姓名</th>
                             <th class="w-20 text-right pr-3">成绩</th>
                             <th class="w-10 text-center">排</th>
                             <th class="w-10 text-center">分</th>
@@ -215,7 +215,32 @@
             </div>
         </div>
     </div>
+<div id="medalDetailModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full border border-slate-100 overflow-hidden flex flex-col max-h-[80vh] animate-scale-up">
+        <!-- 弹窗标题 -->
+        <div id="medalModalHeader" class="p-4 text-white flex justify-between items-center shrink-0">
+            <div class="flex items-center gap-2">
+                <span id="medalModalIcon" class="text-2xl">🥇</span>
+                <div>
+                    <h3 id="medalModalTitle" class="font-black text-[16px] leading-tight">初一1班 · 金牌榜</h3>
+                    <div id="medalModalSub" class="text-[11px] opacity-80 mt-0.5">获得者名单与比赛项目</div>
+                </div>
+            </div>
+            <button onclick="closeMedalModal()" class="text-white/80 hover:text-white font-bold text-2xl leading-none">&times;</button>
+        </div>
 
+        <!-- 获奖学生列表容器 -->
+        <div class="p-4 overflow-y-auto flex-1 space-y-2.5 no-scrollbar bg-slate-50" id="medalModalList">
+            <!-- 动态填充 -->
+        </div>
+
+        <div class="p-3 bg-white border-t border-slate-100 text-center shrink-0">
+            <button onclick="closeMedalModal()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition">
+                关 闭
+            </button>
+        </div>
+    </div>
+</div>
     <script>
         let db = { groups: [], events: [], teams: [] };
 
@@ -607,11 +632,17 @@
                                     }
 
                                     let rankBadge = `<span class="font-bold text-slate-500">${currentRank}</span>`;
-                                    let rowBg = '';
-                                    if(currentRank === 1) { rankBadge = '🥇'; rowBg = 'bg-yellow-50/30'; }
-                                    else if(currentRank === 2) { rankBadge = '🥈'; rowBg = 'bg-slate-100/50'; }
-                                    else if(currentRank === 3) { rankBadge = '🥉'; rowBg = 'bg-orange-50/30'; }
+let rowBg = '';
 
+// 🌟 仅决赛才给前三名发金银铜奖牌，预赛一律按普通阿拉伯数字名次显示
+if (roundStatus === '决赛') {
+    if (currentRank === 1) { rankBadge = '🥇'; rowBg = 'bg-yellow-50/30'; }
+    else if (currentRank === 2) { rankBadge = '🥈'; rowBg = 'bg-slate-100/50'; }
+    else if (currentRank === 3) { rankBadge = '🥉'; rowBg = 'bg-orange-50/30'; }
+} else {
+    // 预赛样式：名次采用统一的字号排版，不出奖牌图标
+    rankBadge = `<span class="font-extrabold text-slate-700">${currentRank}</span>`;
+}
                                     html += `<tr class="${rowBg}">
                                         <td class="text-[14px]">${rankBadge}</td>
                                         <td class="font-mono text-slate-400 text-[12px]">${item.bib || '-'}</td>
@@ -727,74 +758,118 @@
 
             tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-blue-500 font-medium"><svg class="animate-spin h-5 w-5 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>正在极速核算积分...</td></tr>';
             
-           fetch('/api/calculate_team_ranking', {
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({ group_name: gName })
-        })
-        .then(r => r.json())
-        .then(res => {
-            const d = new Date();
-            const timeEl = document.getElementById('rankTime');
-            if (timeEl) {
-                timeEl.innerText = `已更新 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-            }
+            fetch('/api/calculate_team_ranking', {
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({ group_name: gName })
+            })
+            .then(r => r.json())
+            .then(res => {
+                const d = new Date();
+                const timeEl = document.getElementById('rankTime');
+                if (timeEl) {
+                    timeEl.innerText = `已更新 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                }
 
-            // 🌟 核心兼容：支持新版对象结构 res.teams，同时也兼容旧版纯数组
-            const teamsList = Array.isArray(res) ? res : (res.teams || []);
+                const teamsList = Array.isArray(res) ? res : (res.teams || []);
 
-            if (teamsList.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400 text-sm">该组别暂无队伍获得积分</td></tr>'; 
-                return;
-            }
+                if (teamsList.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400 text-sm">该组别暂无队伍获得积分</td></tr>'; 
+                    return;
+                }
 
-            tbody.innerHTML = teamsList.map((t, i) => `
-                <tr>
-                    <td class="font-bold text-slate-500 text-[14px]">${i===0?'🥇':(i===1?'🥈':(i===2?'🥉':i+1))}</td>
-                    <td class="text-left font-extrabold text-slate-800 text-[14px]">${t.name}</td>
-                    <td class="font-black text-blue-600 text-[16px] underline cursor-pointer" onclick="goToTeamDetail('${t.name}', '${gName}')">${t.score}</td>
-                    <td class="text-yellow-600 font-bold">${t.gold}</td>
-                    <td class="text-slate-400 font-bold">${t.silver}</td>
-                    <td class="text-orange-500 font-bold">${t.bronze}</td>
-                    <td>
-                        <span class="${t.total_record_bonus > 0 ? 'text-red-500 font-black bg-red-50 px-1.5 py-0.5 rounded-md' : 'text-slate-300'}">+${t.total_record_bonus || 0}</span>
-                    </td>
-                </tr>
-            `).join('');
-        })
-        .catch(err => {
-            console.error("加载总分失败:", err);
-            tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-red-400 text-sm">加载失败，请点击组别重试</td></tr>';
-        });
-}
-        function goToTeamDetail(teamName, groupName) {
-            document.getElementById('teamDetailTitle').innerText = `${teamName} 明细`;
+                // 🌟 修复语法断裂：完整渲染各行，金/银/铜点击直接进全屏明细页过滤
+                tbody.innerHTML = teamsList.map((t, i) => {
+                    const gold = parseInt(t.gold || 0);
+                    const silver = parseInt(t.silver || 0);
+                    const bronze = parseInt(t.bronze || 0);
+
+                    return `
+                    <tr>
+                        <td class="font-bold text-slate-500 text-[14px]">${i===0?'🥇':(i===1?'🥈':(i===2?'🥉':i+1))}</td>
+                        <td class="text-left font-extrabold text-slate-800 text-[14px]">${t.name}</td>
+                        <!-- 点击总分：查看全部项目明细 -->
+                        <td class="font-black text-blue-600 text-[16px] underline cursor-pointer hover:text-blue-800 transition" 
+                            title="查看全部得分项目"
+                            onclick="goToTeamDetail('${t.name}', '${gName}', 'all')">
+                            ${t.score}
+                        </td>
+                        <!-- 点击金牌：只显示第1名 -->
+                        <td class="font-bold ${gold > 0 ? 'text-yellow-600 underline cursor-pointer hover:text-yellow-700' : 'text-slate-300'}" 
+                            ${gold > 0 ? `onclick="goToTeamDetail('${t.name}', '${gName}', 1)" title="查看金牌获得者"` : ''}>
+                            ${gold}
+                        </td>
+                        <!-- 点击银牌：只显示第2名 -->
+                        <td class="font-bold ${silver > 0 ? 'text-slate-500 underline cursor-pointer hover:text-slate-700' : 'text-slate-300'}" 
+                            ${silver > 0 ? `onclick="goToTeamDetail('${t.name}', '${gName}', 2)" title="查看银牌获得者"` : ''}>
+                            ${silver}
+                        </td>
+                        <!-- 点击铜牌：只显示第3名 -->
+                        <td class="font-bold ${bronze > 0 ? 'text-orange-500 underline cursor-pointer hover:text-orange-700' : 'text-slate-300'}" 
+                            ${bronze > 0 ? `onclick="goToTeamDetail('${t.name}', '${gName}', 3)" title="查看铜牌获得者"` : ''}>
+                            ${bronze}
+                        </td>
+                        <td>
+                            <span class="${t.total_record_bonus > 0 ? 'text-red-500 font-black bg-red-50 px-1.5 py-0.5 rounded-md' : 'text-slate-300'}">+${t.total_record_bonus || 0}</span>
+                        </td>
+                    </tr>`;
+                }).join('');
+            })
+            .catch(err => {
+                console.error("加载总分失败:", err);
+                tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-red-400 text-sm">加载失败，请点击组别重试</td></tr>';
+            });
+        }
+
+       function goToTeamDetail(teamName, groupName, medalFilter = 'all') {
+            const titleSuffix = {
+                1: '金牌明细',
+                2: '银牌明细',
+                3: '铜牌明细',
+                'all': '明细'
+            };
+            document.getElementById('teamDetailTitle').innerText = `${teamName} ${titleSuffix[medalFilter] || '明细'}`;
+            
             const d = new Date(); 
             document.getElementById('teamCutoffTime').innerText = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
             
             const tbody = document.getElementById('teamTableBody');
-            tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-400"><svg class="animate-spin h-5 w-5 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>正在提取详细得分数据...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-400"><svg class="animate-spin h-5 w-5 mx-auto mb-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>正在提取详细得分数据...</td></tr>';
             switchView('view-team-detail');
 
             fetch('/api/get_team_score_details', {
-                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ group_name: groupName, team_name: teamName })
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({ group_name: groupName, team_name: teamName })
             })
             .then(r => r.json())
             .then(data => {
                 if(!data || data.length === 0) { 
-                    tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-400 text-sm">该班级暂无得分明细</td></tr>'; return; 
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-400 text-sm">该班级暂无得分明细</td></tr>'; 
+                    return; 
+                }
+                
+                // 🌟 严格过滤：金牌只保留第1名，银牌只保留第2名，铜牌只保留第3名
+                let displayData = data;
+                if (medalFilter !== 'all') {
+                    displayData = data.filter(r => parseInt(r.rank) === parseInt(medalFilter));
+                }
+
+                if (displayData.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-400 text-sm">该班级暂无${titleSuffix[medalFilter]}记录</td></tr>`;
+                    return;
                 }
                 
                 let html = '';
-                data.forEach(row => {
+                displayData.forEach(row => {
                     const isRelay = row.event_name.includes('接力') || row.event_name.includes('4×') || row.event_name.includes('4*');
                     const displayName = isRelay ? '集 体' : row.name;
 
                     html += `<tr>
                         <td class="text-left pl-3 text-slate-800 font-bold border-r border-slate-50">${row.event_name} <br><span class="text-[10px] text-slate-400 font-normal">(${row.gender})</span></td>
-                        <td class="font-bold ${!isRelay ? 'text-blue-600 underline cursor-pointer' : 'text-slate-600'} border-r border-slate-50" ${!isRelay ? `onclick="goToAthleteDetail('${row.name}')"` : ''}>${displayName}</td>
+                        <td class="font-bold whitespace-nowrap px-2 ${!isRelay ? 'text-blue-600 underline cursor-pointer' : 'text-slate-600'} border-r border-slate-50" ${!isRelay ? `onclick="goToAthleteDetail('${row.name}')"` : ''}>${displayName}</td>
                         <td class="text-right font-mono font-bold text-slate-700 pr-3 border-r border-slate-50">${row.score}</td>
-                        <td class="text-center font-bold text-orange-500 border-r border-slate-50">${row.rank}</td>
+                        <td class="text-center font-bold text-orange-600 border-r border-slate-50">${row.rank}</td>
                         <td class="text-center font-black text-red-500 bg-red-50/50">+${row.points}</td>
                     </tr>`;
                 });

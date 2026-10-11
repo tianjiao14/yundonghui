@@ -285,6 +285,10 @@
                 <button onclick="exportSystem()" class="bg-white text-blue-700 border border-blue-200 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1">📤 导出备份</button>
                 <button onclick="triggerImport()" class="bg-white text-orange-700 border border-orange-200 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1">📥 导入备份</button>
             </div>
+<div class="grid grid-cols-2 gap-2 mt-1">
+    <button onclick="openSaveTemplateModal()" class="bg-indigo-50 text-indigo-700 border border-indigo-200 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-indigo-100 transition">💾 存为模板</button>
+    <button onclick="openLoadTemplateModal()" class="bg-purple-50 text-purple-700 border border-purple-200 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-purple-100 transition">📂 选用模板</button>
+</div>
         </div>
         <button onclick="saveData()" class="w-full bg-green-600 text-white py-2.5 rounded-lg shadow hover:bg-green-700 font-extrabold text-xs transition flex items-center justify-center gap-2">💾 保存所有配置</button>
     </div>
@@ -1101,6 +1105,49 @@
         </div>
     </div>
 </div>
+<!-- 🌟 1. 保存为模板弹窗 -->
+<div id="saveTemplateModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-[160] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-gray-100 overflow-hidden">
+        <div class="bg-gradient-to-r from-indigo-600 to-blue-600 p-4 text-white flex justify-between items-center">
+            <h3 class="font-black text-base">💾 保存基础设置至模板</h3>
+            <button onclick="closeSaveTemplateModal()" class="text-white/80 hover:text-white font-bold text-xl leading-none">&times;</button>
+        </div>
+        <div class="p-5 space-y-3.5 text-xs">
+            <p class="text-gray-500 leading-relaxed">
+                将保存：<b>比赛项目、组别划分、代表队班级名单、规则限额及校纪录配置</b>。<br>
+                <span class="text-orange-600 font-bold">* 不会保存运动员名单与比赛成绩，方便在新一届运动会直接套用。</span>
+            </p>
+            <div>
+                <label class="font-bold text-gray-700 block mb-1">模板名称：</label>
+                <input type="text" id="tplNameInput" placeholder="如：高中部田径运动会标准模板" class="w-full border border-gray-300 p-2 rounded-lg text-xs font-bold outline-none focus:border-indigo-500">
+            </div>
+            <div>
+                <label class="font-bold text-gray-700 block mb-1">备注说明 (选填)：</label>
+                <input type="text" id="tplDescInput" placeholder="如：包含初高中全组别，高一/高二/高三各班" class="w-full border border-gray-300 p-2 rounded-lg text-xs outline-none focus:border-indigo-500">
+            </div>
+        </div>
+        <div class="p-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+            <button onclick="closeSaveTemplateModal()" class="px-4 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-bold">取消</button>
+            <button onclick="submitSaveTemplate()" class="px-5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition">确认保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- 🌟 2. 选用/管理模板弹窗 -->
+<div id="loadTemplateModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-[160] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-gray-100 overflow-hidden flex flex-col max-h-[80vh]">
+        <div class="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 text-white flex justify-between items-center shrink-0">
+            <h3 class="font-black text-base">📂 选用历史运动会模板</h3>
+            <button onclick="closeLoadTemplateModal()" class="text-white/80 hover:text-white font-bold text-xl leading-none">&times;</button>
+        </div>
+        <div class="p-4 overflow-y-auto flex-1 space-y-2.5 custom-scrollbar" id="templateListContainer">
+            <div class="text-center py-8 text-gray-400 font-bold text-xs">正在拉取模板列表...</div>
+        </div>
+        <div class="p-3 bg-gray-50 border-t border-gray-100 flex justify-end shrink-0">
+            <button onclick="closeLoadTemplateModal()" class="px-4 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-bold">关闭</button>
+        </div>
+    </div>
+</div>
   <script>
     window.getGlobalTrackPrio = function(name) {
     if (!name) return 60;
@@ -1128,15 +1175,121 @@
                 document.getElementById('competition_start_date').value = data.start_date;
                 window.competitionStartDate = data.start_date;
             }
-            const savedEndDate = localStorage.getItem('competition_end_date') || "";
+            // 🌟 修复：结束时间必须直接取后端数据库返回的 end_date，不能只取本地浏览器的 localStorage
             if (data.end_date) {
-                document.getElementById('competition_end_date').value = savedEndDate;
-                window.competitionEndDate = savedEndDate;
+                document.getElementById('competition_end_date').value = data.end_date;
+                window.competitionEndDate = data.end_date;
+                localStorage.setItem('competition_end_date', data.end_date);
             }
             updateDaysTip();
         });
     });
+// ---------------- 模板管理前端函数 ---------------- //
+window.openSaveTemplateModal = function() {
+    document.getElementById('tplNameInput').value = (document.getElementById('cfgTitle')?.value || '') + '模板';
+    document.getElementById('tplDescInput').value = '';
+    document.getElementById('saveTemplateModal').classList.remove('hidden');
+};
 
+window.closeSaveTemplateModal = function() {
+    document.getElementById('saveTemplateModal').classList.add('hidden');
+};
+
+window.submitSaveTemplate = function() {
+    const name = document.getElementById('tplNameInput').value.trim();
+    const desc = document.getElementById('tplDescInput').value.trim();
+    if (!name) return alert('请输入模板名称！');
+
+    fetch('/api/templates/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, description: desc })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') {
+            alert(res.msg);
+            closeSaveTemplateModal();
+        } else {
+            alert('❌ 保存失败：' + res.msg);
+        }
+    })
+    .catch(() => alert('网络通信异常！'));
+};
+
+window.openLoadTemplateModal = function() {
+    const container = document.getElementById('templateListContainer');
+    container.innerHTML = '<div class="text-center py-8 text-gray-400 font-bold text-xs">正在拉取模板列表...</div>';
+    document.getElementById('loadTemplateModal').classList.remove('hidden');
+
+    fetch('/api/templates')
+    .then(r => r.json())
+    .then(res => {
+        if (res.status !== 'success' || !res.templates || res.templates.length === 0) {
+            container.innerHTML = '<div class="text-center py-12 text-gray-400 font-bold text-xs">暂无已保存的模板，请先点击【存为模板】保存一个！</div>';
+            return;
+        }
+
+        container.innerHTML = res.templates.map(tpl => `
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-3 flex justify-between items-center text-xs hover:border-indigo-300 transition">
+                <div class="min-w-0 pr-3">
+                    <div class="font-black text-gray-800 text-sm truncate">${tpl.name}</div>
+                    <div class="text-[11px] text-gray-500 mt-0.5 truncate">${tpl.description || '无备注'}</div>
+                    <div class="text-[10px] text-gray-400 font-mono mt-0.5">创建于：${tpl.created_at}</div>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button onclick="applySelectedTemplate(${tpl.id}, '${tpl.name}')" class="bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs hover:bg-indigo-700 active:scale-95 transition">
+                        ⚡ 选用此模板
+                    </button>
+                    <button onclick="deleteSelectedTemplate(${tpl.id}, '${tpl.name}')" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 font-bold px-2 py-1.5 rounded-lg text-xs transition">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    });
+};
+
+window.closeLoadTemplateModal = function() {
+    document.getElementById('loadTemplateModal').classList.add('hidden');
+};
+
+window.applySelectedTemplate = function(id, name) {
+    if (!confirm(`⚠️ 确定要选用模板【${name}】吗？\n\n【注意】：此操作将使用该模板的项目、组别与班级配置覆盖当前系统，并清空当前已有的学生报名和道次记录，方便您开始全新一届运动会！`)) return;
+
+    fetch('/api/templates/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') {
+            alert(res.msg);
+            closeLoadTemplateModal();
+            window.location.reload();
+        } else {
+            alert('❌ 应用失败：' + res.msg);
+        }
+    });
+};
+
+window.deleteSelectedTemplate = function(id, name) {
+    if (!confirm(`确定要删除模板【${name}】吗？`)) return;
+    fetch('/api/templates/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') {
+            openLoadTemplateModal();
+        } else {
+            alert('删除失败：' + res.msg);
+        }
+    });
+};
     function updateDaysTip() {
         const start = document.getElementById('competition_start_date')?.value;
         const end = document.getElementById('competition_end_date')?.value;
@@ -1164,6 +1317,7 @@
         const endDate = document.getElementById('competition_end_date').value;
         
         localStorage.setItem('competition_end_date', endDate);
+        window.competitionStartDate = startDate;
         window.competitionEndDate = endDate;
         updateDaysTip();
 
@@ -1175,7 +1329,6 @@
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                window.competitionStartDate = startDate;
                 if (typeof fetchLatestData === 'function') fetchLatestData();
             }
         });
@@ -3335,7 +3488,7 @@ function selectView(m, id, n) {
     });
 }
 
-    function generateFinals() {
+   function generateFinals() {
         const groupName = window.curResGroup;
         const eventName = window.curResEvent;
         const gender = window.curResGender;
@@ -3482,7 +3635,7 @@ if (eventName.includes('决赛')) {
             </div>`;
         });
     }
-
+        
     window.generateResultAnnouncement = function() {
         const rawEventName = window.curResEvent;
         const groupName = window.curResGroup;
