@@ -781,9 +781,12 @@
         </div>
 
         <div class="flex items-center gap-2 flex-wrap ml-auto">
-            <div class="flex items-center gap-1 bg-orange-50 border border-orange-200 px-2 py-1 rounded-lg">
-                <span class="text-[11px] font-bold text-orange-700">晋级人数:</span>
-                <input type="number" id="finalsTopN" value="8" class="border border-orange-300 rounded w-12 text-center text-xs font-bold text-orange-600 bg-white p-0.5 outline-none">
+            <div class="flex items-center gap-1 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-lg" id="qualifyCountContainer">
+                <span class="text-[11px] font-bold text-orange-700" id="finalsTopNLabel">录取名次:</span>
+                <input type="number" id="finalsTopN" value="8" min="1" max="16" 
+                       title="设置该项目录取前几名（预赛为晋级人数，决赛为得分队伍数）"
+                       onchange="updateEventQualifyCount(this.value)"
+                       class="border border-orange-300 rounded w-12 text-center text-xs font-bold text-orange-600 bg-white p-0.5 outline-none focus:ring-2 focus:ring-orange-400">
             </div>
             <button onclick="generateFinals()" class="bg-orange-600 text-white px-3.5 py-1.5 rounded-lg shadow hover:bg-orange-700 font-bold text-xs transition active:scale-95">
                 ⚡ 生成决赛表
@@ -1384,20 +1387,48 @@ window.deleteSelectedTemplate = function(id, name) {
     }
 
     function formatTrackTime(val) {
-        return val || ''; 
+        if (!val) return '';
+        let s = String(val).trim().replace(/：/g, ':').replace(/。/g, '.');
+        
+        // 匹配裁判小键盘输入的双点格式: "1.02.05" -> 转化为标准 "1:02.05"
+        if ((s.match(/\./g) || []).length >= 2) {
+            let parts = s.split('.');
+            if (parts.length === 3) {
+                // 分:秒.毫秒
+                return `${parts[0]}:${parts[1]}.${parts[2]}`;
+            } else if (parts.length === 4) {
+                // 时:分:秒.毫秒
+                return `${parts[0]}:${parts[1]}:${parts[2]}.${parts[3]}`;
+            }
+        }
+        return s;
     }
 
     function parseTimeVal(val) {
-        if (!val) return 0;
-        let s = String(val).trim().replace(/：/g, ':');
-        if (s.includes(':')) {
-            let parts = s.split(':');
-            if (parts.length === 3) return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
-            if (parts.length === 2) return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
-        }
-        let num = parseFloat(s);
-        return isNaN(num) ? 0 : num;
+    if (!val) return 0;
+    let s = String(val).trim().replace(/：/g, ':').replace(/。/g, '.');
+    
+    // 冒号形式: 1:02.05
+    if (s.includes(':')) {
+        let parts = s.split(':');
+        if (parts.length === 3) return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
+        if (parts.length === 2) return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
     }
+
+    // 双点形式: 1.02.05
+    if ((s.match(/\./g) || []).length >= 2) {
+        let parts = s.split('.');
+        if (parts.length === 3) {
+            let mins = parseInt(parts[0]) || 0;
+            let secs = parseInt(parts[1]) || 0;
+            let ms = parseFloat('0.' + parts[2]) || 0;
+            return mins * 60 + secs + ms;
+        }
+    }
+
+    let num = parseFloat(s);
+    return isNaN(num) ? 0 : num;
+}
 
     window.onload = function() {
         fetchLatestData(); 
@@ -1547,12 +1578,12 @@ window.deleteSelectedTemplate = function(id, name) {
             container.appendChild(btn);
         });
          const activeClean = (window.curResEvent || '').replace(' (预赛)', '').replace(' (决赛)', '').trim();
-        const activeCfg = db.events.find(e => e.name === activeClean || e.name === window.curResEvent);
-        const autoQualify = activeCfg?.qualifyCount || activeCfg?.qualify_count || 8;
-        const topNInput = document.getElementById('finalsTopN');
-        if (topNInput) {
-            topNInput.value = autoQualify;
-        }
+    const activeCfg = db.events.find(e => e.name === activeClean || e.name === window.curResEvent);
+    const autoQualify = activeCfg?.qualifyCount || activeCfg?.qualify_count || 8;
+    const topNInput = document.getElementById('finalsTopN');
+    if (topNInput) {
+        topNInput.value = autoQualify;
+    }
 
         if (typeof checkFinalsBtnVisibility === 'function') {
             checkFinalsBtnVisibility();
@@ -1560,6 +1591,29 @@ window.deleteSelectedTemplate = function(id, name) {
 
         renderResultSheet();
     }
+window.updateEventQualifyCount = function(val) {
+    const qCount = parseInt(val) || 3;
+    const cleanCore = (window.curResEvent || '').replace(' (预赛)', '').replace(' (决赛)', '').trim();
+    const targetEvt = db.events.find(e => e.name === cleanCore || e.name === window.curResEvent);
+    
+    if (targetEvt) {
+        targetEvt.qualifyCount = qCount;
+        targetEvt.qualify_count = qCount;
+    }
+
+    // 提交到后端持久化写入数据库
+    fetch('/api/batch_save_events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ events: db.events })
+    })
+    .then(r => r.json())
+    .then(() => {
+        // 重新计算全场积分并刷新成绩表
+        fetch('/api/recalculate_all_points', { method: 'POST' })
+            .then(() => renderResultSheet());
+    });
+};
 // 🌟 专门处理报名截止时间的一键自动持久化保存
 window.saveRegDeadline = function(val) {
     const tip = document.getElementById('deadlineSaveStatus');
@@ -2763,13 +2817,6 @@ function deleteTeamItem(teamId) {
     renderAll();
     saveData(true);
 }
-const rawSwitchStep = window.switchStep;
-window.switchStep = function(stepId) {
-    rawSwitchStep(stepId);
-    if (stepId === 1) {
-        renderAll();
-    }
-};
     function updateEventCheckboxes(gender) {
         const container = document.getElementById('eventCheckboxes');
         if (!container) return;
@@ -3109,31 +3156,6 @@ function selectView(m, id, n) {
         input.value = ''; 
     });
 }
-
-    function refreshSchOptions() {
-        const opts=db.events.map(e=>`<option value="${e.name}">${e.name}</option>`).join('');
-        const sEvt = document.getElementById('schSelEvent');
-        const sSpec = document.getElementById('schSelSpecEvent');
-        const sGrp = document.getElementById('schSelGroup');
-        if (sEvt) sEvt.innerHTML=opts; 
-        if (sSpec) sSpec.innerHTML=opts;
-        if (sGrp) sGrp.innerHTML=`<option value="">选组别</option>`+db.groups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
-    }
-    
-    function toggleSchOptions() {
-        const checkedScope = document.querySelector('input[name="schScope"]:checked');
-        if (!checkedScope) return;
-        const s = checkedScope.value;
-        const sEvt = document.getElementById('schSelEvent');
-        const sGrp = document.getElementById('schSelGroup');
-        const sSpec = document.getElementById('schSelSpecEvent');
-        const sGen = document.getElementById('schSelGender');
-        if (sEvt) sEvt.disabled=(s!=='event');
-        const sp=(s==='specific'); 
-        if (sGrp) sGrp.disabled=!sp; 
-        if (sSpec) sSpec.disabled=!sp; 
-        if (sGen) sGen.disabled=!sp;
-    }
 
     function getEventSettings(event) {
         const name = event.name || '';
@@ -3488,11 +3510,43 @@ function selectView(m, id, n) {
     });
 }
 
-   function generateFinals() {
+    // 前端独立的田联抽签算法（方便管理员点击“重新抽签”时免刷新重排）
+  window.drawWorldAthleticsLanes = function(eventName, numAthletes) {
+        const clean = eventName.replace(" (预赛)", "").replace(" (决赛)", "").trim();
+        const isStraight = ['100米', '100m', '110米', '110m', '60米', '50米', '栏'].some(k => clean.includes(k)) && !clean.includes('400') && !clean.includes('接力');
+        const is200 = clean.includes('200') || clean.includes('300');
+        
+        // 🌟 6人决赛：绝对只在 1~6 道内分配
+        if (numAthletes === 6) {
+            const t1 = [3, 4].sort(() => Math.random() - 0.5); // 1-2名
+            const t2 = [5, 6].sort(() => Math.random() - 0.5); // 3-4名
+            const t3 = [1, 2].sort(() => Math.random() - 0.5); // 5-6名
+            return [...t1, ...t2, ...t3];
+        }
+
+        // 8人决赛
+        let t1, t2, t3;
+        if (isStraight) {
+            t1 = [3, 4, 5, 6].sort(() => Math.random() - 0.5);
+            t2 = [2, 7].sort(() => Math.random() - 0.5);
+            t3 = [1, 8].sort(() => Math.random() - 0.5);
+        } else if (is200) {
+            t1 = [5, 6, 7].sort(() => Math.random() - 0.5);
+            t2 = [4, 8].sort(() => Math.random() - 0.5);
+            t3 = [3, 1, 2].sort(() => Math.random() - 0.5);
+        } else {
+            t1 = [4, 5, 6, 7].sort(() => Math.random() - 0.5);
+            t2 = [3, 8].sort(() => Math.random() - 0.5);
+            t3 = [1, 2].sort(() => Math.random() - 0.5);
+        }
+        return [...t1, ...t2, ...t3].slice(0, numAthletes);
+    };
+
+    function generateFinals() {
         const groupName = window.curResGroup;
         const eventName = window.curResEvent;
         const gender = window.curResGender;
-if (eventName.includes('决赛')) {
+        if (eventName.includes('决赛')) {
             alert("⚠️ 当前项目已经是【决赛】，无法重复生成决赛表！\n请切换到【预赛】项目后再点击生成。");
             return;
         }
@@ -3500,7 +3554,7 @@ if (eventName.includes('决赛')) {
         const div = document.getElementById('resultOutput');
         
         if(!groupName || !eventName) return alert("请先选择组别和项目");
-        div.innerHTML = '<div class="text-center p-10 text-blue-500">正在筛选本组别预赛成绩...</div>';
+        div.innerHTML = '<div class="text-center p-10 text-blue-500 font-bold animate-pulse">正在筛选预赛成绩并按世界田联标准同档抽签...</div>';
 
         fetch('/api/generate_finals_list', {
             method: 'POST',
@@ -3510,16 +3564,26 @@ if (eventName.includes('决赛')) {
         .then(r => r.json())
         .then(data => {
             if(data.status === "error") return alert(data.msg);
+
+            // 🌟 并列第 8 名提示
+            if (data.has_tie) {
+                const names = (data.tied_athletes || []).map(a => `• ${a.name}（${a.team}）：成绩 ${a.score}`).join('\n');
+                alert(
+                    `⚠️【田径竞赛规程预警：录取线并列】\n\n` +
+                    `预赛第 ${data.top_n} 名录取线上存在并列成绩！\n\n` +
+                    `并列选手列表：\n${names}\n\n` +
+                    `处理建议：\n` +
+                    `1. 查验千分位（1/1000秒）电计成绩区分优劣；\n` +
+                    `2. 若仍无法分出，可由裁判长召集领队抽签决胜；\n` +
+                    `3. 或将上方【晋级人数】改为 ${data.top_n + (data.tied_athletes.length - 1)} 人（增设道次），并重新生成决赛表！`
+                );
+            }
+
             const finalists = data.athletes;
             if(finalists.length === 0) {
                 div.innerHTML = `<div class="p-10 text-center text-gray-500">未找到 ${groupName}${gender}${eventName} 的预赛成绩</div>`;
                 return;
             }
-
-            let laneOrder; let orderDesc = "";
-            if (topN === 6) { laneOrder = [3, 4, 2, 5, 1, 6]; orderDesc = "3-4-2-5-1-6"; } 
-            else if (topN === 8) { laneOrder = [4, 5, 3, 6, 2, 7, 1, 8]; orderDesc = "4-5-3-6-2-7-1-8"; } 
-            else { laneOrder = Array.from({length: topN}, (_, i) => i + 1); orderDesc = "1-2-3..."; }
 
             let coreEventName = eventName.replace(" (预赛)", "").replace(" (决赛)", "").trim();
 
@@ -3530,7 +3594,7 @@ if (eventName.includes('决赛')) {
                 return { 
                     ...p, 
                     bib: actualBib,
-                    finalLane: laneOrder[idx] || (idx + 1), 
+                    finalLane: (p.finalLane !== undefined && p.finalLane !== null) ? p.finalLane : (idx + 1),
                     qualifyRank: idx + 1, 
                     qualifyScore: formatTrackTime(p.score)                   
                 };
@@ -3540,45 +3604,118 @@ if (eventName.includes('决赛')) {
             window.pendingGroupName = groupName;            
             window.pendingFinalsData = finalData;
             window.pendingGender = data.gender;
-            
-            const laneMap = {}; finalData.forEach(p => { laneMap[p.finalLane] = p; });
-            const rowsConfig = [
-                { t: "道次", k: "finalLane", type: "index" }, { t: "号码", k: "bib" }, { t: "姓名", k: "name" },
-                { t: "单位", k: "team_name" }, { t: "预赛成绩", k: "qualifyScore" }, { t: "预赛名次", k: "qualifyRank" }, { t: "备注", k: "" }
-            ];
-            const displayLanes = topN; 
+            window.pendingRuleDesc = data.rule_desc || "世界田联 TR 20.4 抽签规则";
 
-            let tableHtml = `<table class="rc-table track-table"><tbody>`;
-            rowsConfig.forEach(row => {
-                tableHtml += `<tr><td class="rc-label track-label" style="width:90px; font-weight:bold;">${row.t}</td>`;
-                for(let i=1; i<=displayLanes; i++) {
-                    const p = laneMap[i]; let content = '';
-                    if (row.type === 'index') content = i; 
-                    else if (p) content = p[row.k] || '';
-                    let style = "";
-                    if(row.t==="姓名") style="font-weight:bold; font-size:13pt;"; 
-                    if(row.t==="预赛成绩" || row.t==="号码") style="font-family:Times New Roman; font-weight:bold;";
-                    tableHtml += `<td style="${style}">${content}</td>`;
-                }
-                tableHtml += `</tr>`;
-            });
-            tableHtml += `</tbody></table>`;
+            renderFinalsSheetUI(topN);
+        });
+    }
 
-            const publishBtn = `
-            <div class="flex flex-wrap justify-center items-center gap-3 mb-4 no-print">
-                <button onclick="window.print()" class="bg-blue-600 text-white px-5 py-2 rounded-lg shadow hover:bg-blue-700 font-bold text-sm flex items-center gap-1.5 transition">
-                    🖨️ 打印本项决赛检录表
-                </button>
-                <button onclick="exportSingleFinalWord()" class="bg-indigo-600 text-white px-5 py-2 rounded-lg shadow hover:bg-indigo-700 font-bold text-sm flex items-center gap-1.5 transition">
-                    📥 导出决赛 Word
-                </button>
-                <button id="btnPublishFinals" onclick="publishFinals()" class="bg-emerald-600 text-white px-5 py-2 rounded-lg shadow hover:bg-emerald-700 font-bold text-sm flex items-center gap-1.5 transition">
-                    ☁️ 发布决赛名单给裁判
-                </button>
+    // 独立出决赛表渲染函数（支持重新抽签刷新）
+    window.renderFinalsSheetUI = function(topN) {
+        const div = document.getElementById('resultOutput');
+        const finalData = window.pendingFinalsData;
+        const laneMap = {}; 
+        finalData.forEach(p => { laneMap[p.finalLane] = p; });
+
+        const rowsConfig = [
+            { t: "道次", k: "finalLane", type: "index" }, 
+            { t: "号码", k: "bib" }, 
+            { t: "姓名", k: "name" },
+            { t: "单位", k: "team_name" }, 
+            { t: "预赛成绩", k: "qualifyScore" }, 
+            { t: "预赛名次", k: "qualifyRank" }, 
+            { t: "备注", k: "" }
+        ];
+
+        let tableHtml = `<table class="rc-table track-table"><tbody>`;
+        rowsConfig.forEach(row => {
+            tableHtml += `<tr><td class="rc-label track-label" style="width:90px; font-weight:bold;">${row.t}</td>`;
+            for(let i=1; i<=topN; i++) {
+                const p = laneMap[i]; 
+                let content = '';
+                if (row.type === 'index') content = i; 
+                else if (p) content = p[row.k] || '';
+                let style = "";
+                if(row.t==="姓名") style="font-weight:bold; font-size:13pt;"; 
+                if(row.t==="预赛成绩" || row.t==="号码") style="font-family:Times New Roman; font-weight:bold;";
+                tableHtml += `<td style="${style}">${content}</td>`;
+            }
+            tableHtml += `</tr>`;
+        });
+        tableHtml += `</tbody></table>`;
+
+        const publishBtn = `
+        <div class="flex flex-wrap justify-center items-center gap-3 mb-3 no-print">
+            <button onclick="reDrawFinalsLanes(${topN})" class="bg-amber-600 text-white px-4 py-2 rounded-lg shadow hover:bg-amber-700 font-bold text-xs flex items-center gap-1.5 transition active:scale-95">
+                🎲 重新摇号抽签
+            </button>
+            <button onclick="window.print()" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 font-bold text-xs flex items-center gap-1.5 transition">
+                🖨️ 打印决赛检录表
+            </button>
+            <button onclick="exportSingleFinalWord()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-700 font-bold text-xs flex items-center gap-1.5 transition">
+                📥 导出 Word
+            </button>
+            <button id="btnPublishFinals" onclick="publishFinals()" class="bg-emerald-600 text-white px-5 py-2 rounded-lg shadow hover:bg-emerald-700 font-bold text-xs flex items-center gap-1.5 transition">
+                ☁️ 正式发布给裁判端
+            </button>
+        </div>
+        <div class="text-center text-xs text-indigo-700 font-bold mb-2 bg-indigo-50 py-1 rounded border border-indigo-200">
+            ⚖️ 排道规则：${window.pendingRuleDesc}
+        </div>`;
+
+        div.innerHTML = `
+        <div class="rc-card break-inside-avoid">
+            <h2 class="rc-title">决赛分组检录表</h2>
+            ${publishBtn}
+            <div class="rc-header">
+                <span>项目：${window.pendingFinalsName}</span> 
+                <span>共 1 组 · 录取前 ${topN} 名</span> 
+                <span>生成时间：${new Date().toLocaleTimeString()}</span>
             </div>
-            <div class="text-center text-xs text-gray-400 mb-3 no-print">
-                * 提示：预赛成绩已全部结算，确认无误后可直接打印/导出下发给检录处
-            </div>`;
+            ${tableHtml}
+            <div class="rc-footer"><span>检录长：_____</span> <span>裁判长：_____</span> <span>计时员：_____</span></div>
+        </div>`;
+    };
+
+    window.reDrawFinalsLanes = function(topN) {
+        if (!window.pendingFinalsData || window.pendingFinalsData.length === 0) return;
+        const newLanes = window.drawWorldAthleticsLanes(window.pendingFinalsName, window.pendingFinalsData.length);
+        window.pendingFinalsData.forEach((p, idx) => {
+            p.finalLane = newLanes[idx];
+        });
+        renderFinalsSheetUI(topN);
+        syncFinalsLanesToDatabase();
+    };
+    window.syncFinalsLanesToDatabase = function() {
+        if (!window.pendingFinalsData || window.pendingFinalsData.length === 0) return;
+
+        fetch('/api/publish_finals', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                final_event_name: window.pendingFinalsName,
+                group_name: window.pendingGroupName,
+                gender: window.pendingGender,
+                athletes: window.pendingFinalsData
+            })
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.status === 'success') {
+                const tipEl = document.getElementById('finalsSyncStatusTip');
+                if (tipEl) {
+                    tipEl.innerHTML = '✔ <b class="text-emerald-700">新抽签道次已全网自动同步！</b>（决赛成绩表、裁判手机端已同步更新）';
+                    tipEl.className = 'text-xs text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 mt-2 inline-block shadow-xs';
+                }
+                if (typeof fetchLatestData === 'function') fetchLatestData();
+            } else {
+                alert("❌ 同步到数据库失败: " + res.msg);
+            }
+        })
+        .catch(err => {
+            console.error("同步失败:", err);
+        });
+    };
 
             window.exportSingleFinalWord = function() {
                 if (!window.pendingFinalsData || window.pendingFinalsData.length === 0) return alert("暂无决赛数据！");
@@ -3622,20 +3759,6 @@ if (eventName.includes('决赛')) {
                 link.click();
             };
 
-            div.innerHTML = `
-            <div class="rc-card break-inside-avoid">
-                <h2 class="rc-title">决赛分组检录表</h2>
-                ${publishBtn}
-                <div class="rc-header">
-                    <span>项目：${eventName} (决赛)</span> <span>共 1 组 &nbsp; 取前 ${topN} 名</span> <span>生成时间：${new Date().toLocaleTimeString()}</span>
-                </div>
-                ${tableHtml}
-                <div class="rc-footer"><span>检录长：_____</span> <span>裁判长：_____</span> <span>计时员：_____</span></div>
-                <div class="text-center text-gray-400 text-xs mt-2">* 注：道次已按预赛成绩自动优化 (${orderDesc})</div>
-            </div>`;
-        });
-    }
-        
     window.generateResultAnnouncement = function() {
         const rawEventName = window.curResEvent;
         const groupName = window.curResGroup;
@@ -3700,11 +3823,43 @@ if (eventName.includes('决赛')) {
             // 只有当所有小组的非弃权选手全部跑完出成绩，才允许产生录取名单 (q)
             const isAllHeatsFinished = !hasUnfinishedRunners;
 
-            // 1. 🌟 补齐声明：提取有效完赛成绩的选手列表
-            const validAthletes = data.filter(i => isRealScore(i.score));
-                
-            // 2. 弃权或无有效成绩的选手提取出来放到底部
-            const abandonedAthletes = data.filter(i => !isRealScore(i.score) && (String(i.score).includes('弃权') || i.checked_in == 2 || String(i.score).includes('DNS')));
+            // 🌟 判定当前项目是否属于接力/团体项目
+            const isRelayAnnouncement = rawEventName.includes('接力') || rawEventName.includes('4×') || rawEventName.includes('4*') || rawEventName.includes('4x');
+
+            let rawValid = data.filter(i => isRealScore(i.score));
+            let rawAbandoned = data.filter(i => !isRealScore(i.score) && (String(i.score).includes('弃权') || i.checked_in == 2 || String(i.score).includes('DNS')));
+
+            // 🌟 核心修复：如果是接力项目，按单位（team_name）去重，每个班级只保留一行！
+            if (isRelayAnnouncement) {
+                const validTeamMap = {};
+                rawValid.forEach(item => {
+                    const tKey = String(item.team_name || item.teamName).trim();
+                    if (!validTeamMap[tKey]) {
+                        validTeamMap[tKey] = { ...item };
+                    } else {
+                        // 优先保留非空积分和有效成绩
+                        if ((!validTeamMap[tKey].points || validTeamMap[tKey].points === 0) && item.points) {
+                            validTeamMap[tKey].points = item.points;
+                        }
+                        if (!validTeamMap[tKey].score && item.score) {
+                            validTeamMap[tKey].score = item.score;
+                        }
+                    }
+                });
+                rawValid = Object.values(validTeamMap);
+
+                const abTeamMap = {};
+                rawAbandoned.forEach(item => {
+                    const tKey = String(item.team_name || item.teamName).trim();
+                    if (!abTeamMap[tKey]) {
+                        abTeamMap[tKey] = { ...item };
+                    }
+                });
+                rawAbandoned = Object.values(abTeamMap);
+            }
+
+            const validAthletes = rawValid;
+            const abandonedAthletes = rawAbandoned;
 
             if(validAthletes.length === 0 && abandonedAthletes.length === 0) {
                 div.innerHTML = `<div class="text-center text-gray-400 mt-10"><p class="text-xl mb-2">该项目暂无成绩</p></div>`;
@@ -3761,8 +3916,14 @@ if (eventName.includes('决赛')) {
                         });
                     }
 
+                   const settingQualifyCount = parseInt(document.getElementById('finalsTopN')?.value) || topN || 8;
+
                     if (actualRound === '决赛') {
-                        points = p.points || 0;
+                        if (currentRank <= settingQualifyCount) {
+                            points = p.points || 0;
+                        } else {
+                            points = 0;
+                        }
                         const dbRecordBonus = p.record_bonus || 0;
                         
                         if (dbRecordBonus > 0 || isRecordBrokenFrontend) {
@@ -4119,8 +4280,27 @@ function exportWord() {
             }
 
             Object.keys(heats).sort((a,b) => parseInt(a) - parseInt(b)).forEach(heatNum => {
-                const items = heats[heatNum];
-                
+                let items = heats[heatNum];
+
+                // 🌟 接力项目：按队伍（team_name）去重聚合，一个班级只展示一行！
+                const isRelayEvent = eventName.includes('接力') || eventName.includes('4×') || eventName.includes('4*') || eventName.includes('4x');
+                if (isRelayEvent) {
+                    const teamMap = {};
+                    items.forEach(it => {
+                        const tKey = it.team_name || it.teamName;
+                        if (!teamMap[tKey]) {
+                            teamMap[tKey] = { ...it };
+                        } else {
+                            if (!teamMap[tKey].score && it.score) {
+                                teamMap[tKey].score = it.score;
+                            }
+                            if ((!teamMap[tKey].lane || teamMap[tKey].lane === '-') && it.lane) {
+                                teamMap[tKey].lane = it.lane;
+                            }
+                        }
+                    });
+                    items = Object.values(teamMap);
+                }
                 // 本组内名次：优先读取后台核算好的真实 rank，若没有才按前端规则排
                 const rankMap = {};
                 const validItemsInHeat = items.filter(i => isRealScore(i.score));
@@ -4223,9 +4403,10 @@ function exportWord() {
                     desktopTableHtml += `</tbody></table>`;
 
                 } else {
-                    // 2. 原版分道横排表格（适用于 8 道以内的径赛短跑单组）
+
                     const maxLane = Math.max(...items.map(i => parseInt(i.lane) || 0)); 
-                    const cols = Math.max(maxLane, 8); 
+                    const targetLanes = parseInt(evtCfg?.limit || evtCfg?.qualifyCount || items[0].totalLanes) || 8; 
+                    const cols = Math.max(maxLane, targetLanes);
                     const laneMap = {}; 
                     items.forEach(p => { if (p.lane) laneMap[p.lane] = p; });
                     
@@ -6221,32 +6402,76 @@ window.closeConflictModal = function() {
 
     function saveRecordModal() {
         const result = {};
-        document.querySelectorAll('.record-row').forEach(row => {
+        const rows = document.querySelectorAll('#recordModalContent .record-row');
+        
+        if (rows.length === 0) {
+            alert("⚠️ 未检测到有效配置项！");
+            return;
+        }
+
+        rows.forEach(row => {
             const key = row.getAttribute('data-key');
-            if(!result[key]) result[key] = [];
+            if (!key) return;
+            if (!result[key]) result[key] = [];
+
+            const enEl = row.querySelector('.rec-en');
+            const nameEl = row.querySelector('.rec-name');
+            const valEl = row.querySelector('.rec-val');
+            const bonusEl = row.querySelector('.rec-bonus');
+            const athEl = row.querySelector('.rec-athlete');
+            const teamEl = row.querySelector('.rec-team');
+            const dateEl = row.querySelector('.rec-date');
+            const codeEl = row.querySelector('.rec-code');
+            const locEl = row.querySelector('.rec-location');
+
             result[key].push({
-                en: row.querySelector('.rec-en').checked,
-                name: row.querySelector('.rec-name').value.trim(),
-                val: row.querySelector('.rec-val').value.trim(),
-                bonus: parseInt(row.querySelector('.rec-bonus').value) || 0,
-                athlete: row.querySelector('.rec-athlete').value.trim(),
-                team: row.querySelector('.rec-team').value.trim(),
-                date: row.querySelector('.rec-date').value.trim(),
-                code: row.querySelector('.rec-code').value.trim(),
-                location: row.querySelector('.rec-location').value.trim()
+                en: Boolean(enEl && enEl.checked),
+                name: (nameEl ? nameEl.value : '').trim(),
+                val: (valEl ? valEl.value : '').trim(),
+                bonus: parseInt(bonusEl ? bonusEl.value : 0) || 0,
+                athlete: (athEl ? athEl.value : '').trim(),
+                team: (teamEl ? teamEl.value : '').trim(),
+                date: (dateEl ? dateEl.value : '').trim(),
+                code: (codeEl ? codeEl.value : '').trim(),
+                location: (locEl ? locEl.value : '').trim()
             });
         });
-        
+
+        // 按钮显示保存状态
+        const saveBtn = document.querySelector('button[onclick*="saveRecordModal"]');
+        const oldText = saveBtn ? saveBtn.innerText : '保存所有纪录配置';
+        if (saveBtn) {
+            saveBtn.innerText = "⏳ 正在保存至数据库...";
+            saveBtn.disabled = true;
+        }
+
         fetch('/api/save_group_records', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ group_name: currentRecordGroup, records: result })
-        }).then(r => r.json()).then(res => {
-            if(res.status === 'success') {
-                alert(`✅ ${currentRecordGroup} 的纪录参数及档案已成功保存！`);
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                group_name: currentRecordGroup, 
+                records: result 
+            })
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (saveBtn) {
+                saveBtn.innerText = oldText;
+                saveBtn.disabled = false;
+            }
+            if (res.status === 'success') {
+                alert(`✅ 【${currentRecordGroup}】的纪录参数及档案已成功保存！`);
                 closeRecordModal();
             } else {
-                alert('保存失败: ' + res.msg);
+                alert('❌ 保存失败: ' + (res.msg || '未知错误'));
             }
+        })
+        .catch(err => {
+            if (saveBtn) {
+                saveBtn.innerText = oldText;
+                saveBtn.disabled = false;
+            }
+            alert('❌ 网络传输异常，数据未能成功保存！');
         });
     }
 
@@ -6361,7 +6586,7 @@ window.closeConflictModal = function() {
                     } else if (task.status === 'ongoing') {
                         cardStyle = 'bg-emerald-50 border-emerald-500 shadow-md ring-2 ring-emerald-400 text-emerald-950 font-bold';
                         badgeStyle = 'bg-emerald-600 text-white animate-pulse';
-                        statusText = '🟢 跑道进行中 / 成绩录入中';
+                        statusText = '🟢 进行中 / 成绩录入中';
                     } else if (task.status === 'pending') {
                         cardStyle = 'bg-blue-50 border-blue-400 shadow-sm text-blue-950 font-bold';
                         badgeStyle = 'bg-blue-600 text-white';
@@ -6513,18 +6738,6 @@ window.closeConflictModal = function() {
             });
     };
 
-    window.toggleAthleteCheckin = function(startId, nextStatus) {
-        fetch('/api/toggle_checkin', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id: startId, checked_in: nextStatus })
-        }).then(r => r.json()).then(res => {
-            if (res.status === 'success') {
-                renderProcessMonitor();
-            }
-        });
-    };
-
     window.checkAndPublishRelayLegs = function() {
         if (!db.schedule || db.schedule.length === 0) {
             return alert("请先点击左侧的【⚡ 一键智能编排】生成基础赛程！");
@@ -6583,41 +6796,29 @@ window.closeConflictModal = function() {
 
         if (!confirm(msg)) return;
 
-        db.schedule.forEach(s => {
-            if (s.eventName.includes('接力') || s.eventName.includes('4×') || s.eventName.includes('4*')) {
-                const coreMatchName = s.eventName.replace(" (预赛)", "").replace(" (决赛)", "").trim();
-                const group = db.groups.find(g => g.name === s.groupName);
-                if (!group) return;
+        const btn = document.querySelector('button[onclick*="checkAndPublishRelayLegs"]');
+        const oldText = btn ? btn.innerText : '🎽 发布棒';
+        if (btn) { btn.innerText = "⏳ 正在安全同步棒次..."; btn.disabled = true; }
 
-                let rawEntries = db.athletes.filter(a => {
-                    const t = db.teams.find(x => x.id == a.teamId);
-                    return t && String(t.groupId) === String(group.id) && t.name === s.teamName && a.gender === s.gender && a.events.includes(coreMatchName);
-                });
-
-                let validMembers = rawEntries.filter(m => m.relay_legs && m.relay_legs[coreMatchName]);
-                if (validMembers.length > 0) {
-                    validMembers.sort((a,b) => parseInt(a.relay_legs[coreMatchName]) - parseInt(b.relay_legs[coreMatchName]));
-                    s.name = validMembers.map(m => `${m.relay_legs[coreMatchName]}棒:${m.name}`).join('  ');
-                } else {
-                    s.name = "未提交棒次 (" + rawEntries.map(m=>m.name).join(',') + ")";
-                }
-            }
-        });
-
-        fetch('/api/save_schedule_to_db', {
+        // 改为调用专用的安全接口
+        fetch('/api/sync_relay_legs_to_schedule', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(db.schedule)
+            headers: { 'Content-Type': 'application/json' }
         })
         .then(r => r.json())
         .then(res => {
+            if (btn) { btn.innerText = oldText; btn.disabled = false; }
             if (res.status === 'success') {
-                alert("🎽 接力棒次已单独成功发布！\n\n裁判手机端已实时刷新同步。");
-                fetchLatestData();
+                alert(res.msg);
+                if (typeof fetchLatestData === 'function') fetchLatestData();
             } else {
-                alert("❌ 发布失败: " + res.msg);
+                alert("❌ 同步失败: " + res.msg);
             }
-        }).catch(() => alert("网络传输异常，请检查后端运行状态。"));
+        })
+        .catch(err => {
+            if (btn) { btn.innerText = oldText; btn.disabled = false; }
+            alert("网络传输异常: " + err.message);
+        });
     };
 
     window.dailyScheduleTimes = JSON.parse(localStorage.getItem('daily_schedule_times')) || {};
@@ -7053,36 +7254,24 @@ let rawAnalysisData = {};
                 </tr>`;
         }).join('');
     }
-// 🌟 控制“生成决赛表”按钮的显示与隐藏
-    function checkFinalsBtnVisibility() {
-        const btnFinals = document.querySelector('button[onclick="generateFinals()"]');
-        const finalsTopNBox = document.getElementById('finalsTopN')?.closest('div');
-        if (!btnFinals) return;
 
-        const curEvt = window.curResEvent || '';
-        
-        // 1. 如果当前选中的已经是“决赛”项目（如 100米 (决赛)），坚决隐藏/禁用！
-        if (curEvt.includes('决赛')) {
-            btnFinals.classList.add('hidden');
-            if (finalsTopNBox) finalsTopNBox.classList.add('hidden');
-            return;
-        }
+   function checkFinalsBtnVisibility() {
+    const curEvt = window.curResEvent || '';
+    const btnGenFinals = document.querySelector('button[onclick*="generateFinals"]');
+    const label = document.getElementById('finalsTopNLabel');
+    const container = document.getElementById('qualifyCountContainer');
 
-        // 2. 检查配置表，该项目是否配置了“预赛+决赛”
-        const cleanName = curEvt.replace(' (预赛)', '').replace(' (决赛)', '').trim();
-        const cfg = db.events.find(e => e.name === cleanName || e.name === curEvt);
-        const hasPrelim = cfg ? (String(cfg.hasPrelim) === 'true' || String(cfg.has_prelim) === '1') : false;
+    if (container) container.classList.remove('hidden');
 
-        // 只有包含“预赛”或配置了预赛的项目，才展示“生成决赛表”按钮
-        if (curEvt.includes('预赛') || hasPrelim) {
-            btnFinals.classList.remove('hidden');
-            if (finalsTopNBox) finalsTopNBox.classList.remove('hidden');
-        } else {
-            btnFinals.classList.add('hidden');
-            if (finalsTopNBox) finalsTopNBox.classList.add('hidden');
-        }
+    if (curEvt.includes('预赛')) {
+        if (btnGenFinals) btnGenFinals.classList.remove('hidden');
+        if (label) label.innerText = "晋级人数:";
+    } else {
+        if (btnGenFinals) btnGenFinals.classList.add('hidden');
+        if (label) label.innerText = "录取名次:";
     }
-// 🌟 移动端：折叠/展开组别管理
+}
+
 window.toggleGroupSectionMobile = function() {
     if (window.innerWidth >= 1024) return;
     const wrapper = document.getElementById('groupContentWrapper');
@@ -7215,6 +7404,20 @@ socket.on('track_released', function(payload) {
     if (currentStepId === 9 && typeof renderProcessMonitor === 'function') {
         renderProcessMonitor();
     }
+});
+socket.on('meta_updated', function() {
+    if (typeof fetchLatestData === 'function') {
+        fetchLatestData();
+    }
+});
+// 监听自动晋级因并列而阻断的通知
+socket.on('finals_tie_warning', function(payload) {
+    alert(
+        `🚨【赛场预警】项目【${payload.group_name} ${payload.gender}·${payload.event_name}】预赛完赛！\n\n` +
+        `由于第 ${payload.top_n} 名录取线存在平分成绩（${payload.score}）：\n` +
+        `并列选手：${payload.tied_names}\n\n` +
+        `为防止误淘出线选手，系统已暂停自动发布决赛名单。\n请前往【Step 5 成绩与决赛】进行人工审核与抽签/增道处理！`
+    );
 });
 </script>
 </body>

@@ -74,15 +74,8 @@
                 <button onclick="selectRole('timing')" class="w-full max-w-sm bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1">
                     <span class="text-3xl">📝</span>
                     <span class="text-base font-black tracking-widest">终点记录裁判入口</span>
-                    <span class="text-[11px] text-blue-100 font-medium">核验成绩 · 手工录入 · 接收视觉计时自动推送</span>
+                    <span class="text-[11px] text-blue-100 font-medium">核验成绩 · 手工录入 · 实时同步赛况</span>
                 </button>
-
-                <button style="display: none;"onclick="selectRole('camera')" class="w-full max-w-sm bg-gradient-to-r from-cyan-600 to-blue-700 text-white p-4 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1 ring-2 ring-cyan-300 ring-offset-2">
-                    <span class="text-3xl">📷</span>
-                    <span class="text-base font-black tracking-widest">终点摄像计时入口</span>
-                    <span class="text-[11px] text-cyan-100 font-medium">三脚架机位 · 自动跑道对齐 · 撞线自动推送</span>
-                </button>
-
                 <button onclick="selectRole('field')" class="w-full max-w-sm bg-gradient-to-r from-amber-600 to-orange-600 text-white p-4 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1">
                     <span class="text-3xl">🎯</span>
                     <span class="text-base font-black tracking-widest">田赛 / 趣味项目裁判入口</span>
@@ -92,7 +85,7 @@
 
             <div id="checkinSection" class="hidden flex-1 flex flex-col bg-gray-100 p-2 md:p-4">
                 <div class="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-emerald-800 text-xs text-center font-bold mb-3 shadow-xs">
-                    💡 提示：点击单元内的项目卡片可展开检录名单，勾选标记到位或弃权。
+                    💡 提示：点击单元内的卡片可展开检录名单，勾选标记到位或弃权。
                 </div>
                 <div id="checkinList" class="flex-1 space-y-4 pb-10"></div>
             </div>
@@ -203,54 +196,9 @@
                 </div>
 
                 <div class="p-2.5 bg-yellow-50 text-yellow-800 text-xs text-center border-t border-yellow-200 font-bold shrink-0">
-                    💡 提示：输入成绩后 <b>点击空白处</b> 或回车即可保存。摄像端识别将自动填入浅蓝高亮。
+                    💡 提示：输入成绩后 <b>点击空白处</b> 或回车即可保存。
                 </div>
             </div> 
-        </div>
-    </div>
-
-    <!-- 🌟 终点摄像裁判专属全屏交互机位 -->
-    <div id="finishCameraSection" class="fixed inset-0 z-50 bg-black flex flex-col hidden select-none overflow-hidden">
-        <div class="relative w-full h-full flex items-center justify-center overflow-hidden" id="cameraViewport">
-            <video id="finishVideo" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover pointer-events-none"></video>
-            <canvas id="calibrationCanvas" class="absolute inset-0 w-full h-full z-10 cursor-crosshair touch-none"></canvas>
-        </div>
-
-        <div class="absolute top-2 left-2 right-2 z-20 bg-black/80 backdrop-blur-md px-3.5 pt-2 pb-2.5 rounded-2xl border border-white/10 shadow-xl flex flex-col gap-1.5">
-            <!-- 上半部：组次信息、超大秒表与右侧三个按钮 -->
-            <div class="flex justify-between items-center">
-                <div>
-                    <div class="text-[11px] text-gray-300 font-bold tracking-tight truncate max-w-[160px]" id="camHeatInfo">等待起点发令...</div>
-                    <div class="text-2xl font-black font-mono text-emerald-400 tracking-wider leading-none mt-1" id="camStopwatch">00:00.00</div>
-                </div>
-                <div class="flex items-center gap-1.5 shrink-0">
-                    <button type="button" onclick="autoCalibrateTrackLines()" class="bg-cyan-600 hover:bg-cyan-500 active:scale-95 text-white px-2.5 py-1.5 rounded-lg text-xs font-black transition shadow flex items-center gap-1">
-                        <span>✨</span> <span>自动对齐</span>
-                    </button>
-                    <button type="button" onclick="resetCalibrationLines()" class="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition">
-                        📐 默认
-                    </button>
-                    <button type="button" onclick="exitCameraRole()" class="bg-gray-700 hover:bg-gray-600 active:scale-95 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition">
-                        退出
-                    </button>
-                </div>
-            </div>
-
-            <!-- 下半部：独立提示条（有独立的纵向间距，绝不挡秒表） -->
-            <div class="text-[10px] text-yellow-300/90 font-medium bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-center flex items-center justify-center gap-1">
-                <span>👆</span>
-                <span>左右拖<span class="text-red-400 font-bold">红线</span>定终点，上下拖<span class="text-cyan-400 font-bold">蓝线</span>定分道 · 撞线自动推送</span>
-            </div>
-        </div>
-
-        <div class="absolute bottom-2 left-2 right-2 z-20 bg-gray-900/90 backdrop-blur-md rounded-2xl p-2.5 border border-white/10 shadow-2xl max-h-40 overflow-y-auto">
-            <div class="text-[11px] font-bold text-gray-300 mb-1.5 flex justify-between items-center">
-                <span>🏁 识别到的各道次冲线时间：</span>
-                <span class="text-[10px] text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/30">
-                    🟢 自动实时同步中
-                </span>
-            </div>
-            <div id="laneResultTags" class="grid grid-cols-4 gap-1.5 text-xs"></div>
         </div>
     </div>
 
@@ -271,104 +219,121 @@
             </button>
         </div>
     </div>
-
-    <!-- 起点发令控制悬浮台
-    <div id="starterControlPanel" class="fixed bottom-4 left-4 right-4 z-50 bg-gray-900/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-gray-700 text-white hidden transition-all transform duration-300">
-        <div class="flex justify-between items-center mb-3 border-b border-gray-700 pb-2">
-            <div class="flex items-center gap-2">
-                <span class="text-lg">📢</span>
-                <span class="text-sm font-black" id="starterPanelTitle">发令控制台</span>
-            </div>
-            <button onclick="toggleStarterPanel()" class="text-xs bg-gray-700 hover:bg-gray-600 px-2.5 py-1 rounded-lg text-gray-300">
-                收起 ▼
-            </button>
-        </div>
-
-        <div class="grid grid-cols-4 gap-2">
-            <button onclick="sendStarterCmd('set')" class="bg-blue-600 hover:bg-blue-500 active:scale-95 py-3 rounded-xl font-black text-sm flex flex-col items-center justify-center gap-1 shadow">
-                <span>🧍</span>
-                <span>各就位</span>
-            </button>
-            <button onclick="sendStarterCmd('ready')" class="bg-amber-600 hover:bg-amber-500 active:scale-95 py-3 rounded-xl font-black text-sm flex flex-col items-center justify-center gap-1 shadow">
-                <span>🏃</span>
-                <span>预备</span>
-            </button>
-            <button onclick="handleGunClick()" id="btnGun" class="bg-red-600 hover:bg-red-500 active:scale-95 py-3 rounded-xl font-black text-sm flex flex-col items-center justify-center gap-1 shadow animate-pulse">
-                <span>💥</span>
-                <span>枪响</span>
-            </button>
-            <button onclick="sendStarterCmd('reset')" class="bg-gray-700 hover:bg-gray-600 active:scale-95 py-3 rounded-xl font-black text-sm flex flex-col items-center justify-center gap-1 shadow">
-                <span>🔄</span>
-                <span>回零</span>
-            </button>
-        </div>
-
-        <div id="starterStatusTip" class="text-[11px] text-center text-gray-400 mt-2 font-mono">
-            就绪状态：点击“枪响”开始计时；连续按枪响将触发犯规召回
-        </div>
-    </div>
-
-    <!-- 折叠后的呼出悬浮球 -->
-    <button id="btnStarterPanelFab" onclick="toggleStarterPanel()" class="fixed bottom-6 right-6 z-40 bg-orange-600 text-white p-3.5 rounded-full shadow-2xl flex items-center gap-1 font-bold text-xs hidden active:scale-95 transition">
-        <span>🚩 发令台</span>
-    </button>
--->
 <script>
 const socket = io();
 
-// 1. 监听起点发令事件
-socket.on('heat_activated', function(payload) {
-    if (currentRole === 'timing') {
-        pollActiveHeat(); 
-    } else if (currentRole === 'camera') {
-        const infoEl = document.getElementById('camHeatInfo');
-        if (infoEl) infoEl.innerText = `${payload.group_name} ${payload.gender}子 · ${payload.event_name} (第${payload.heat}组)`;
-    } else if (currentRole === 'starter' || currentRole === 'checkin') {
-        window.isTrackBusy = true;
-        loadCheckinSchedule();
-    }
-});
-
-// 2. 监听终点裁判录入/修改成绩事件
-socket.on('score_updated', function(payload) {
-    if (currentRole === 'starter' || currentRole === 'checkin') {
-        window.isTrackBusy = false;
-        loadCheckinSchedule();
-    }
-});
-
-// 3. 监听检录状态打钩事件
+// 3. 监听检录状态打钩事件（加入防抖，避免高频并发重绘）
+let checkinDebounceTimer = null;
 socket.on('checkin_updated', function(payload) {
     if (currentRole === 'starter' || currentRole === 'checkin') {
-        loadCheckinSchedule();
-    }
-});
-// 4. 监听摄像端自动推送成绩
-socket.on('receive_camera_times', function(payload) {
-    if (currentRole !== 'timing') return;
+        if (payload && payload.id && document.getElementById(`checkin_row_${payload.id}`)) {
+            const row = document.getElementById(`checkin_row_${payload.id}`);
+            const btnPresent = row.querySelector('.btn-present');
+            const btnAbsent = row.querySelector('.btn-absent');
+            const nameSpan = row.querySelector('.ath-name');
+            const tagAbsent = row.querySelector('.tag-absent');
+            const s = payload.status;
 
-    const laneTimes = payload.lane_times || {};
-    let filledCount = 0;
+            row.classList.remove('bg-emerald-50', 'bg-red-50');
+            if (nameSpan) nameSpan.classList.remove('line-through', 'text-gray-400');
+            if (tagAbsent) tagAbsent.classList.add('hidden');
 
-    const rows = document.querySelectorAll('#athleteList tr');
-    rows.forEach(tr => {
-        const laneCell = tr.querySelector('td:first-child');
-        const input = tr.querySelector('.input-score');
-        if (laneCell && input) {
-            const laneNum = parseInt(laneCell.innerText.trim());
-            if (laneTimes[laneNum] && !input.dataset.userEdited) {
-                input.value = laneTimes[laneNum];
-                input.classList.add('bg-cyan-50', 'border-cyan-400');
-                filledCount++;
+            if (s === 1) {
+                row.classList.add('bg-emerald-50');
+                if (btnPresent) {
+                    btnPresent.className = "btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base bg-emerald-600 text-white border-emerald-600 shadow-sm";
+                    btnPresent.setAttribute('onclick', `setCheckinStatus(${payload.id}, 0)`);
+                }
+                if (btnAbsent) {
+                    btnAbsent.className = "btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base bg-white text-gray-300 border-gray-300";
+                    btnAbsent.setAttribute('onclick', `setCheckinStatus(${payload.id}, 2)`);
+                }
+            } else if (s === 2) {
+                row.classList.add('bg-red-50');
+                if (nameSpan) nameSpan.classList.add('line-through', 'text-gray-400');
+                if (tagAbsent) tagAbsent.classList.remove('hidden');
+                if (btnPresent) {
+                    btnPresent.className = "btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base bg-white text-gray-300 border-gray-300";
+                    btnPresent.setAttribute('onclick', `setCheckinStatus(${payload.id}, 1)`);
+                }
+                if (btnAbsent) {
+                    btnAbsent.className = "btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base bg-red-600 text-white border-red-600 shadow-sm";
+                    btnAbsent.setAttribute('onclick', `setCheckinStatus(${payload.id}, 0)`);
+                }
+            } else {
+                if (btnPresent) {
+                    btnPresent.className = "btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base bg-white text-gray-300 border-gray-300";
+                    btnPresent.setAttribute('onclick', `setCheckinStatus(${payload.id}, 1)`);
+                }
+                if (btnAbsent) {
+                    btnAbsent.className = "btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base bg-white text-gray-300 border-gray-300";
+                    btnAbsent.setAttribute('onclick', `setCheckinStatus(${payload.id}, 2)`);
+                }
             }
+            updateHeatCardCheckinProgress(row);
+            return;
         }
-    });
 
-    if (filledCount > 0 && window.navigator && window.navigator.vibrate) {
-        window.navigator.vibrate(40);
+        clearTimeout(checkinDebounceTimer);
+        checkinDebounceTimer = setTimeout(() => {
+            loadCheckinSchedule();
+        }, 1500);
     }
 });
 
+// 监听后台晋级新赛程/决赛名单发布
+socket.on('meta_updated', function() {
+    if (currentRole === 'checkin' || currentRole === 'starter') {
+        loadCheckinSchedule();
+    } else if (currentRole === 'timing') {
+        fetchMeta();
+    }
+});
+
+// 监听专属决赛自动晋级生成事件
+socket.on('finals_promoted', function(payload) {
+    if (currentRole === 'checkin' || currentRole === 'starter') {
+        loadCheckinSchedule();
+    } else if (currentRole === 'timing') {
+        fetchMeta();
+        const curEvt = document.getElementById('selEvent')?.value || '';
+        if (payload && (curEvt.includes(payload.clean_core) || curEvt.includes(payload.event_name))) {
+            loadAthletes();
+        }
+    }
+});
+
+// 🌟 监听跑道释放事件
+socket.on('track_released', function(payload) {
+    window.isTrackBusy = false;
+    currentActiveHeatData = null;
+    
+    if (currentRole === 'starter' || currentRole === 'checkin') {
+        setTimeout(() => {
+            loadCheckinSchedule();
+        }, 200);
+    } else if (currentRole === 'timing') {
+        const notice = document.getElementById('trackActiveNotice');
+        const modal = document.getElementById('newHeatModal');
+        if (notice) notice.classList.add('hidden');
+        if (modal) modal.classList.add('hidden');
+    }
+});
+
+// 监听成绩更新事件
+socket.on('score_updated', function(payload) {
+    if (currentRole === 'starter' || currentRole === 'checkin') {
+        if (payload && (payload.heat_completed === true || payload.auto_finals_promoted === true)) {
+            window.isTrackBusy = false;
+        }
+        loadCheckinSchedule();
+    } else if (currentRole === 'timing') {
+        const curEvt = document.getElementById('selEvent')?.value || '';
+        if (payload && payload.auto_finals_promoted === true && curEvt.includes('决赛')) {
+            loadAthletes();
+        }
+    }
+});
 function login() {
     const user = document.getElementById('username').value.trim();
     const pwd = document.getElementById('pwd').value;
@@ -421,8 +386,6 @@ document.getElementById('username').addEventListener('keypress', function (e) {
 let metaData = {}; 
 let compStartDate = ""; 
 let currentRole = null;
-let trackPollingTimer = null; 
-let starterPollingTimer = null; 
 let currentActiveHeatData = null; 
 
 function initConsoleData() {
@@ -434,18 +397,16 @@ function initConsoleData() {
         .catch(e => console.log('获取日期失败，将回退为第X天格式'));
 }
 
+// ==================== 修改后 ====================
 function selectRole(role) {
     currentRole = role;
     localStorage.setItem('last_referee_role', role);
     document.getElementById('roleSelection').classList.add('hidden');
     document.getElementById('btnBack').classList.remove('hidden');
 
-    if (trackPollingTimer) clearInterval(trackPollingTimer);
-    if (starterPollingTimer) clearInterval(starterPollingTimer);
-
+    // 删除了报错的 if (trackPollingTimer) 与 if (starterPollingTimer)
     document.getElementById('checkinSection')?.classList.add('hidden');
     document.getElementById('timingSection')?.classList.add('hidden');
-    document.getElementById('finishCameraSection')?.classList.add('hidden');
 
     if (role === 'starter') {
         document.getElementById('headerTitle').innerHTML = '🚩 起点发令端';
@@ -473,12 +434,6 @@ function selectRole(role) {
         fetchMeta();
         pollActiveHeat();
 
-    } else if (role === 'camera') {
-        document.getElementById('headerTitle').innerHTML = '📷 终点摄像计时机位';
-        document.getElementById('finishCameraSection').classList.remove('hidden');
-        startFinishCamera();
-        pollActiveHeat();
-
     } else if (role === 'field') {
         document.getElementById('headerTitle').innerHTML = '🎯 田赛 / 趣味端';
         document.getElementById('timingSection').classList.remove('hidden');
@@ -495,25 +450,13 @@ function selectRole(role) {
 
 function resetRoleSelection() {
     currentRole = null;
-    if (trackPollingTimer) clearInterval(trackPollingTimer);
-    if (starterPollingTimer) clearInterval(starterPollingTimer);
-
-    if (window.videoStream) {
-        window.videoStream.getTracks().forEach(track => track.stop());
-        window.videoStream = null;
-    }
-
-    document.getElementById('finishCameraSection')?.classList.add('hidden');
     document.getElementById('timingSection')?.classList.add('hidden');
     document.getElementById('checkinSection')?.classList.add('hidden');
     document.getElementById('trackActiveNotice')?.classList.add('hidden');
-    document.getElementById('starterControlPanel')?.classList.add('hidden');
-    document.getElementById('btnStarterPanelFab')?.classList.add('hidden');
     document.getElementById('roleSelection').classList.remove('hidden');
     document.getElementById('btnBack').classList.add('hidden');
     document.getElementById('headerTitle').innerHTML = '📱 裁判员控制台';
 }
-
 function refreshCurrentView() {
     if (currentRole === 'timing' || currentRole === 'field') {
         const curEvent = document.getElementById('selEvent')?.value;
@@ -577,24 +520,28 @@ function loadCheckinSchedule() {
 
         const units = {}; 
         data.schedule.forEach(item => {
+            const eName = item.eventName || '';
+            const isFunOrHealth = item.is_fun === '1' || item.isFun === true || item.type === 'fun' || 
+                                  ['趣味', '健康', '足球', '篮球', '投篮', '蛙跳', '跳绳', '拔河', '毛毛虫', '沙包', '毽'].some(k => eName.includes(k));
+            
+            // 🌟 趣味项目与健康测试免检录：直接跳过不排入检录列表
+            if (isFunOrHealth) {
+                return;
+            }
+
             const timeStr = item.estTime || '';
             const match = timeStr.match(/第(\d+)天(上午|下午)?/);
             const dayNum = match ? parseInt(match[1]) : 1;
             const ampm = match ? match[2] : '上午';
             const unitKey = `${dayNum}_${ampm}`; 
 
+            // 🌟 修复：补全 fun: {} 阻止后续的 TypeError
             if (!units[unitKey]) {
                 units[unitKey] = { day: dayNum, ampm: ampm, track: {}, field: {}, fun: {} };
             }
 
             const heatKey = `${item.timeIndex}_${item.groupName}_${item.eventName}_${item.gender}_${item.heat}`;
-            const eName = item.eventName || '';
-            const isFun = item.is_fun === '1' || item.isFun === true || item.type === 'fun' || 
-                          ['足球', '篮球', '投篮', '蛙跳', '跳绳', '趣味', '拔河', '毛毛虫', '沙包', '毽'].some(k => eName.includes(k));
-            
-            let category = 'track';
-            if (isFun) category = 'fun';
-            else if (item.isField) category = 'field';
+            const category = item.isField ? 'field' : 'track';
 
             if (!units[unitKey][category][heatKey]) {
                 units[unitKey][category][heatKey] = {
@@ -616,6 +563,13 @@ function loadCheckinSchedule() {
             else window.expandedHeatCards.delete(cardKey);
         };
 
+        // 🌟 把 getCheckedState 提取到公共位置，让两者都能调用
+        const getCheckedState = (p) => {
+            if (p.checkedIn !== undefined && p.checkedIn !== null) return parseInt(p.checkedIn);
+            if (p.checked_in !== undefined && p.checked_in !== null) return parseInt(p.checked_in);
+            return 0;
+        };
+
         function renderAthletesTable(group, typeColor) {
             return `
             <table class="w-full text-center text-sm border-collapse">
@@ -630,7 +584,7 @@ function loadCheckinSchedule() {
                 </thead>
                 <tbody>
                    ${group.athletes.map(p => {
-                        const state = parseInt(p.checkedIn !== undefined ? p.checkedIn : (p.checked_in !== undefined ? p.checked_in : 0));
+                        const state = getCheckedState(p);
                         const isPresent = (state === 1);
                         const isAbsent = (state === 2);
                         const rowBg = isPresent ? 'bg-emerald-50/50' : (isAbsent ? 'bg-red-50/40' : '');
@@ -675,12 +629,22 @@ function loadCheckinSchedule() {
             const showPushBtn = isStarter && !group.isField;
 
             const totalCount = group.athletes.length;
+
             const handledCount = group.athletes.filter(p => {
-                const state = parseInt(p.checkedIn !== undefined ? p.checkedIn : (p.checked_in !== undefined ? p.checked_in : 0));
-                return state === 1 || state === 2;
+                const state = getCheckedState(p);
+                return state === 1 || state === 2; // 1到位，2弃权
             }).length;
-            const isAllChecked = (totalCount > 0 && handledCount === totalCount);
-            const isAlreadyPushed = group.athletes.some(p => p.is_started === 1 || p.isStarted === 1);
+            const isAllChecked = (totalCount > 0 && handledCount >= totalCount);
+
+            // 🌟 双重锁定：无论在库中标记过发令(is_started==1)，还是已有成绩录入，均绝对判定为已发令！
+            const hasRecordedScore = group.athletes.some(p => {
+                const s = String(p.score !== undefined ? p.score : (p.start_score || '')).trim();
+                const c = parseInt(p.checkedIn !== undefined ? p.checkedIn : (p.checked_in || 0));
+                return c === 2 || (s !== '' && s !== '-' && !s.includes('待定'));
+            });
+            const isAlreadyPushed = group.athletes.some(p => p.is_started === 1 || p.isStarted === 1) || hasRecordedScore;
+            
+            // 发令端只要已发令即视为 Done（收起为已发令卡片）
             const isHeatDone = isStarter ? isAlreadyPushed : isAllChecked;
             const cardKey = `${group.groupName}_${group.eventName}_${group.gender}_${group.heat}`;
 
@@ -718,9 +682,9 @@ function loadCheckinSchedule() {
                     <div class="cursor-pointer flex-1 select-none" onclick="toggleHeatCard('${cardKey}', '${elementId}')">
                         <div class="text-[11px] font-black text-${typeColor}-600 mb-1 flex items-center gap-1">
                             <span>🕒</span> ${realTime}
-                            <span class="ml-2 font-mono text-[10px] ${isAllChecked ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'} px-1.5 py-0.2 rounded font-bold">
-                                ${isAllChecked ? '✔ 已检录' : `⏳ 检录中 ${handledCount}/${totalCount}`}
-                            </span>
+                            <span class="checkin-status-badge ml-2 font-mono text-[10px] ${isAllChecked ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'} px-1.5 py-0.2 rounded font-bold">
+    ${isAllChecked ? '✔ 已检录' : `⏳ 检录中 ${handledCount}/${totalCount}`}
+</span>
                         </div>
                         <div class="font-black text-gray-800 text-sm">
                             ${group.groupName} ${group.gender}组 · ${group.eventName}
@@ -729,35 +693,37 @@ function loadCheckinSchedule() {
                     
                     <div class="flex items-center gap-2 shrink-0">
                        ${showPushBtn ? (() => {
-                            if (isAlreadyPushed) {
-                                return `
-                                    <button disabled class="bg-gray-200 text-gray-400 border border-gray-300 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1 select-none">
-                                        <span>🏁</span> <span>已发令</span>
-                                    </button>
-                                `;
-                            } else if (!isAllChecked) {
-                                return `
-                                    <button disabled title="需检录完毕后发令" 
-                                            class="bg-gray-100 border border-gray-300 text-gray-400 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1">
-                                        <span>🔒</span> <span>等待检录(${handledCount}/${totalCount})</span>
-                                    </button>
-                                `;
-                            } else if (window.isTrackBusy) {
-                                return `
-                                    <button disabled title="终点正在录入上一组成绩，请等待录完" 
-                                            class="bg-orange-50 border border-orange-300 text-orange-600 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1">
-                                        <span>⏳</span> <span>跑道使用中</span>
-                                    </button>
-                                `;
-                            } else {
-                                return `
-                                    <button onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this)" 
-                                            class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-black shadow-md flex items-center gap-1 transition active:scale-95 animate-bounce">
-                                        <span>🚀</span> <span>发令推送</span>
-                                    </button>
-                                `;
-                            }
-                        })() : ''}
+    if (isAlreadyPushed) {
+        return `
+            <button disabled data-started="1" class="btn-push-heat bg-gray-200 text-gray-500 border border-gray-300 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1 select-none">
+                <span>🏁</span> <span>已发令</span>
+            </button>
+        `;
+    } else if (!isAllChecked) {
+        return `
+            <button disabled onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this)"
+                    title="需检录完毕后发令" 
+                    class="btn-push-heat bg-gray-100 border border-gray-300 text-gray-400 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1">
+                <span>🔒</span> <span>等待检录(${handledCount}/${totalCount})</span>
+            </button>
+        `;
+    } else if (window.isTrackBusy) {
+        return `
+            <button disabled onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this)"
+                    title="终点正在录入上一组成绩，请等待录完" 
+                    class="btn-push-heat bg-orange-50 border border-orange-300 text-orange-600 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1">
+                <span>⏳</span> <span>跑道使用中</span>
+            </button>
+        `;
+    } else {
+        return `
+            <button onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this)" 
+                    class="btn-push-heat bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-black shadow-md flex items-center gap-1 transition active:scale-95 animate-bounce cursor-pointer">
+                <span>🚀</span> <span>发令推送</span>
+            </button>
+        `;
+    }
+})() : ''}
 
                         <span class="text-xs font-bold text-${typeColor}-700 bg-${typeColor}-100 px-2 py-1 rounded-lg cursor-pointer select-none" onclick="toggleHeatCard('${cardKey}', '${elementId}')">
                             第 ${group.heat} 组 ${isExpanded ? '▲' : '▼'}
@@ -860,19 +826,6 @@ function loadCheckinSchedule() {
                             </div>
                         </div>`}
                     </div>
-
-                    ${currentRole === 'starter' ? '' : `
-                    <div class="pt-2 border-t border-gray-200">
-                        <div class="font-black text-purple-800 border-b-2 border-purple-200 pb-1.5 mb-3 flex items-center justify-between text-xs">
-                            <span class="flex items-center gap-1.5">
-                                <span>🎈</span> 趣味项目检录区
-                            </span>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            ${Object.keys(unit.fun).length === 0 ? '<div class="col-span-full text-xs text-gray-400 font-bold p-3 text-center bg-white rounded-lg border border-dashed">本单元无趣味项目</div>' : ''}
-                            ${Object.keys(unit.fun).sort((a,b) => unit.fun[a].timeIdx - unit.fun[b].timeIdx).map((k, i) => renderHeatCard(unit.fun[k], `fun_${uIdx}_${i}`)).join('')}
-                        </div>
-                    </div>`}
                 </div>
             </div>`;
         });
@@ -1036,25 +989,25 @@ let fieldAthletesData = [];
 function initFieldAthletesData(data) {
     fieldAthletesData = data.map((p, idx) => {
         let parsedAttempts = ['', '', '', '', '', ''];
-        if (p.attempts_json) {
+        if (p.attempts_json && p.attempts_json.trim() !== '' && p.attempts_json !== '[]') {
             try { parsedAttempts = JSON.parse(p.attempts_json); } catch(e) {}
-        } else if (p.attempts && Array.isArray(p.attempts)) {
-            parsedAttempts = p.attempts;
-        } else if (p.score) {
+        } else if (p.score && p.score.trim() !== '' && p.score !== '弃权') {
             parsedAttempts[0] = String(p.score);
         }
         return { ...p, orderIndex: idx + 1, attempts: parsedAttempts };
     });
     currentFieldRound = 1;
+    // 重置 1~6 次轮次按钮高亮与状态
     document.querySelectorAll('.round-pill').forEach(btn => {
-        if (btn.dataset.round === "1") {
+        const r = parseInt(btn.dataset.round);
+        if (r === 1) {
             btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-black bg-orange-600 text-white shadow-xs";
-        } else if (!btn.disabled) {
+        } else {
             btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200";
+            if (r > 3) btn.disabled = true; // 前3次之后重新锁定
         }
     });
 }
-
 window.switchFieldRound = function(roundNum) {
     currentFieldRound = roundNum;
     document.querySelectorAll('.round-pill').forEach(btn => {
@@ -1065,8 +1018,21 @@ window.switchFieldRound = function(roundNum) {
         }
     });
     renderCurrentFieldList();
-};
 
+    // 🌟 切换轮次后自动聚焦当前轮次第一个未出成绩的选手输入框
+    setTimeout(() => {
+        const firstUnscored = fieldAthletesData.find(a => !a.attempts[roundNum - 1] || a.attempts[roundNum - 1].trim() === '');
+        const target = firstUnscored || fieldAthletesData[0];
+        if (target) {
+            const input = document.getElementById(`field_input_${target.reg_id || target.id}`);
+            if (input) {
+                input.focus();
+                input.select();
+                input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    }, 150);
+};
 window.settleTop8ForFinals = function() {
     fieldAthletesData.forEach(p => {
         let s1 = parseFloat(p.attempts[0]) || 0;
@@ -1097,56 +1063,174 @@ window.settleTop8ForFinals = function() {
     alert(`🎉 阶段结算完成！\n已成功锁定前 ${top8.length} 名选手晋级决赛。\n出场次序已自动按规程【倒序】重排，现已进入第4次试跳！`);
 };
 
-window.saveFieldScore = function(regId, roundNum, input) {
-    let val = input.value.trim().replace('：', '.').replace(':', '.');
-    let athlete = fieldAthletesData.find(a => a.reg_id === regId || a.id === regId);
-    if (athlete) {
-        athlete.attempts[roundNum - 1] = val;
-        let allValid = athlete.attempts.map(v => parseFloat(v) || 0);
-        let overallBest = Math.max(0, ...allValid);
-        let scoreStr = overallBest > 0 ? overallBest.toFixed(2) : (athlete.attempts.some(v => String(v).includes('弃权')) ? '弃权' : '');
-        let targetRegId = athlete.reg_id || athlete.id;
+function updateFieldRowDOM(athlete, roundIndex) {
+    const athId = athlete.reg_id || athlete.id;
+    const pillsContainer = document.getElementById(`field_pills_${athId}`);
+    if (pillsContainer) {
+        pillsContainer.innerHTML = athlete.attempts.map((att, idx) => `
+            <span class="px-1 rounded border ${idx + 1 === roundIndex ? 'bg-orange-600 text-white border-orange-600 font-bold' : (att ? 'bg-gray-100 text-gray-700' : 'text-gray-300')}">
+                ${att || '-'}
+            </span>
+        `).join('');
+    }
 
-        input.classList.add('saving');
-        fetch('/api/submit_score', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id: targetRegId, score: String(scoreStr), attempts: JSON.stringify(athlete.attempts) })
-        })
-        .then(r => r.json())
-        .then(res => {
-            input.classList.remove('saving');
-            if (res.status === 'success') {
-                input.classList.add('saved');
-                setTimeout(() => input.classList.remove('saved'), 1000);
-                renderCurrentFieldList(); 
-            } else {
-                input.classList.add('error'); alert("保存失败: " + res.msg);
+    const bestEl = document.getElementById(`field_best_${athId}`);
+    if (bestEl) {
+        const allValid = athlete.attempts.map(v => parseFloat(v) || 0);
+        const best = Math.max(0, ...allValid);
+        bestEl.innerText = best > 0 ? best.toFixed(2) : '--';
+    }
+}
+
+// 🌟 辅助震动工具函数
+function triggerVibrate(pattern = 50) {
+    try {
+        if (window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate(pattern);
+        }
+    } catch (e) {}
+}
+
+// 🌟 田赛防抖计时器字典
+let fieldDebounceTimers = {};
+
+// 🌟 田赛 1 秒无操作自动保存函数
+window.autoSaveFieldScoreDebounced = function(regId, roundNum, input) {
+    const key = `${regId}_${roundNum}`;
+    clearTimeout(fieldDebounceTimers[key]);
+
+    // 用户正在输入时显示淡黄等待背景
+    input.classList.remove('saved', 'error');
+    input.classList.add('saving');
+
+    fieldDebounceTimers[key] = setTimeout(() => {
+        saveFieldScore(regId, roundNum, input);
+    }, 1000); // 1秒无输入自动触发保存
+};
+
+// 🌟 保存田赛单次成绩
+window.saveFieldScore = function(regId, roundNum, input, callback) {
+    const key = `${regId}_${roundNum}`;
+    if (typeof fieldDebounceTimers !== 'undefined') clearTimeout(fieldDebounceTimers[key]);
+
+    let val = input.value.trim().replace('：', '.').replace(':', '.');
+    input.value = val;
+    let athlete = fieldAthletesData.find(a => (a.reg_id || a.id) === regId);
+    if (!athlete) return;
+
+    athlete.attempts[roundNum - 1] = val;
+    let allValid = athlete.attempts.map(v => parseFloat(v) || 0);
+    let overallBest = Math.max(0, ...allValid);
+    athlete.score = overallBest > 0 ? overallBest.toFixed(2) : (athlete.attempts.some(v => String(v).includes('弃权')) ? '弃权' : '');
+
+    // 局部更新本行试跳记录与最好成绩
+    if (typeof updateFieldRowDOM === 'function') {
+        updateFieldRowDOM(athlete, roundNum);
+    } else {
+        renderCurrentFieldList();
+    }
+
+    // 视觉反馈 + 震动提醒（本地已暂存）
+    input.classList.remove('saving', 'error');
+    input.classList.add('saved');
+    if (typeof triggerVibrate === 'function') triggerVibrate(40);
+    setTimeout(() => input.classList.remove('saved'), 600);
+
+    showTip("📝 成绩已暂存本地，全部录完后请点击【提交最终名次】", "text-amber-600");
+    if (typeof callback === 'function') callback({ status: 'success' });
+};
+window.saveAndNextFieldAthlete = function(regId, roundNum) {
+    const athId = regId;
+    const currentInput = document.getElementById(`field_input_${athId}`);
+    if (currentInput) {
+        saveFieldScore(athId, roundNum, currentInput);
+    }
+    // 寻找下一个有效选手
+    const currIdx = fieldAthletesData.findIndex(a => (a.reg_id || a.id) === athId);
+    if (currIdx >= 0 && currIdx < fieldAthletesData.length - 1) {
+        const nextAthlete = fieldAthletesData[currIdx + 1];
+        const nextId = nextAthlete.reg_id || nextAthlete.id;
+        const nextInput = document.getElementById(`field_input_${nextId}`);
+        if (nextInput) {
+            nextInput.focus();
+            nextInput.select();
+            nextInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(30);
+        }
+    } else if (currIdx === fieldAthletesData.length - 1) {
+        // 当前轮次最后一人录毕提示
+        if (window.navigator && window.navigator.vibrate) window.navigator.vibrate([40, 40, 40]);
+        if (roundNum < 3) {
+            if (confirm(`🎉 第 ${roundNum} 轮已全部录入完毕！\n是否直接切换进入【第 ${roundNum + 1} 轮】试跳？`)) {
+                switchFieldRound(roundNum + 1);
             }
-        }).catch(() => { input.classList.remove('saving'); input.classList.add('error'); });
+        } else if (roundNum === 3) {
+            alert(`🎉 前 3 轮已全部录入完成！\n请点击上方【⚡ 截取前8决赛】按规程倒序重排进入后 3 轮试跳。`);
+        } else if (roundNum < 6) {
+            if (confirm(`🎉 第 ${roundNum} 轮决赛已录完！\n是否直接切换进入【第 ${roundNum + 1} 轮】？`)) {
+                switchFieldRound(roundNum + 1);
+            }
+        } else {
+            alert(`🎉 全部 6 轮试跳已录入完毕！请点击上方【提交最终名次】核算总分！`);
+        }
     }
 };
 
-window.finalizeFieldCompetition = function() {
-    if (!confirm("确定要结束本田赛项目的全部 6 次试跳，生成最终名次并计入总分吗？")) return;
-    fieldAthletesData.forEach(p => {
-        let allValid = (p.attempts || []).map(v => parseFloat(v) || 0);
-        p.finalBest = Math.max(0, ...allValid);
-    });
-    fieldAthletesData.sort((a, b) => b.finalBest - a.finalBest);
-    let summaryText = "🏆 【田赛最终成绩与名次总评】\n\n";
-    fieldAthletesData.forEach((p, idx) => {
-        summaryText += `第${idx + 1}名: ${p.name} (${p.team_name}) - 最好成绩: ${p.finalBest > 0 ? p.finalBest.toFixed(2) + 'm' : '无成绩'}\n`;
-    });
-    alert(summaryText);
-    fetch('/api/recalculate_all_points', { method: 'POST' })
-        .then(r => r.json())
-        .then(res => {
-            alert("✅ 田赛最终成绩已锁定，团体总分和名次已更新！");
-            loadAthletes();
-        });
+// 🌟 回车监听事件
+window.handleFieldInputKeydown = function(event, regId, roundNum) {
+    if (event.key === 'Enter' || event.keyCode === 13) {
+        event.preventDefault();
+        saveAndNextFieldAthlete(regId, roundNum);
+    }
 };
+window.finalizeFieldCompetition = function() {
+    if (!fieldAthletesData || fieldAthletesData.length === 0) {
+        return alert("暂无选手数据！");
+    }
+    if (!confirm("确定要统一提交本田赛项目的全部成绩，并立即生成最终名次与积分吗？")) return;
 
+    const payloadList = fieldAthletesData.map(p => {
+        let allValid = (p.attempts || []).map(v => parseFloat(v) || 0);
+        let best = Math.max(0, ...allValid);
+        let hasAbandon = (p.attempts || []).some(v => String(v).includes('弃权'));
+        let finalScoreStr = best > 0 ? best.toFixed(2) : (hasAbandon ? '弃权' : '');
+        p.finalBest = best;
+
+        return {
+            id: p.id,
+            reg_id: p.reg_id || p.id,
+            name: p.name,
+            team_name: p.team_name,
+            group_name: p.group_name,
+            gender: p.gender,
+            event_name: p.event_name,
+            score: finalScoreStr,
+            attempts_json: JSON.stringify(p.attempts || [])
+        };
+    });
+
+    showTip("⏳ 正在统一提交成绩并核算积分...", "text-blue-600");
+
+    fetch('/api/batch_submit_field_scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ athletes: payloadList })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') {
+            if (typeof triggerVibrate === 'function') triggerVibrate([80, 50, 80]);
+            showTip("✅ 已统一提交并完成积分计算！", "text-emerald-600");
+            alert(res.msg);
+            loadAthletes();
+        } else {
+            alert("❌ 提交失败: " + res.msg);
+        }
+    })
+    .catch(err => {
+        alert("❌ 网络传输异常，请重试！");
+    });
+};
 function renderCurrentFieldList() {
     const list = document.getElementById('athleteList');
     if (!list) return;
@@ -1162,13 +1246,15 @@ function renderCurrentFieldList() {
     list.innerHTML = html;
 }
 
+// 🌟 渲染单名选手行（已去除“下一位”按钮，界面清爽，回车仍可自动跳转下一位）
 function renderFieldAthleteRow(p, roundIndex) {
+    const athId = p.reg_id || p.id;
     const attempts = p.attempts || ['', '', '', '', '', ''];
     const validScores = attempts.map(v => parseFloat(v) || 0);
     const bestScore = Math.max(0, ...validScores);
 
     return `
-    <tr class="border-b border-gray-100 bg-white hover:bg-orange-50/30 transition">
+    <tr class="border-b border-gray-100 bg-white hover:bg-orange-50/30 transition" id="field_row_${athId}">
         <td class="p-2.5 text-center font-bold text-gray-400 border-r w-10">${p.orderIndex || p.lane || '-'}</td>
         <td class="p-2.5 text-center font-mono font-bold text-orange-600 text-sm border-r w-14">${p.bib || '---'}</td>
         <td class="p-2.5">
@@ -1177,7 +1263,7 @@ function renderFieldAthleteRow(p, roundIndex) {
                 ${p.isFinalist ? '<span class="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 px-1 rounded font-bold">前8强</span>' : ''}
             </div>
             <div class="text-[10px] text-gray-400 truncate max-w-[110px]">${p.team_name}</div>
-            <div class="flex items-center gap-1 mt-1 text-[10px] font-mono">
+            <div class="flex items-center gap-1 mt-1 text-[10px] font-mono field-attempts-pills" id="field_pills_${athId}">
                 ${attempts.map((att, idx) => `
                     <span class="px-1 rounded border ${idx + 1 === roundIndex ? 'bg-orange-600 text-white border-orange-600 font-bold' : (att ? 'bg-gray-100 text-gray-700' : 'text-gray-300')}">
                         ${att || '-'}
@@ -1185,51 +1271,35 @@ function renderFieldAthleteRow(p, roundIndex) {
                 `).join('')}
             </div>
         </td>
-        <td class="p-2 text-right w-36">
-            <div class="flex items-center justify-end gap-1">
+        <td class="p-2 text-right">
+            <div class="flex items-center justify-end gap-1.5 flex-nowrap">
                 <input type="text" inputmode="decimal" value="${attempts[roundIndex - 1] || ''}" 
-                       placeholder="第${roundIndex}次"
-                       class="input-score w-20 border border-orange-300 bg-orange-50/50 rounded-lg px-1.5 py-1.5 text-center font-bold text-orange-950 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-400"
-                       onblur="saveFieldScore(${p.reg_id}, ${roundIndex}, this)">
+       id="field_input_${athId}"
+       placeholder="第${roundIndex}次"
+       class="field-score-input input-score w-24 border border-orange-300 bg-orange-50/50 rounded-lg p-1.5 text-center font-bold text-orange-950 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-400"
+       oninput="autoSaveFieldScoreDebounced(${athId}, ${roundIndex}, this)"
+       onblur="saveFieldScore(${athId}, ${roundIndex}, this)"
+       onkeydown="handleFieldInputKeydown(event, ${athId}, ${roundIndex})">
                 <button type="button" 
-                        onclick="quickMarkFieldAbsent(${p.reg_id}, ${roundIndex}, this)" 
-                        class="px-1 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md active:scale-95 transition">
+                        onclick="quickMarkFieldAbsent(${athId}, ${roundIndex}, this)" 
+                        class="px-2 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg active:scale-95 transition whitespace-nowrap shrink-0">
                     弃权
                 </button>
-                <div class="text-[10px] text-gray-400 text-right min-w-[35px]">
+                <div class="text-[10px] text-gray-400 text-right min-w-[36px] pl-1">
                     <span class="block text-[8px] text-gray-300">最好</span>
-                    <span class="font-bold text-orange-700 font-mono">${bestScore > 0 ? bestScore.toFixed(2) : '--'}</span>
+                    <span class="font-bold text-orange-700 font-mono" id="field_best_${athId}">${bestScore > 0 ? bestScore.toFixed(2) : '--'}</span>
                 </div>
             </div>
         </td>
     </tr>`;
 }
-
+// 🌟 弃权标记优化
 window.quickMarkFieldAbsent = function(regId, roundNum, btn) {
-    const input = btn.previousElementSibling;
+    const input = document.getElementById(`field_input_${regId}`) || btn.previousElementSibling;
     if (!input) return;
     input.value = "弃权";
-    let athlete = fieldAthletesData.find(a => a.reg_id === regId || a.id === regId);
-    let targetRegId = athlete ? (athlete.reg_id || athlete.id) : regId;
-
-    input.classList.add('saving');
-    fetch('/api/submit_score', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ id: targetRegId, score: "弃权", attempts: athlete ? JSON.stringify(athlete.attempts) : "" })
-    })
-    .then(r => r.json())
-    .then(res => {
-        input.classList.remove('saving');
-        if (res.status === 'success') {
-            input.classList.add('saved');
-            setTimeout(() => input.classList.remove('saved'), 1000);
-            if (athlete) athlete.attempts[roundNum - 1] = "弃权";
-            renderCurrentFieldList();
-        }
-    });
+    saveFieldScore(regId, roundNum, input);
 };
-
 // 🌟 彻底补全：跳高与撑竿跳高全套升杆/试跳打分系统
 let hjHeights = ["1.00", "1.05", "1.10", "1.15", "1.20", "1.25", "1.30", "1.35", "1.40"];
 let curHjIndex = 0;
@@ -1401,8 +1471,40 @@ function renderNormalTrackList(filteredData) {
     let firstUnscoredInputId = null;
     const sortedHeats = Object.keys(heatsMap).sort((a, b) => parseInt(a) - parseInt(b));
 
+    // 🌟 检查当前项目是否为接力或团体项目
+    const curEventName = document.getElementById('selEvent')?.value || filteredData[0]?.event_name || '';
+    const isRelayEvent = curEventName.includes('接力') || curEventName.includes('4×') || curEventName.includes('4*') || curEventName.includes('4x');
+
     sortedHeats.forEach(heatNum => {
-        const heatItems = heatsMap[heatNum];
+        let heatItems = heatsMap[heatNum];
+
+        // 🌟 核心修复：接力项目按 代表队(team_name) 或 道次(lane) 去重，一个班级队伍只展示一行！
+        if (isRelayEvent) {
+            const teamMap = {};
+            heatItems.forEach(p => {
+                const tKey = String(p.team_name || p.teamName || p.lane).trim();
+                if (!teamMap[tKey]) {
+                    teamMap[tKey] = { ...p };
+                } else {
+                    // 优先保留非空成绩与检录状态
+                    if ((!teamMap[tKey].score || teamMap[tKey].score === '-') && p.score) {
+                        teamMap[tKey].score = p.score;
+                    }
+                    if ((!teamMap[tKey].checked_in || teamMap[tKey].checked_in === 0) && p.checked_in) {
+                        teamMap[tKey].checked_in = p.checked_in;
+                    }
+                    // 优先保留包含棒次全称的名字
+                    if (p.name && p.name.length > (teamMap[tKey].name || '').length) {
+                        teamMap[tKey].name = p.name;
+                    }
+                }
+            });
+            heatItems = Object.values(teamMap);
+        }
+
+        // 重新按道次升序排序
+        heatItems.sort((a, b) => (parseInt(a.lane) || 0) - (parseInt(b.lane) || 0));
+
         const totalCount = heatItems.length;
         const scoredCount = heatItems.filter(p => {
             const s = String(p.score || '').trim();
@@ -1444,23 +1546,23 @@ function renderNormalTrackList(filteredData) {
             html += `
             <tr class="border-b border-gray-100 ${isAbsent ? 'bg-red-50/40' : 'bg-white'} hover:bg-gray-50 transition">
                 <td class="p-2 text-center font-bold text-gray-400 border-r w-12 text-sm">${p.lane || '-'}</td>
-                <td class="p-2 text-center font-mono font-bold ${isAbsent ? 'text-gray-400' : 'text-blue-600'} text-xs border-r w-14">${p.bib || '---'}</td>
+                <td class="p-2 text-center font-mono font-bold ${isAbsent ? 'text-gray-400' : 'text-blue-600'} text-xs border-r w-14">${isRelayEvent ? '---' : (p.bib || '---')}</td>
                 <td class="p-2">
                     <div class="font-black text-gray-800 text-xs flex items-center gap-1">
                         <span class="${isAbsent ? 'line-through text-gray-400' : ''}">${p.name}</span>
                         ${isAbsent ? '<span class="text-[9px] bg-red-100 text-red-600 px-1 rounded font-bold">弃权</span>' : ''}
                     </div>
-                    <div class="text-[10px] text-gray-400 truncate max-w-[110px]">${p.team_name}</div>
+                    <div class="text-[10px] text-gray-500 font-bold truncate max-w-[140px]">${p.team_name}</div>
                 </td>
                 <td class="p-2 text-right w-40">
                     <div class="flex items-center justify-end gap-1">
                         <input type="text" inputmode="decimal" value="${p.score || ''}" 
-                               id="${inputId}"
-                               placeholder=""
-                               data-heat="${heatNum}"
-                               class="input-score w-24 border border-blue-200 bg-blue-50/50 rounded-lg p-1.5 text-center shadow-inner text-blue-950 font-bold text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-400"
-                               oninput="this.dataset.userEdited = 'true'"
-                               onblur="saveScore(${p.reg_id || p.id}, this)">
+       id="${inputId}"
+       placeholder=""
+       data-heat="${heatNum}"
+       class="input-score w-24 border border-blue-200 bg-blue-50/50 rounded-lg p-1.5 text-center shadow-inner text-blue-950 font-bold text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-400"
+       oninput="autoSaveTrackScoreDebounced(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${p.heat}'})"
+       onblur="saveScore(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${p.heat}'})">
                         <button type="button" onclick="quickMarkAbsent(${p.reg_id || p.id}, this)" 
                                 class="px-1.5 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md active:scale-95 transition shrink-0">
                             弃权
@@ -1497,15 +1599,46 @@ window.toggleTimingHeat = function(tbodyId, arrowId) {
     }
 };
 
-function saveScore(regId, input) {
+// 🌟 径赛防抖计时器字典
+let trackDebounceTimers = {};
+
+// 🌟 径赛 1 秒无操作自动保存函数
+window.autoSaveTrackScoreDebounced = function(regId, input, pData) {
+    clearTimeout(trackDebounceTimers[regId]);
+    input.classList.remove('saved', 'error');
+    input.classList.add('saving');
+
+    trackDebounceTimers[regId] = setTimeout(() => {
+        saveScore(regId, input, pData);
+    }, 1000); // 1秒无输入自动触发保存
+};
+
+// 🌟 保存径赛成绩
+function saveScore(regId, input, pData) {
+    clearTimeout(trackDebounceTimers[regId]); // 清除延时器
+
     const val = input.value.trim();
-    if (!val) return;
+    if (!val) {
+        input.classList.remove('saving');
+        return;
+    }
 
     input.classList.add('saving');
+    const payload = { id: regId, score: val };
+    if (pData) {
+        payload.start_id = pData.id;
+        payload.reg_id = pData.reg_id;
+        payload.name = pData.name;
+        payload.team_name = pData.team_name;
+        payload.group_name = pData.group_name;
+        payload.event_name = pData.event_name;
+        payload.gender = pData.gender;
+        payload.heat = pData.heat;
+    }
     fetch('/api/submit_score', {
         method: 'POST', 
         headers: {'Content-Type': 'application/json'}, 
-        body: JSON.stringify({ id: regId, score: val }) 
+        body: JSON.stringify(payload) 
     })
     .then(r => r.json())
     .then(res => {
@@ -1514,26 +1647,133 @@ function saveScore(regId, input) {
             input.classList.add('saved');
             input.classList.remove('bg-yellow-50', 'border-yellow-300', 'bg-cyan-50', 'border-cyan-400');
             if (res.new_score) { input.value = res.new_score; } 
-            if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(50);
+            
+            triggerVibrate(60); // 📳 径赛保存成功震动提醒 60ms
             setTimeout(() => input.classList.remove('saved'), 1000);
         } else {
-            input.classList.add('error'); alert(res.msg);
+            input.classList.add('error');
+            triggerVibrate([100, 50, 100]); // 📳 失败震动
+            alert(res.msg);
             setTimeout(() => input.classList.remove('error'), 2000);
         }
     }).catch(err => {
-        input.classList.remove('saving'); input.classList.add('error');
+        input.classList.remove('saving'); 
+        input.classList.add('error');
+        triggerVibrate([100, 50, 100]);
     });
 }
-
 function showTip(msg, colorClass) {
     const tip = document.getElementById('statusTip');
     tip.innerText = msg; tip.className = "text-xs font-bold py-2 " + colorClass;
 }
+function updateHeatCardCheckinProgress(rowElement) {
+    if (!rowElement) return;
+    const heatContainer = rowElement.closest('.bg-white.rounded-xl') || rowElement.closest('.bg-gray-100');
+    if (!heatContainer) return;
 
+    // 统计当前卡片下的所有选手行
+    const allRows = heatContainer.querySelectorAll('tbody tr[id^="checkin_row_"]');
+    const total = allRows.length;
+    let handled = 0;
+
+    allRows.forEach(r => {
+        const btnPresent = r.querySelector('.btn-present');
+        const btnAbsent = r.querySelector('.btn-absent');
+        // 仅根据背景样式判断状态，避免 innerText 恒为 true 的问题
+        const isPresent = btnPresent && btnPresent.classList.contains('bg-emerald-600');
+        const isAbsent = btnAbsent && btnAbsent.classList.contains('bg-red-600');
+        if (isPresent || isAbsent) handled++;
+    });
+
+    const isAllDone = (total > 0 && handled >= total);
+
+    // 1. 安全查找顶部状态徽章，避免非法选择器报错
+    const badge = heatContainer.querySelector('.checkin-status-badge') || heatContainer.querySelector('span[class*="font-mono"]');
+    if (badge) {
+        if (isAllDone) {
+            badge.className = "checkin-status-badge ml-2 font-mono text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-bold";
+            badge.innerText = "✔ 已检录";
+        } else {
+            badge.className = "checkin-status-badge ml-2 font-mono text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-bold";
+            badge.innerText = `⏳ 检录中 ${handled}/${total}`;
+        }
+    }
+
+    // 2. 如果是起点发令端，同步更新发令推送按钮
+    const pushBtn = heatContainer.querySelector('.btn-push-heat');
+    if (pushBtn && !pushBtn.dataset.started) {
+        if (isAllDone && !window.isTrackBusy) {
+            pushBtn.disabled = false;
+            pushBtn.className = "btn-push-heat bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-black shadow-md flex items-center gap-1 transition active:scale-95 animate-bounce cursor-pointer";
+            pushBtn.innerHTML = `<span>🚀</span> <span>发令推送</span>`;
+            pushBtn.title = "点击通知终点准备计时";
+        } else if (!isAllDone) {
+            pushBtn.disabled = true;
+            pushBtn.className = "btn-push-heat bg-gray-100 border border-gray-300 text-gray-400 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1";
+            pushBtn.innerHTML = `<span>🔒</span> <span>等待检录(${handled}/${total})</span>`;
+            pushBtn.title = "需检录完毕后发令";
+        } else if (window.isTrackBusy) {
+            pushBtn.disabled = true;
+            pushBtn.className = "btn-push-heat bg-orange-50 border border-orange-300 text-orange-600 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1";
+            pushBtn.innerHTML = `<span>⏳</span> <span>跑道使用中</span>`;
+            pushBtn.title = "终点正在录入上一组成绩，请等待录完";
+        }
+    }
+}
 function setCheckinStatus(startId, targetStatus) {
     const row = document.getElementById(`checkin_row_${startId}`);
     if (!row) return;
 
+    const btnPresent = row.querySelector('.btn-present');
+    const btnAbsent = row.querySelector('.btn-absent');
+    const nameSpan = row.querySelector('.ath-name');
+    const tagAbsent = row.querySelector('.tag-absent');
+
+    row.classList.remove('bg-emerald-50', 'bg-red-50');
+    if (nameSpan) nameSpan.classList.remove('line-through', 'text-gray-400');
+    if (tagAbsent) tagAbsent.classList.add('hidden');
+
+    if (targetStatus === 1) { // 到位
+        row.classList.add('bg-emerald-50');
+        if (btnPresent) {
+            btnPresent.className = "btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-emerald-600 text-white border-emerald-600 shadow-sm";
+            btnPresent.setAttribute('onclick', `setCheckinStatus(${startId}, 0)`); // 再次点击可取消
+        }
+        if (btnAbsent) {
+            btnAbsent.className = "btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-white text-gray-300 border-gray-300 hover:border-red-500";
+            btnAbsent.setAttribute('onclick', `setCheckinStatus(${startId}, 2)`);
+        }
+    } else if (targetStatus === 2) { // 弃权
+        row.classList.add('bg-red-50');
+        if (nameSpan) nameSpan.classList.add('line-through', 'text-gray-400');
+        if (tagAbsent) tagAbsent.classList.remove('hidden');
+        if (btnPresent) {
+            btnPresent.className = "btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-white text-gray-300 border-gray-300 hover:border-emerald-500";
+            btnPresent.setAttribute('onclick', `setCheckinStatus(${startId}, 1)`);
+        }
+        if (btnAbsent) {
+            btnAbsent.className = "btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-red-600 text-white border-red-600 shadow-sm";
+            btnAbsent.setAttribute('onclick', `setCheckinStatus(${startId}, 0)`); // 再次点击可取消
+        }
+    } else { // 恢复未检 (0)
+        if (btnPresent) {
+            btnPresent.className = "btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-white text-gray-300 border-gray-300 hover:border-emerald-500";
+            btnPresent.setAttribute('onclick', `setCheckinStatus(${startId}, 1)`);
+        }
+        if (btnAbsent) {
+            btnAbsent.className = "btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-white text-gray-300 border-gray-300 hover:border-red-500";
+            btnAbsent.setAttribute('onclick', `setCheckinStatus(${startId}, 2)`);
+        }
+    }
+
+    if (window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate(30);
+    }
+    
+    // 更新上级卡片统计
+    updateHeatCardCheckinProgress(row);
+
+    // 发起网络持久化请求
     fetch('/api/toggle_checkin', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -1541,12 +1781,16 @@ function setCheckinStatus(startId, targetStatus) {
     })
     .then(r => r.json())
     .then(res => {
-        if (res.status === 'success') loadCheckinSchedule();
-        else alert("检录状态同步失败：" + (res.msg || ""));
+        if (res.status !== 'success') {
+            alert("检录状态同步失败：" + (res.msg || ""));
+            loadCheckinSchedule();
+        }
     })
-    .catch(() => alert("网络连接异常，检录状态未保存！"));
+    .catch(() => {
+        alert("网络连接异常，状态未能保存！");
+        loadCheckinSchedule();
+    });
 }
-
 window.isTrackBusy = false;
 
 function pushHeatToFinish(gName, eName, gen, heat, btn) {
@@ -1578,123 +1822,35 @@ function pushHeatToFinish(gName, eName, gen, heat, btn) {
         alert("网络异常，未能成功通知终点！");
     });
 }
-
-let lastNotifiedHeatKey = null;
-
+// ==================== 补回在 let lastNotifiedHeatKey 上方 ====================
 function playStartBeep() {
     try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
         const ctx = new AudioContext();
-        
-        const playTone = (freq, start, duration) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, start);
-            gain.gain.setValueAtTime(0.3, start);
-            gain.gain.exponentialRampToValueAtTime(0.01, start + duration);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(start);
-            osc.stop(start + duration);
-        };
-
-        const now = ctx.currentTime;
-        playTone(880, now, 0.15);
-        playTone(1320, now + 0.18, 0.3);
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
     } catch (e) {}
 }
 
-// ==========================================
-// 🌟 发令指令语音合成与枪声音效引擎
-// ==========================================
-function playCommandSound(cmd) {
-    try {
-        // 1. 各就位、预备：使用 Web Speech API 中文语音播报
-        if (cmd === 'set' || cmd === 'ready') {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel(); // 停止上一段未说完的声音
-                const text = (cmd === 'set') ? '各就位' : '预备';
-                const utter = new SpeechSynthesisUtterance(text);
-                utter.lang = 'zh-CN';
-                utter.rate = 1.0;
-                utter.pitch = 1.0;
-                window.speechSynthesis.speak(utter);
-            }
-        } 
-        // 2. 枪响：使用 Web Audio API 合成真实的短促发令枪爆鸣声与哨音
-        else if (cmd === 'gun') {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) return;
-            const ctx = new AudioContext();
-            
-            // 白噪声发令枪声模拟
-            const bufferSize = ctx.sampleRate * 0.25; 
-            const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.04));
-            }
-            const noise = ctx.createBufferSource();
-            noise.buffer = buffer;
+let lastNotifiedHeatKey = null;
 
-            // 低通滤波器模拟爆炸重音
-            const filter = ctx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(1000, ctx.currentTime);
-            filter.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.25);
-
-            const gain = ctx.createGain();
-            gain.gain.setValueAtTime(1.0, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
-
-            noise.connect(filter);
-            filter.connect(gain);
-            gain.connect(ctx.destination);
-            noise.start();
-        }
-        // 3. 抢跑犯规召回：连续急促双短哨音
-        else if (cmd === 'false_start') {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) return;
-            const ctx = new AudioContext();
-            const playBeep = (freq, start, dur) => {
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.frequency.setValueAtTime(freq, start);
-                gain.gain.setValueAtTime(0.5, start);
-                gain.gain.exponentialRampToValueAtTime(0.01, start + dur);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(start);
-                osc.stop(start + dur);
-            };
-            const now = ctx.currentTime;
-            playBeep(1200, now, 0.12);
-            playBeep(1200, now + 0.16, 0.12);
-            playBeep(1200, now + 0.32, 0.3);
-        }
-    } catch (e) {
-        console.log("音频播放限制或未初始化:", e);
-    }
-}
 function pollActiveHeat() {
-    if (currentRole !== 'timing' && currentRole !== 'camera') return;
+    if (currentRole !== 'timing') return;
 
     fetch('/api/get_active_heat?_t=' + Date.now())
         .then(r => r.json())
         .then(res => {
             if (res.status === 'success' && res.data) {
                 currentActiveHeatData = res.data;
-                currentHeatAthletesMap = res.data.athletes || {}; // 👈 存入名单
-
-                const camInfo = document.getElementById('camHeatInfo');
-                if (camInfo) camInfo.innerText = `🚩 ${res.data.group_name} ${res.data.gender}子 · ${res.data.event_name} (第 ${res.data.heat} 组)`;
-
-                if (currentRole === 'camera') {
-                    drawCalibrationOverlay(); // 立即渲染名字
-                }
 
                 const notice = document.getElementById('trackActiveNotice');
                 const info = document.getElementById('activeTrackInfo');
@@ -1775,533 +1931,15 @@ window.quickMarkAbsent = function(regId, btn) {
     saveScore(regId, input);
 };
 
-// ========================================================
-// 🌟 起点发令控制台逻辑
-// ========================================================
-let lastGunClickTime = 0;
-let isTimingStarted = false;
-let currentStarterHeat = null;
-
-const rawPushHeatToFinish = window.pushHeatToFinish;
-window.pushHeatToFinish = function(gName, eName, gen, heat, btn) {
-    currentStarterHeat = { group_name: gName, event_name: eName, gender: gen, heat: heat };
-    rawPushHeatToFinish(gName, eName, gen, heat, btn);
-    /*
-    const panel = document.getElementById('starterControlPanel');
-    const fab = document.getElementById('btnStarterPanelFab');
-    document.getElementById('starterPanelTitle').innerText = `${gName} ${gen}·${eName} (第${heat}组)`;
-    panel.classList.remove('hidden');
-    fab.classList.add('hidden');
-    */
-};
-
-function toggleStarterPanel() {
-    const panel = document.getElementById('starterControlPanel');
-    const fab = document.getElementById('btnStarterPanelFab');
-    panel.classList.toggle('hidden');
-    fab.classList.toggle('hidden');
-}
-
-function handleGunClick() {
-    const now = Date.now();
-    const tip = document.getElementById('starterStatusTip');
-
-    if (isTimingStarted && (now - lastGunClickTime < 2500)) {
-        isTimingStarted = false;
-        sendStarterCmd('false_start');
-        tip.innerText = "⚠️ 警告：检测到犯规发令，已发出召回指令，计时清零！";
-        tip.className = "text-[11px] text-center text-red-400 mt-2 font-black animate-bounce";
-        if (window.navigator.vibrate) window.navigator.vibrate([100, 50, 100, 50, 200]);
-        return;
-    }
-
-    isTimingStarted = true;
-    lastGunClickTime = now;
-    sendStarterCmd('gun');
-    tip.innerText = "⏱️ 比赛正在计时中... (若抢跑请立即再次点击枪响)";
-    tip.className = "text-[11px] text-center text-emerald-400 mt-2 font-bold";
-    if (window.navigator.vibrate) window.navigator.vibrate(100);
-}
-
-function sendStarterCmd(cmd) {
-    if (cmd === 'reset') isTimingStarted = false;
-    
-    // 起点端本机立即发声反馈
-    playCommandSound(cmd);
-
-    socket.emit('starter_command', {
-        cmd: cmd,
-        timestamp: Date.now(),
-        heat_info: currentStarterHeat || currentActiveHeatData
-    });
-}
-// ========================================================
-// 🌟 终点摄像裁判：交互标定与自动推送
-// ========================================================
-let videoStream = null;
-let startClockTime = 0;
-let stopwatchTimer = null;
-let recordedLaneTimes = {}; 
-const TOTAL_LANES = 8;
-let laneYCoordinates = []; 
-let finishLineX = 0;       
-let activeDragging = null; 
-
-async function startFinishCamera() {
-    try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            alert("⚠️ 浏览器未激活相机 API，请确认通过 HTTPS 访问或已配置 Chrome 局域网白名单！");
-            return;
-        }
-
-        if (window.videoStream) window.videoStream.getTracks().forEach(t => t.stop());
-
-        const constraints = {
-            video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: false
-        };
-
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        window.videoStream = stream;
-        const video = document.getElementById('finishVideo');
-        video.srcObject = stream;
-        video.setAttribute('playsinline', 'true');
-        video.muted = true;
-        await video.play();
-
-        setTimeout(() => {
-            initCalibrationGrid();
-            bindCanvasDragEvents();
-            startMotionDetection();
-            autoCalibrateTrackLines();
-        }, 300);
-
-    } catch (e) {
-        alert("❌ 无法打开摄像头: " + (e.message || e.name));
-    }
-}
-
-function exitCameraRole() {
-    if (window.videoStream) {
-        window.videoStream.getTracks().forEach(t => t.stop());
-        window.videoStream = null;
-    }
-    document.getElementById('finishCameraSection')?.classList.add('hidden');
-    resetRoleSelection();
-}
-
-function initCalibrationGrid() {
-    const canvas = document.getElementById('calibrationCanvas');
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width || window.innerWidth;
-    canvas.height = rect.height || window.innerHeight;
-
-    // 默认垂直终点线位于画面右侧 62%
-    finishLineX = Math.floor(canvas.width * 0.62);
-
-    laneYCoordinates = [];
-    const H = canvas.height;
-    
-    // 🌟 针对俯斜视角的“近大远小”几何模型（基于 1.45 指数幂衰减）
-    // 8道在最底部最宽，1道在最上方最窄
-    const topMargin = H * 0.08;   // 远处 1 道顶部预留天空/终点后侧
-    const bottomMargin = H * 0.98; // 近处 8 道底部
-    const effectiveHeight = bottomMargin - topMargin;
-    
-    laneYCoordinates.push(Math.floor(topMargin));
-    for (let i = 1; i <= TOTAL_LANES; i++) {
-        // 使用非线性对数/幂函数分配跑道垂直跨度
-        const ratio = Math.pow(i / TOTAL_LANES, 1.55);
-        laneYCoordinates.push(Math.floor(topMargin + effectiveHeight * ratio));
-    }
-    
-    drawCalibrationOverlay();
-}
-function resetCalibrationLines() {
-    initCalibrationGrid();
-}
-
-// 记录当前道次顺序：true 表示 1 道在最下方(近)，false 表示 8 道在最下方(近)
-let isTrackReversed = false; 
-
-function autoCalibrateTrackLines() {
-    const video = document.getElementById('finishVideo');
-    const canvas = document.getElementById('calibrationCanvas');
-    if (!video || !canvas || video.videoWidth === 0) return;
-
-    const tempCanvas = document.createElement('canvas');
-    const w = tempCanvas.width = 320;
-    const h = tempCanvas.height = 180;
-    const ctx = tempCanvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, w, h);
-    const data = ctx.getImageData(0, 0, w, h).data;
-
-    // 1. 蓝色跑道专用高对比度白漆过滤 (Mask)
-    const whiteMask = new Uint8Array(w * h);
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i + 1], b = data[i + 2];
-        const brightness = (r + g + b) / 3;
-        const colorDiff = Math.max(Math.abs(r - g), Math.abs(r - b), Math.abs(g - b));
-        // 过滤蓝胶面与草坪绿，提取纯白分道线与白字
-        if (brightness > 160 && colorDiff < 35 && b > 80) {
-            whiteMask[i / 4] = 1;
-        }
-    }
-
-    // 2. 精确吸附纵向终点白线 (扫描 X 轴高密度贯通垂直线)
-    const colDensity = new Float32Array(w);
-    for (let x = Math.floor(w * 0.25); x < Math.floor(w * 0.85); x++) {
-        let count = 0;
-        for (let y = 15; y < h - 15; y++) {
-            if (whiteMask[y * w + x]) count++;
-        }
-        colDensity[x] = count;
-    }
-
-    let maxColVal = 0;
-    let targetColX = Math.floor(w * 0.42);
-    for (let x = Math.floor(w * 0.25); x < Math.floor(w * 0.85); x++) {
-        if (colDensity[x] > maxColVal) {
-            maxColVal = colDensity[x];
-            targetColX = x;
-        }
-    }
-    if (maxColVal > 35) {
-        finishLineX = Math.floor(targetColX * (canvas.width / w));
-    }
-
-    // 3. 扫描水平横向分道线
-    const rowEnergy = new Float32Array(h);
-    for (let y = 5; y < h - 5; y++) {
-        let sum = 0;
-        for (let x = 10; x < w - 10; x++) {
-            if (whiteMask[y * w + x]) sum++;
-        }
-        rowEnergy[y] = sum;
-    }
-
-    // 提取横向白线的准确 Y 坐标峰值
-    const rawPeaks = [];
-    for (let y = 10; y < h - 10; y++) {
-        if (rowEnergy[y] > 18 &&
-            rowEnergy[y] >= rowEnergy[y - 1] && rowEnergy[y] >= rowEnergy[y + 1] &&
-            rowEnergy[y] >= rowEnergy[y - 2] && rowEnergy[y] >= rowEnergy[y + 2]) {
-            rawPeaks.push(y);
-            y += 5; 
-        }
-    }
-
-    const scale = canvas.height / h;
-
-    // 4. 自动判别 1 道在近还是 8 道在近
-    // 取画面底部 30% 区域与顶部 30% 区域的白色笔画特征判断
-    let bottomWhiteMass = 0;
-    let topWhiteMass = 0;
-    for (let y = Math.floor(h * 0.65); y < h; y++) {
-        for (let x = Math.floor(w * 0.35); x < Math.floor(w * 0.65); x++) {
-            if (whiteMask[y * w + x]) bottomWhiteMass++;
-        }
-    }
-    for (let y = 0; y < Math.floor(h * 0.35); y++) {
-        for (let x = Math.floor(w * 0.35); x < Math.floor(w * 0.65); x++) {
-            if (whiteMask[y * w + x]) topWhiteMass++;
-        }
-    }
-    
-    // 如果底部出现巨大白色笔画重心（如巨大的"1"字），则近处是 1 道
-    isTrackReversed = (bottomWhiteMass > topWhiteMass * 1.4);
-
-    if (rawPeaks.length >= 6) {
-        // 场景 A：识别到真实白线，直接将 Y 边界按白线位置划定
-        const topY = rawPeaks[0] * scale;
-        const bottomY = rawPeaks[rawPeaks.length - 1] * scale;
-        const totalSpan = bottomY - topY;
-
-        laneYCoordinates = [];
-        laneYCoordinates.push(Math.max(0, Math.floor(topY)));
-        for (let i = 1; i <= TOTAL_LANES; i++) {
-            const ratio = Math.pow(i / TOTAL_LANES, 1.48);
-            laneYCoordinates.push(Math.min(canvas.height, Math.floor(topY + totalSpan * ratio)));
-        }
-    } else {
-        // 场景 B：基准透视默认值
-        const topY = canvas.height * 0.22;
-        const bottomY = canvas.height * 0.92;
-        const totalSpan = bottomY - topY;
-
-        laneYCoordinates = [];
-        laneYCoordinates.push(Math.floor(topY));
-        for (let i = 1; i <= TOTAL_LANES; i++) {
-            const ratio = Math.pow(i / TOTAL_LANES, 1.48);
-            laneYCoordinates.push(Math.floor(topY + totalSpan * ratio));
-        }
-    }
-
-    drawCalibrationOverlay();
-}
-
-function drawCalibrationOverlay() {
-    const canvas = document.getElementById('calibrationCanvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    for (let i = 0; i < TOTAL_LANES; i++) {
-        // 自适应倒序：如果 1 道在下方，则从下往上编号 1~8；否则从上往下 1~8
-        const laneNum = String(isTrackReversed ? (TOTAL_LANES - i) : (i + 1));
-        const yTop = laneYCoordinates[i];
-        const yBottom = laneYCoordinates[i + 1];
-
-        // 1. 跑道分道线（青色虚线）
-        ctx.strokeStyle = 'rgba(34, 211, 238, 0.9)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([8, 4]);
-        ctx.beginPath();
-        ctx.moveTo(0, yBottom);
-        ctx.lineTo(canvas.width, yBottom);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // 2. 运动员姓名与道次标签
-        const ath = currentHeatAthletesMap ? currentHeatAthletesMap[laneNum] : null;
-        let labelText = `第${laneNum}道`;
-        if (ath && ath.name) {
-            labelText += ` · ${ath.name} (${ath.team || ''})`;
-        }
-
-        const tagHeight = Math.max(16, Math.min(22, (yBottom - yTop) * 0.45));
-        const fontSize = Math.max(10, Math.min(12, tagHeight - 4));
-        ctx.font = `bold ${fontSize}px sans-serif`;
-        const textWidth = ctx.measureText(labelText).width;
-
-        // 标签背景块
-        ctx.fillStyle = (ath && ath.name) ? 'rgba(6, 78, 59, 0.85)' : 'rgba(15, 23, 42, 0.75)';
-        ctx.fillRect(8, yTop + 3, textWidth + 12, tagHeight);
-
-        // 边框
-        ctx.strokeStyle = (ath && ath.name) ? 'rgba(52, 211, 153, 0.7)' : 'rgba(56, 189, 248, 0.4)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(8, yTop + 3, textWidth + 12, tagHeight);
-
-        // 文字
-        ctx.fillStyle = (ath && ath.name) ? '#6ee7b7' : '#7dd3fc';
-        ctx.fillText(labelText, 14, yTop + 3 + fontSize);
-    }
-
-    // 3. 终点垂直红线
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.moveTo(finishLineX, 0);
-    ctx.lineTo(finishLineX, canvas.height);
-    ctx.stroke();
-
-    // 终点标牌
-    ctx.fillStyle = '#ef4444';
-    ctx.fillRect(finishLineX - 26, 6, 52, 20);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.fillText('终点线', finishLineX - 16, 20);
-}
-let currentHeatAthletesMap = {}; 
-
 // 监听发车广播
 socket.on('heat_activated', function(payload) {
     if (currentRole === 'timing') {
         pollActiveHeat(); 
-    } else if (currentRole === 'camera') {
-        const infoEl = document.getElementById('camHeatInfo');
-        if (infoEl) infoEl.innerText = `🚩 ${payload.group_name} ${payload.gender}子 · ${payload.event_name} (第${payload.heat}组)`;
-        
-        // 🌟 提取姓名映射并重新在跑道上标绘
-        currentHeatAthletesMap = payload.athletes || {};
-        if (typeof drawCalibrationOverlay === 'function') {
-            drawCalibrationOverlay();
-        }
     } else if (currentRole === 'starter' || currentRole === 'checkin') {
         window.isTrackBusy = true;
         loadCheckinSchedule();
     }
-});
-function bindCanvasDragEvents() {
-    const canvas = document.getElementById('calibrationCanvas');
-    if (!canvas || canvas.dataset.dragBound) return;
-    canvas.dataset.dragBound = "true";
-
-    const getPos = (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return { x: clientX - rect.left, y: clientY - rect.top };
-    };
-
-    const startDrag = (e) => {
-        const pos = getPos(e);
-        if (Math.abs(pos.x - finishLineX) < 35) { activeDragging = 'vertical'; return; }
-        for (let i = 1; i < TOTAL_LANES; i++) {
-            if (Math.abs(pos.y - laneYCoordinates[i]) < 25) { activeDragging = i; return; }
-        }
-    };
-
-    const moveDrag = (e) => {
-        if (!activeDragging) return;
-        e.preventDefault();
-        const pos = getPos(e);
-        if (activeDragging === 'vertical') {
-            finishLineX = Math.max(canvas.width * 0.2, Math.min(canvas.width * 0.85, pos.x));
-        } else if (typeof activeDragging === 'number') {
-            const idx = activeDragging;
-            const minY = laneYCoordinates[idx - 1] + 20;
-            const maxY = laneYCoordinates[idx + 1] - 20;
-            laneYCoordinates[idx] = Math.max(minY, Math.min(maxY, pos.y));
-        }
-        drawCalibrationOverlay();
-    };
-
-    canvas.addEventListener('mousedown', startDrag);
-    window.addEventListener('mousemove', moveDrag);
-    window.addEventListener('mouseup', () => activeDragging = null);
-    canvas.addEventListener('touchstart', startDrag, { passive: false });
-    window.addEventListener('touchmove', moveDrag, { passive: false });
-    window.addEventListener('touchend', () => activeDragging = null);
-}
-
-let prevImageData = null;
-// 升级版：带“冲线穿透深度分析”的撞线检测
-function startMotionDetection() {
-    const video = document.getElementById('finishVideo');
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-    const checkFrame = () => {
-        const camSection = document.getElementById('finishCameraSection');
-        if (!camSection || camSection.classList.contains('hidden') || !isTimingStarted || video.paused || video.ended) {
-            requestAnimationFrame(checkFrame);
-            return;
-        }
-
-        canvas.width = 320;
-        canvas.height = 180;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        const currentFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const calCanvas = document.getElementById('calibrationCanvas');
-
-        if (prevImageData && calCanvas && calCanvas.width > 0) {
-            const scaleX = canvas.width / calCanvas.width;
-            const scaleY = canvas.height / calCanvas.height;
-            const targetX = Math.floor(finishLineX * scaleX);
-
-            let currentFrameTriggers = []; // 收集本帧内所有触发的道次及其穿透程度
-
-            for (let lane = 1; lane <= TOTAL_LANES; lane++) {
-                if (!recordedLaneTimes[lane]) {
-                    const y1 = Math.floor(laneYCoordinates[lane - 1] * scaleY);
-                    const y2 = Math.floor(laneYCoordinates[lane] * scaleY);
-
-                    // 向上取道次中间 60% 高度区域（重点锁定躯干，避开手臂甩动与地面摆腿）
-                    const torsoY1 = Math.floor(y1 + (y2 - y1) * 0.2);
-                    const torsoY2 = Math.floor(y2 - (y2 - y1) * 0.2);
-
-                    let diffCount = 0;
-                    let maxPenetrationX = targetX; // 越过红线的最远突变像素 X 坐标
-
-                    for (let y = torsoY1; y < torsoY2; y += 2) {
-                        for (let x = Math.max(0, targetX - 4); x <= Math.min(canvas.width - 1, targetX + 10); x += 2) {
-                            const idx = (y * canvas.width + x) * 4;
-                            const rDiff = Math.abs(currentFrame.data[idx] - prevImageData.data[idx]);
-                            const gDiff = Math.abs(currentFrame.data[idx + 1] - prevImageData.data[idx + 1]);
-                            const bDiff = Math.abs(currentFrame.data[idx + 2] - prevImageData.data[idx + 2]);
-
-                            if (rDiff + gDiff + bDiff > 90) {
-                                diffCount++;
-                                if (x > maxPenetrationX) {
-                                    maxPenetrationX = x; // 记录过线最深点
-                                }
-                            }
-                        }
-                    }
-
-                    if (diffCount > 14) {
-                        currentFrameTriggers.push({
-                            lane: lane,
-                            penetrationDepth: maxPenetrationX - targetX // 穿透深度（越大说明越早过线）
-                        });
-                    }
-                }
-            }
-
-            // 🌟 核心：如果同一帧有多人过线，按穿透深度降序排序，人为细分 0.01~0.02 秒的先后差距
-            if (currentFrameTriggers.length > 0) {
-                // 深度大的排在前面（更早过线）
-                currentFrameTriggers.sort((a, b) => b.penetrationDepth - a.penetrationDepth);
-
-                const baseElapsed = (Date.now() - startClockTime) / 1000;
-
-                currentFrameTriggers.forEach((trg, rankOffset) => {
-                    // 后过线的人在同一帧时间基准上依次增加 0.01 秒的时间微差，确保不产生绝对并列死锁
-                    const finalSec = (baseElapsed + rankOffset * 0.01).toFixed(2);
-                    recordedLaneTimes[trg.lane] = finalSec;
-                    renderLaneTimesBadge(trg.lane, finalSec);
-                });
-
-                // 自动推送到记录端
-                socket.emit('camera_times_pushed', {
-                    heat_info: currentActiveHeatData || {},
-                    lane_times: recordedLaneTimes
-                });
-            }
-        }
-        prevImageData = currentFrame;
-        requestAnimationFrame(checkFrame);
-    };
-    requestAnimationFrame(checkFrame);
-}
-function renderLaneTimesBadge(lane, timeStr) {
-    const container = document.getElementById('laneResultTags');
-    if (!container) return;
-    const tag = document.createElement('div');
-    tag.className = "bg-gray-800 border border-emerald-500/60 p-1.5 rounded-lg text-center shadow animate-bounce";
-    tag.innerHTML = `<span class="text-gray-400 text-[10px]">第${lane}道</span><div class="text-emerald-400 font-mono font-black text-sm">${timeStr}s</div>`;
-    container.appendChild(tag);
-}
-
-// 🟢 替换后的代码：摄像端完全静音，只负责毫秒计时与撞线抓拍
-socket.on('starter_action', function(payload) {
-    const cmd = payload.cmd;
-    const timeDisplay = document.getElementById('camStopwatch');
-
-    if (cmd === 'gun') {
-        startClockTime = payload.timestamp || Date.now();
-        isTimingStarted = true;
-        recordedLaneTimes = {};
-        document.getElementById('laneResultTags').innerHTML = '';
-
-        if (stopwatchTimer) clearInterval(stopwatchTimer);
-        stopwatchTimer = setInterval(() => {
-            const diff = Date.now() - startClockTime;
-            const mins = Math.floor(diff / 60000);
-            const secs = Math.floor((diff % 60000) / 1000);
-            const ms = Math.floor((diff % 1000) / 10);
-            if (timeDisplay) {
-                timeDisplay.innerText = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}.${String(ms).padStart(2,'0')}`;
-            }
-        }, 30);
-
-    } else if (cmd === 'false_start') {
-        isTimingStarted = false;
-        clearInterval(stopwatchTimer);
-        if (timeDisplay) timeDisplay.innerText = "00:00.00 (抢跑召回)";
-        recordedLaneTimes = {};
-        alert("⚠️ 起点裁判判定抢跑犯规，发令召回，计时已重置！");
-
-    } else if (cmd === 'reset') {
-        isTimingStarted = false;
-        clearInterval(stopwatchTimer);
-        if (timeDisplay) timeDisplay.innerText = "00:00.00";
-    }
-});
-// 🌟 彻底补全：自动检查登录态
+});// 🌟 彻底补全：自动检查登录态
 document.addEventListener("DOMContentLoaded", function() {
     fetch('/api/check_session?_t=' + Date.now())
         .then(r => r.json())
@@ -2312,14 +1950,12 @@ document.addEventListener("DOMContentLoaded", function() {
                 document.getElementById('bodyWrap').classList.remove('bg-green-800');
                 document.getElementById('bodyWrap').classList.add('console-bg');
 
-                const savedRole = localStorage.getItem('last_referee_role') || 'checkin';
                 initConsoleData();
                 resetRoleSelection();
             }
         })
         .catch(err => console.log("检查登录态异常:", err));
 });
-
 // 🌟 彻底补全：输入成绩回车自动跳转下一道
 document.addEventListener('DOMContentLoaded', function() {
     const listContainer = document.getElementById('athleteList');
@@ -2327,10 +1963,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     listContainer.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' || e.keyCode === 13) {
-            e.preventDefault();
             const currentInput = e.target;
             if (!currentInput.classList.contains('input-score')) return;
 
+            // 🌟 如果是田赛输入框，已由 handleFieldInputKeydown 专门处理，跳过全局事件
+            if (currentInput.classList.contains('field-score-input')) return;
+
+            e.preventDefault();
             currentInput.blur();
             const allInputs = Array.from(listContainer.querySelectorAll('.input-score:not([disabled])'));
             const currentIndex = allInputs.indexOf(currentInput);
