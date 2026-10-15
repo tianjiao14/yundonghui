@@ -1591,27 +1591,31 @@ window.deleteSelectedTemplate = function(id, name) {
 
         renderResultSheet();
     }
+
+window.groupQualifyCache = window.groupQualifyCache || {};
+
 window.updateEventQualifyCount = function(val) {
     const qCount = parseInt(val) || 3;
-    const cleanCore = (window.curResEvent || '').replace(' (预赛)', '').replace(' (决赛)', '').trim();
-    const targetEvt = db.events.find(e => e.name === cleanCore || e.name === window.curResEvent);
-    
-    if (targetEvt) {
-        targetEvt.qualifyCount = qCount;
-        targetEvt.qualify_count = qCount;
+    const gName = window.curResGroup || '';
+    const eName = window.curResEvent || '';
+    const cleanCore = eName.replace(' (预赛)', '').replace(' (决赛)', '').trim();
+
+    if (gName && cleanCore) {
+        window.groupQualifyCache[`${gName}_${cleanCore}`] = qCount;
     }
 
-    // 提交到后端持久化写入数据库
-    fetch('/api/batch_save_events', {
+    fetch('/api/save_group_qualify_count', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events: db.events })
+        body: JSON.stringify({
+            group_name: gName,
+            event_name: eName,
+            qualify_count: qCount
+        })
     })
     .then(r => r.json())
     .then(() => {
-        // 重新计算全场积分并刷新成绩表
-        fetch('/api/recalculate_all_points', { method: 'POST' })
-            .then(() => renderResultSheet());
+        renderResultSheet();
     });
 };
 // 🌟 专门处理报名截止时间的一键自动持久化保存
@@ -4227,7 +4231,12 @@ function exportWord() {
             }
 
             window.currentEventStartListData = data;
-            
+            if (data[0] && data[0].qualify_count !== undefined) {
+                const topNInput = document.getElementById('finalsTopN');
+                if (topNInput && document.activeElement !== topNInput) {
+                    topNInput.value = data[0].qualify_count;
+                }
+            }
             let finalHTML = '';
 
             // 🌟 1. 补齐定义 evtCfg 与 isField，防止报错
@@ -4248,7 +4257,7 @@ function exportWord() {
                 sortAsc = data.some(i => String(i.score || '').includes(':') || String(i.score || '').includes('：'));
             }
 
-            const qualifyLimit = parseInt(evtCfg.limit || evtCfg.limit_count) || 8;
+            const qualifyLimit = (data[0] && data[0].qualify_count) ? parseInt(data[0].qualify_count) : (parseInt(evtCfg.qualifyCount || evtCfg.limit) || 8);
             // 1. 排查是否全场小组全部完赛（排除弃权选手）
             const hasUnfinishedRunners = data.some(item => {
                 const s = String(item.score || '').trim();

@@ -334,6 +334,11 @@ socket.on('score_updated', function(payload) {
         }
     }
 });
+socket.on('referee_score_saved', function(payload) {
+    if (currentRole === 'starter') {
+        loadCheckinSchedule();
+    }
+});
 function login() {
     const user = document.getElementById('username').value.trim();
     const pwd = document.getElementById('pwd').value;
@@ -459,6 +464,7 @@ function resetRoleSelection() {
 }
 function refreshCurrentView() {
     if (currentRole === 'timing' || currentRole === 'field') {
+        if (currentRole === 'timing') pollActiveHeat(); // 👈 点击刷新时立即同步最新发令状态！
         const curEvent = document.getElementById('selEvent')?.value;
         const curGroup = document.getElementById('selGroup')?.value;
         if (curEvent && curGroup && !curGroup.includes('连接') && !curGroup.includes('选择')) {
@@ -470,7 +476,6 @@ function refreshCurrentView() {
         loadCheckinSchedule();
     }
 }
-
 function formatRealDate(estTimeStr) {
     if (!compStartDate || !estTimeStr) return estTimeStr;
     const match = estTimeStr.match(/第(\d+)天(上午|下午)?\s*(.*)/);
@@ -636,15 +641,24 @@ function loadCheckinSchedule() {
             }).length;
             const isAllChecked = (totalCount > 0 && handledCount >= totalCount);
 
-            // 🌟 双重锁定：无论在库中标记过发令(is_started==1)，还是已有成绩录入，均绝对判定为已发令！
+           // 🌟 1. 判断终点是否已经录入了有效比赛成绩（排除检录弃权，只看真实成绩）
             const hasRecordedScore = group.athletes.some(p => {
                 const s = String(p.score !== undefined ? p.score : (p.start_score || '')).trim();
-                const c = parseInt(p.checkedIn !== undefined ? p.checkedIn : (p.checked_in || 0));
+                const isAbandon = s.includes('弃权') || s.includes('DNS') || s.includes('DNF') || s.includes('DQ');
+                return s !== '' && s !== '-' && !s.includes('待定') && !isAbandon;
+            });
+
+            // 🌟 2. 判断是否全员均已完赛（有成绩 或 弃权）
+            const isAllFinished = totalCount > 0 && group.athletes.every(p => {
+                const s = String(p.score !== undefined ? p.score : (p.start_score || '')).trim();
+                const c = getCheckedState(p);
                 return c === 2 || (s !== '' && s !== '-' && !s.includes('待定'));
             });
-            const isAlreadyPushed = group.athletes.some(p => p.is_started === 1 || p.isStarted === 1) || hasRecordedScore;
+
+            // 只要终点录了任何一人的成绩，或者全员完赛，即视为比赛已出成绩（禁止重发！）
+            const isHeatCompletedWithScore = hasRecordedScore || isAllFinished;
+            const isAlreadyPushed = group.athletes.some(p => p.is_started === 1 || p.isStarted === 1) || isHeatCompletedWithScore;
             
-            // 发令端只要已发令即视为 Done（收起为已发令卡片）
             const isHeatDone = isStarter ? isAlreadyPushed : isAllChecked;
             const cardKey = `${group.groupName}_${group.eventName}_${group.gender}_${group.heat}`;
 
@@ -655,17 +669,23 @@ function loadCheckinSchedule() {
                 isExpanded = true;
             }
 
+            // 折叠态卡片渲染
             if (isHeatDone && !isExpanded) {
                 return `
-                <div class="bg-gray-100/90 rounded-xl border border-gray-200 overflow-hidden mb-2.5 opacity-75 hover:opacity-100 transition">
+                <div class="bg-gray-100/90 rounded-xl border border-gray-200 overflow-hidden mb-2.5 opacity-85 hover:opacity-100 transition">
                     <div class="p-3 flex justify-between items-center cursor-pointer select-none" onclick="toggleHeatCard('${cardKey}', '${elementId}')">
                         <div class="flex items-center gap-2">
                             <span class="text-xs text-gray-500 font-mono">${realTime}</span>
                             <span class="font-bold text-gray-800 text-xs">${group.groupName} ${group.gender}组 · ${group.eventName} (第${group.heat}组)</span>
                         </div>
                         <div class="flex items-center gap-2">
-                            <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
-                                ${isStarter ? '🏁 已发令' : '✔ 已检录'}
+                            ${(showPushBtn && !isHeatCompletedWithScore) ? `
+                            <button type="button" onclick="event.stopPropagation(); pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this, true)" 
+                                    class="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 px-2 py-0.5 rounded text-[10px] font-black transition active:scale-95">
+                                🔄 重发
+                            </button>` : ''}
+                            <span class="text-[10px] ${isHeatCompletedWithScore ? 'bg-slate-200 text-slate-700' : 'bg-emerald-100 text-emerald-800'} px-2 py-0.5 rounded-full font-bold">
+                                ${isStarter ? (isHeatCompletedWithScore ? '✔ 已完赛' : '🏁 已发令') : '✔ 已检录'}
                             </span>
                             <span class="text-xs text-blue-600 font-bold">▼</span>
                         </div>
@@ -676,6 +696,7 @@ function loadCheckinSchedule() {
                 </div>`;
             }
 
+            // 展开态卡片渲染
             return `
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-3">
                 <div class="bg-white border-b border-gray-100 p-3 flex flex-wrap justify-between items-center gap-2">
@@ -683,8 +704,8 @@ function loadCheckinSchedule() {
                         <div class="text-[11px] font-black text-${typeColor}-600 mb-1 flex items-center gap-1">
                             <span>🕒</span> ${realTime}
                             <span class="checkin-status-badge ml-2 font-mono text-[10px] ${isAllChecked ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'} px-1.5 py-0.2 rounded font-bold">
-    ${isAllChecked ? '✔ 已检录' : `⏳ 检录中 ${handledCount}/${totalCount}`}
-</span>
+                                ${isAllChecked ? '✔ 已检录' : `⏳ 检录中 ${handledCount}/${totalCount}`}
+                            </span>
                         </div>
                         <div class="font-black text-gray-800 text-sm">
                             ${group.groupName} ${group.gender}组 · ${group.eventName}
@@ -692,38 +713,47 @@ function loadCheckinSchedule() {
                     </div>
                     
                     <div class="flex items-center gap-2 shrink-0">
-                       ${showPushBtn ? (() => {
-    if (isAlreadyPushed) {
-        return `
-            <button disabled data-started="1" class="btn-push-heat bg-gray-200 text-gray-500 border border-gray-300 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1 select-none">
-                <span>🏁</span> <span>已发令</span>
-            </button>
-        `;
-    } else if (!isAllChecked) {
-        return `
-            <button disabled onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this)"
-                    title="需检录完毕后发令" 
-                    class="btn-push-heat bg-gray-100 border border-gray-300 text-gray-400 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1">
-                <span>🔒</span> <span>等待检录(${handledCount}/${totalCount})</span>
-            </button>
-        `;
-    } else if (window.isTrackBusy) {
-        return `
-            <button disabled onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this)"
-                    title="终点正在录入上一组成绩，请等待录完" 
-                    class="btn-push-heat bg-orange-50 border border-orange-300 text-orange-600 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1">
-                <span>⏳</span> <span>跑道使用中</span>
-            </button>
-        `;
-    } else {
-        return `
-            <button onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this)" 
-                    class="btn-push-heat bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-black shadow-md flex items-center gap-1 transition active:scale-95 animate-bounce cursor-pointer">
-                <span>🚀</span> <span>发令推送</span>
-            </button>
-        `;
-    }
-})() : ''}
+                        ${showPushBtn ? (() => {
+                            if (isHeatCompletedWithScore) {
+                                // 🌟 终点已录成绩：锁定为“已完赛”，彻底禁止重发
+                                return `
+                                    <button disabled data-started="1" class="btn-push-heat bg-slate-200 text-slate-600 border border-slate-300 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1 select-none">
+                                        <span>✔</span> <span>已完赛</span>
+                                    </button>
+                                `;
+                            } else if (isAlreadyPushed) {
+                                // 🌟 已发令但终点尚未录成绩：允许点击重发
+                                return `
+                                    <button onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this, true)" 
+                                            class="btn-push-heat bg-emerald-50 hover:bg-amber-100 text-emerald-700 hover:text-amber-800 border border-emerald-300 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition active:scale-95 cursor-pointer">
+                                        <span>🏁</span> <span>已发令(点此重发)</span>
+                                    </button>
+                                `;
+                            } else if (!isAllChecked) {
+                                return `
+                                    <button disabled onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this)"
+                                            title="需检录完毕后发令" 
+                                            class="btn-push-heat bg-gray-100 border border-gray-300 text-gray-400 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1">
+                                        <span>🔒</span> <span>等待检录(${handledCount}/${totalCount})</span>
+                                    </button>
+                                `;
+                            } else if (window.isTrackBusy) {
+                                return `
+                                    <button disabled onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this)"
+                                            title="终点正在录入上一组成绩，请等待录完" 
+                                            class="btn-push-heat bg-orange-50 border border-orange-300 text-orange-600 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1">
+                                        <span>⏳</span> <span>跑道使用中</span>
+                                    </button>
+                                `;
+                            } else {
+                                return `
+                                    <button onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this)" 
+                                            class="btn-push-heat bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-black shadow-md flex items-center gap-1 transition active:scale-95 animate-bounce cursor-pointer">
+                                        <span>🚀</span> <span>发令推送</span>
+                                    </button>
+                                `;
+                            }
+                        })() : ''}
 
                         <span class="text-xs font-bold text-${typeColor}-700 bg-${typeColor}-100 px-2 py-1 rounded-lg cursor-pointer select-none" onclick="toggleHeatCard('${cardKey}', '${elementId}')">
                             第 ${group.heat} 组 ${isExpanded ? '▲' : '▼'}
@@ -735,7 +765,7 @@ function loadCheckinSchedule() {
                     ${renderAthletesTable(group, typeColor)}
                 </div>
             </div>`;
-        };
+};
 
         let html = '';
         const now = new Date();
@@ -1187,7 +1217,7 @@ window.finalizeFieldCompetition = function() {
     if (!fieldAthletesData || fieldAthletesData.length === 0) {
         return alert("暂无选手数据！");
     }
-    if (!confirm("确定要统一提交本田赛项目的全部成绩，并立即生成最终名次与积分吗？")) return;
+    if (!confirm("确定要统一提交本田赛项目的全部成绩吗？")) return;
 
     const payloadList = fieldAthletesData.map(p => {
         let allValid = (p.attempts || []).map(v => parseFloat(v) || 0);
@@ -1209,7 +1239,7 @@ window.finalizeFieldCompetition = function() {
         };
     });
 
-    showTip("⏳ 正在统一提交成绩并核算积分...", "text-blue-600");
+    showTip("⏳ 正在统一提交成绩...", "text-blue-600");
 
     fetch('/api/batch_submit_field_scores', {
         method: 'POST',
@@ -1220,8 +1250,7 @@ window.finalizeFieldCompetition = function() {
     .then(res => {
         if (res.status === 'success') {
             if (typeof triggerVibrate === 'function') triggerVibrate([80, 50, 80]);
-            showTip("✅ 已统一提交并完成积分计算！", "text-emerald-600");
-            alert(res.msg);
+            showTip("✅ 已统一提交！", "text-emerald-600");
             loadAthletes();
         } else {
             alert("❌ 提交失败: " + res.msg);
@@ -1507,36 +1536,33 @@ function renderNormalTrackList(filteredData) {
 
         const totalCount = heatItems.length;
         const scoredCount = heatItems.filter(p => {
-            const s = String(p.score || '').trim();
+            const s = String(p.score !== undefined && p.score !== null ? p.score : '').trim();
             const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn || 0));
             return (s !== '' && s !== '-') || checkState === 2;
         }).length;
 
         const isHeatFinished = (totalCount > 0 && scoredCount === totalCount);
-        const heatBodyId = `timing_heat_tbody_${heatNum}`;
         const heatArrowId = `timing_heat_arrow_${heatNum}`;
 
         html += `
         <tr class="border-y border-blue-200 cursor-pointer select-none transition ${isHeatFinished ? 'bg-gray-100 text-gray-600' : 'bg-blue-50 text-blue-900'}"
-            onclick="toggleTimingHeat('${heatBodyId}', '${heatArrowId}')">
+            onclick="toggleTimingHeat('${heatNum}', '${heatArrowId}')">
             <td colspan="4" class="p-2.5 px-3">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span class="font-black text-sm">🚩 第 ${heatNum} 组</span>
-                        <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${isHeatFinished ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
-                            ${isHeatFinished ? '✔ 成绩已录毕' : `⏳ 录入中 (${scoredCount}/${totalCount})`}
+                        <span id="timing_heat_badge_${heatNum}" class="text-[11px] font-bold px-2 py-0.5 rounded-full ${isHeatFinished ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+                            ${isHeatFinished ? `✔ 成绩已录毕 (${scoredCount}/${totalCount})` : `⏳ 录入中 (${scoredCount}/${totalCount})`}
                         </span>
                     </div>
-                    <span id="${heatArrowId}" class="text-xs font-bold text-blue-600"></span>
+                    <span id="${heatArrowId}" class="text-xs font-bold text-blue-600">${isHeatFinished ? '展开查看成绩 ▼' : '▲ 收起'}</span>
                 </div>
             </td>
         </tr>`;
 
-        html += `<tbody id="${heatBodyId}" class="${isHeatFinished ? 'hidden' : ''}">`;
-
         heatItems.forEach(p => {
             const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn || 0));
-            const isAbsent = (checkState === 2) || (p.score && (p.score.includes('弃权') || p.score.includes('DNS')));
+            const isAbsent = (checkState === 2) || (p.score && (String(p.score).includes('弃权') || String(p.score).includes('DNS')));
             const inputId = `score_input_${p.reg_id || p.id}`;
 
             if (!isHeatFinished && !isAbsent && !p.score && !firstUnscoredInputId) {
@@ -1544,7 +1570,7 @@ function renderNormalTrackList(filteredData) {
             }
 
             html += `
-            <tr class="border-b border-gray-100 ${isAbsent ? 'bg-red-50/40' : 'bg-white'} hover:bg-gray-50 transition">
+            <tr data-heat-row="${heatNum}" class="border-b border-gray-100 ${isHeatFinished ? 'hidden' : ''} ${isAbsent ? 'bg-red-50/40' : 'bg-white'} hover:bg-gray-50 transition">
                 <td class="p-2 text-center font-bold text-gray-400 border-r w-12 text-sm">${p.lane || '-'}</td>
                 <td class="p-2 text-center font-mono font-bold ${isAbsent ? 'text-gray-400' : 'text-blue-600'} text-xs border-r w-14">${isRelayEvent ? '---' : (p.bib || '---')}</td>
                 <td class="p-2">
@@ -1557,13 +1583,13 @@ function renderNormalTrackList(filteredData) {
                 <td class="p-2 text-right w-40">
                     <div class="flex items-center justify-end gap-1">
                         <input type="text" inputmode="decimal" value="${p.score || ''}" 
-       id="${inputId}"
-       placeholder=""
-       data-heat="${heatNum}"
-       class="input-score w-24 border border-blue-200 bg-blue-50/50 rounded-lg p-1.5 text-center shadow-inner text-blue-950 font-bold text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-400"
-       oninput="autoSaveTrackScoreDebounced(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${p.heat}'})"
-       onblur="saveScore(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${p.heat}'})">
-                        <button type="button" onclick="quickMarkAbsent(${p.reg_id || p.id}, this)" 
+                               id="${inputId}"
+                               placeholder=""
+                               data-heat="${heatNum}"
+                               class="input-score w-24 border border-blue-200 bg-blue-50/50 rounded-lg p-1.5 text-center shadow-inner text-blue-950 font-bold text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-400"
+                               oninput="autoSaveTrackScoreDebounced(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})"
+                               onblur="saveScore(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})">
+                        <button type="button" onclick="quickMarkAbsent(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})" 
                                 class="px-1.5 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md active:scale-95 transition shrink-0">
                             弃权
                         </button>
@@ -1571,10 +1597,11 @@ function renderNormalTrackList(filteredData) {
                 </td>
             </tr>`;
         });
-        html += `</tbody>`;
     });
 
     list.innerHTML = html;
+    sortedHeats.forEach(h => updateTimingHeatProgress(h));
+
     if (firstUnscoredInputId) {
         setTimeout(() => {
             const targetInput = document.getElementById(firstUnscoredInputId);
@@ -1586,34 +1613,56 @@ function renderNormalTrackList(filteredData) {
     }
 }
 
-window.toggleTimingHeat = function(tbodyId, arrowId) {
-    const tb = document.getElementById(tbodyId);
+window.toggleTimingHeat = function(heatNum, arrowId) {
+    const rows = document.querySelectorAll(`#athleteList tr[data-heat-row="${heatNum}"]`);
     const arr = document.getElementById(arrowId);
-    if (!tb) return;
-    if (tb.classList.contains('hidden')) {
-        tb.classList.remove('hidden');
-        if (arr) arr.innerText = '▲ 收起';
-    } else {
-        tb.classList.add('hidden');
-        if (arr) arr.innerText = '展开查看成绩 ▼';
-    }
+    if (!rows || rows.length === 0) return;
+
+    const isHidden = rows[0].classList.contains('hidden');
+    rows.forEach(r => {
+        if (isHidden) r.classList.remove('hidden');
+        else r.classList.add('hidden');
+    });
+    if (arr) arr.innerText = isHidden ? '▲ 收起' : '展开查看成绩 ▼';
 };
 
-// 🌟 径赛防抖计时器字典
 let trackDebounceTimers = {};
-
-// 🌟 径赛 1 秒无操作自动保存函数
 window.autoSaveTrackScoreDebounced = function(regId, input, pData) {
     clearTimeout(trackDebounceTimers[regId]);
     input.classList.remove('saved', 'error');
     input.classList.add('saving');
+    const hNum = input.dataset.heat || (pData && pData.heat) || '1';
+    updateTimingHeatProgress(hNum);
 
     trackDebounceTimers[regId] = setTimeout(() => {
         saveScore(regId, input, pData);
     }, 1000); // 1秒无输入自动触发保存
 };
 
-// 🌟 保存径赛成绩
+function updateTimingHeatProgress(heatNum) {
+    const h = String(heatNum || '1');
+    const badge = document.getElementById(`timing_heat_badge_${h}`);
+    if (!badge) return;
+
+    const inputs = Array.from(document.querySelectorAll(`#athleteList .input-score[data-heat="${h}"]`));
+    const totalCount = inputs.length;
+    if (totalCount === 0) return;
+
+    const scoredCount = inputs.filter(inp => {
+        const v = String(inp.value || '').trim();
+        return v !== '' && v !== '-';
+    }).length;
+
+    const isFinished = (totalCount > 0 && scoredCount >= totalCount);
+    if (isFinished) {
+        badge.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800";
+        badge.innerText = `✔ 成绩已录毕 (${scoredCount}/${totalCount})`;
+    } else {
+        badge.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800";
+        badge.innerText = `⏳ 录入中 (${scoredCount}/${totalCount})`;
+    }
+}
+
 function saveScore(regId, input, pData) {
     clearTimeout(trackDebounceTimers[regId]); // 清除延时器
 
@@ -1648,11 +1697,12 @@ function saveScore(regId, input, pData) {
             input.classList.remove('bg-yellow-50', 'border-yellow-300', 'bg-cyan-50', 'border-cyan-400');
             if (res.new_score) { input.value = res.new_score; } 
             
-            triggerVibrate(60); // 📳 径赛保存成功震动提醒 60ms
+            triggerVibrate(60);
+            updateTimingHeatProgress(input.dataset.heat || (pData && pData.heat) || '1'); 
             setTimeout(() => input.classList.remove('saved'), 1000);
         } else {
             input.classList.add('error');
-            triggerVibrate([100, 50, 100]); // 📳 失败震动
+            triggerVibrate([100, 50, 100]); 
             alert(res.msg);
             setTimeout(() => input.classList.remove('error'), 2000);
         }
@@ -1793,21 +1843,24 @@ function setCheckinStatus(startId, targetStatus) {
 }
 window.isTrackBusy = false;
 
-function pushHeatToFinish(gName, eName, gen, heat, btn) {
-    if (!confirm(`确认要推送【${gName} ${gen}·${eName} 第${heat}组】上道发令吗？`)) return;
+function pushHeatToFinish(gName, eName, gen, heat, btn, isRepush = false) {
+    const tipText = isRepush 
+        ? `确定要向终点【重新发送】(${gName} ${gen}·${eName} 第${heat}组) 的发令通知吗？`
+        : `确认要推送【${gName} ${gen}·${eName} 第${heat}组】上道发令吗？`;
+    if (!confirm(tipText)) return;
 
     btn.disabled = true;
-    btn.innerHTML = `<span>⏳</span><span>校验跑道中...</span>`;
+    btn.innerHTML = `<span>⏳</span><span>推送中...</span>`;
 
     fetch('/api/push_active_heat', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ group_name: gName, event_name: eName, gender: gen, heat: heat })
+        body: JSON.stringify({ group_name: gName, event_name: eName, gender: gen, heat: heat, force: isRepush })
     })
     .then(r => r.json())
     .then(res => {
         if (res.status === 'success') {
-            btn.className = "bg-gray-200 text-gray-400 border border-gray-300 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1 select-none";
+            btn.disabled = false;
             btn.innerHTML = `<span>🏁</span><span>已发令</span>`;
             loadCheckinSchedule();
         } else {
@@ -1924,13 +1977,13 @@ function switchToActiveHeat() {
     });
 }
 
-window.quickMarkAbsent = function(regId, btn) {
+window.quickMarkAbsent = function(regId, btn, pData) {
     const input = btn.previousElementSibling;
     if (!input) return;
+    if (!confirm(`确定标记【${pData?.name || '该选手'}】在本场【${pData?.event_name || '当前项目'}】中弃权吗？\n（仅本场比赛弃权，不影响该生其他参赛项目）`)) return;
     input.value = "弃权";
-    saveScore(regId, input);
+    saveScore(regId, input, pData);
 };
-
 // 监听发车广播
 socket.on('heat_activated', function(payload) {
     if (currentRole === 'timing') {
