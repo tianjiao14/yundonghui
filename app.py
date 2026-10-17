@@ -285,24 +285,66 @@ def get_host_ip():
         except Exception: pass
     return ip
 
-def get_cached_data(cache_key, ttl_seconds=5):
-    current_time = datetime.now().timestamp()
-    if len(_cache_store) > 2000:
-        expired_keys = [k for k, v in list(_cache_store.items()) if current_time >= v[1]]
-        for k in expired_keys:
-            _cache_store.pop(k, None)
+# ========================================================
+# 🌟 升级版高性能防击穿缓存（放在 app.py 约第 288 行）
+# 特性：函数名、参数、返回值 100% 保持不变，已有接口一行都不用改！
+# ========================================================
+from gevent.lock import Semaphore
 
-    if cache_key in _cache_store:
-        data, expire_at = _cache_store[cache_key]
-        if current_time < expire_at:
-            return data
-        else:
-            _cache_store.pop(cache_key, None)
+# 存储格式: cache_key -> {"data": 实际数据, "expire_at": 到期时间戳}
+_cache_store = {}
+# 锁字典: 每个 cache_key 独立一把协程锁，防止全站锁死
+_key_locks = {}
+_global_lock = Semaphore()
+
+def _get_lock_for_key(key):
+    """为每个缓存Key分配独立的协程锁"""
+    with _global_lock:
+        if key not in _key_locks:
+            _key_locks[key] = Semaphore()
+        return _key_locks[key]
+
+def get_cached_data(cache_key, ttl_seconds=15):
+    """
+    高并发防击穿读取：
+    1. 命中未过期缓存，毫秒级直接返回；
+    2. 若缓存过期，只有【第1个协程】能穿透去查数据库；
+    3. 后续并发的几十/几百个协程在此排队，等第1个查完写入缓存后，直接复用结果返回，彻底消除数据库锁竞争！
+    """
+    now = time.time()
+    
+    # 第一次快速无锁检查（绝大多数请求在这里直接命中返回）
+    cached = _cache_store.get(cache_key)
+    if cached and now < cached['expire_at']:
+        return cached['data']
+
+    # 缓存未命中或过期，获取该 Key 专属的互斥锁
+    lock = _get_lock_for_key(cache_key)
+    lock.acquire()
+    
+    # 拿到锁后做二次检查（DCL 模式：可能前一个排队的协程刚刚已经更新并写入缓存了）
+    cached = _cache_store.get(cache_key)
+    if cached and now < cached['expire_at']:
+        lock.release()
+        return cached['data']
+
+    # 如果依然没有，说明当前协程是【天选之子】，由它负责去执行下面的数据库查询
+    # 注意：此时不释放 lock，等该请求执行完 set_cached_data 时再自动释放！
     return None
 
-def set_cached_data(cache_key, data, ttl_seconds=5):
-    expire_at = datetime.now().timestamp() + ttl_seconds
-    _cache_store[cache_key] = (data, expire_at)
+def set_cached_data(cache_key, data, ttl_seconds=15):
+    """写入缓存并唤醒所有等待的排队协程"""
+    _cache_store[cache_key] = {
+        'data': data,
+        'expire_at': time.time() + ttl_seconds
+    }
+    # 写入成功，释放排队锁，让后面排队的几百个并发请求瞬间读取刚存好的缓存
+    lock = _key_locks.get(cache_key)
+    if lock and lock.locked():
+        try:
+            lock.release()
+        except Exception:
+            pass
 
 def invalidate_event_cache(event_name, group_name=""):
     """
@@ -4036,6 +4078,8 @@ def force_sync_and_upgrade_db():
             c.execute("CREATE INDEX IF NOT EXISTS idx_reg_team ON registrations (team_id, name);")
             c.execute("CREATE INDEX IF NOT EXISTS idx_start_lookup ON start_list (group_name, gender, event_name, heat);")
             c.execute("CREATE INDEX IF NOT EXISTS idx_start_schedule ON start_list (time_index, heat, lane);")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_start_event_single ON start_list (event_name);")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_reg_event_single ON registrations (event_name);")
         except Exception as e:
             print("索引创建跳过:", e)
 

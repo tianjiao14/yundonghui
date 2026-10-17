@@ -215,19 +215,7 @@
         </div>
     </div>
 
-        <!-- 获奖学生列表容器 -->
-        <div class="p-4 overflow-y-auto flex-1 space-y-2.5 no-scrollbar bg-slate-50" id="medalModalList">
-            <!-- 动态填充 -->
-        </div>
-
-        <div class="p-3 bg-white border-t border-slate-100 text-center shrink-0">
-            <button onclick="closeMedalModal()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition">
-                关 闭
-            </button>
-        </div>
-    </div>
-</div>
-    <script>
+           <script>
         let db = { groups: [], events: [], teams: [] };
 
         window.onload = () => {
@@ -277,10 +265,13 @@
             window.scrollTo(0, 0);
         }
 
-        const recordsCache = {};
+       // 🌟 1. 必须先给全局缓存初始化为空对象，防止报 undefined 异常
+        window._globalRecordsMemory = window._globalRecordsMemory || {};
+
         function getGroupRecordsWithCache(groupName) {
-            if (recordsCache[groupName]) {
-                return Promise.resolve(recordsCache[groupName]);
+            // 如果已查过，直接从内存读取，不再重复发请求
+            if (window._globalRecordsMemory && window._globalRecordsMemory[groupName]) {
+                return Promise.resolve(window._globalRecordsMemory[groupName]);
             }
             return fetch('/api/get_group_records', {
                 method: 'POST',
@@ -289,8 +280,12 @@
             })
             .then(r => r.json())
             .then(data => {
-                recordsCache[groupName] = data;
+                window._globalRecordsMemory[groupName] = data; // 存入内存
                 return data;
+            })
+            .catch(err => {
+                console.warn("读取组别纪录失败，降级为空:", err);
+                return {}; // 出错保底返回空对象，绝不让页面崩溃
             });
         }
 
@@ -1117,8 +1112,17 @@ function refreshCurrentActiveView() {
     }
 }
 
-// 仅在用户停留查看页面时，每 30 秒进行一次温和的静默拉取
-setInterval(refreshCurrentActiveView, 30000);
+function scheduleNextPoll() {
+    const randomJitter = Math.floor(Math.random() * 10000) - 5000; // -5s ~ +5s
+    const nextInterval = Math.max(20000, 30000 + randomJitter);
+    setTimeout(() => {
+        if (!document.hidden) {
+            refreshCurrentActiveView();
+        }
+        scheduleNextPoll();
+    }, nextInterval);
+}
+scheduleNextPoll();
 
     </script>
 </body>
