@@ -86,6 +86,9 @@ _last_recalc_time = 0
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE, timeout=60) 
     conn.execute('PRAGMA journal_mode=WAL;') 
+    conn.execute('PRAGMA synchronous = NORMAL;')
+    conn.execute('PRAGMA cache_size = -32000;')  # 分配约 32MB 内存页缓存
+    conn.execute('PRAGMA temp_store = MEMORY;')
     conn.execute('PRAGMA busy_timeout = 60000;')
     conn.row_factory = sqlite3.Row
     return conn
@@ -284,9 +287,10 @@ def get_host_ip():
 
 def get_cached_data(cache_key, ttl_seconds=5):
     current_time = datetime.now().timestamp()
-    expired_keys = [k for k, v in _cache_store.items() if current_time >= v[1]]
-    for k in expired_keys:
-        _cache_store.pop(k, None)
+    if len(_cache_store) > 2000:
+        expired_keys = [k for k, v in list(_cache_store.items()) if current_time >= v[1]]
+        for k in expired_keys:
+            _cache_store.pop(k, None)
 
     if cache_key in _cache_store:
         data, expire_at = _cache_store[cache_key]
@@ -299,6 +303,7 @@ def get_cached_data(cache_key, ttl_seconds=5):
 def set_cached_data(cache_key, data, ttl_seconds=5):
     expire_at = datetime.now().timestamp() + ttl_seconds
     _cache_store[cache_key] = (data, expire_at)
+
 def invalidate_event_cache(event_name, group_name=""):
     """
     精准失效受影响的项目和榜单缓存，坚决不清空全局导航等公共静态缓存
@@ -716,9 +721,10 @@ def do_recalculate():
         try: c.execute("ALTER TABLE registrations ADD COLUMN record_bonus INTEGER DEFAULT 0")
         except Exception: pass
 
-        c.execute("BEGIN IMMEDIATE")
-        c.execute("UPDATE registrations SET points = 0, record_bonus = 0")
-        
+        # 🌟 核心优化：先在内存中计算出所有待更新的变更列表，避免长事务死锁和行锁挂起
+        updates_individual = []
+        updates_team_reset = []
+
         groups_genders = c.execute("SELECT DISTINCT group_name, gender FROM registrations WHERE group_name != ''").fetchall()
         all_cfgs = {row['name']: dict(row) for row in c.execute("SELECT * FROM cfg_events").fetchall()}
 
@@ -788,16 +794,18 @@ def do_recalculate():
                 counting_or_dist_keywords = ['仰卧', '起坐', '引体', '向上', '跳绳', '踢毽', '垫球', '投篮', '穿梭', '计数', '个数', '定点', '实心球', '铅球', '跳远', '立定跳远', '跳高', '三级跳', '标枪', '铁饼', '投', '掷']
                 
                 if is_field or any(k in core_name for k in counting_or_dist_keywords):
-                    fun_is_timing = False  # 数值越大越好（远度/高度/个数）
+                    fun_is_timing = False
                 elif any(k in core_name for k in timing_keywords):
-                    fun_is_timing = True   # 数值越小越好（计时秒数）
+                    fun_is_timing = True
                 else:
                     fun_is_timing = True
+
                 is_team_event = False
                 if cfg:
                     is_team_event = (to_bool_str(cfg.get('is_team') or cfg.get('isTeam')) == '1') or (to_bool_str(cfg.get('is_relay') or cfg.get('isRelay')) == '1')
                 if not is_team_event:
                     is_team_event = (re.search(r'4[xX*×]|接力|集体|团体|迎面', core_name) is not None)
+
                 target_events = []
                 if has_prelim:
                     for sub_evt in sub_events:
@@ -838,6 +846,7 @@ def do_recalculate():
                 all_data_rows = c.execute(sql, [g_name, gender] + sub_events).fetchall()
                 if not all_data_rows: 
                     continue
+
                 best_score_map = {}
                 for r in all_data_rows:
                     item = dict(r)
@@ -908,6 +917,7 @@ def do_recalculate():
                         qualify_limit = int(raw_qc)
                 if f"{g_name}_{core_name}" in group_qualify_map:
                     qualify_limit = int(group_qualify_map[f"{g_name}_{core_name}"])
+
                 current_rank = 1
                 for i, item in enumerate(final_list):
                     if i > 0:
@@ -925,12 +935,9 @@ def do_recalculate():
 
                     item['computed_rank'] = current_rank
 
-                # 🌟 第二步：按照最终确认的名次发放标准分值，确保同名次积分 100% 相同！
                 for item in final_list:
                     rnk = item['computed_rank']
                     p = 0
-
-                    # 只有在规则表范围内且在录取名次内才给分
                     if rnk <= len(rules) and rnk <= qualify_limit:
                         p = rules[rnk - 1]
                         if is_double:
@@ -939,7 +946,6 @@ def do_recalculate():
                     key = f"TEAM_{item['team_name']}" if is_team_event else f"ATH_{item['team_name']}_{item['name']}"
                     best_val = best_score_map.get(key, item['_val'])
 
-                    # 破纪录加分
                     max_bonus = 0
                     for rec in my_records:
                         if rec.get('en'):
@@ -954,44 +960,42 @@ def do_recalculate():
                                     max_bonus = r_bonus
                     p += max_bonus
 
-                    # 写入数据库 registrations 表
                     if is_team_event:
-                        c.execute("""
-                            UPDATE registrations 
-                            SET rank = ?, points = 0, record_bonus = 0
-                            WHERE team_name = ? AND group_name = ? AND gender = ? AND event_name = ?
-                        """, (str(rnk), item['team_name'], g_name, gender, item['event_name']))
-
-                        c.execute("""
-                            UPDATE registrations 
-                            SET points = ?, record_bonus = ?
-                            WHERE id = ?
-                        """, (p, max_bonus, item['id']))
+                        updates_team_reset.append((str(rnk), item['team_name'], g_name, gender, item['event_name']))
+                        updates_individual.append((p, max_bonus, item['id']))
                     else:
-                        c.execute("""
-                            UPDATE registrations 
-                            SET points = ?, record_bonus = ?, rank = ? 
-                            WHERE id = ?
-                        """, (p, max_bonus, str(rnk), item['id']))
+                        updates_individual.append((p, max_bonus, str(rnk), item['id']))
                 count += 1
         
+        # 🌟 极速批量落盘（事务锁定时间缩短至毫秒级）
+        c.execute("BEGIN IMMEDIATE")
+        c.execute("UPDATE registrations SET points = 0, record_bonus = 0")
+        if updates_team_reset:
+            c.executemany("UPDATE registrations SET rank = ?, points = 0, record_bonus = 0 WHERE team_name = ? AND group_name = ? AND gender = ? AND event_name = ?", updates_team_reset)
+        if updates_individual:
+            # 兼容单项与团体更新参数长度
+            c.executemany("""
+                UPDATE registrations 
+                SET points = ?, record_bonus = ?, rank = ? 
+                WHERE id = ?
+            """, [item if len(item) == 4 else (item[0], item[1], 0, item[2]) for item in updates_individual])
+
         conn.commit()
         _last_recalc_time = time.time()
         if '_cache_store' in globals():
-            keys_to_delete = [k for k in _cache_store.keys() if k.startswith("rank_")]
+            keys_to_delete = [k for k in _cache_store.keys() if k.startswith("rank_") or k.startswith("team_detail_")]
             for k in keys_to_delete:
                 _cache_store.pop(k, None)
 
-        return f'计算完毕！已处理 {count} 个决赛项目。团体与单项破纪录已生效。'
+        return f'计算完毕！已处理 {count} 个决赛项目。'
     except Exception as e:
-        conn.rollback()
+        if 'conn' in locals(): conn.rollback()
         return str(e)
     finally:
-        conn.close()
+        if 'conn' in locals(): conn.close()
         if '_recalc_lock' in globals():
             try: _recalc_lock.release()
             except Exception: pass
-
 @app.route('/api/recalculate_all_points', methods=['POST'])
 @login_required('admin')
 def api_recalculate_all_points():
@@ -1880,9 +1884,9 @@ def get_statistics():
 @app.route('/api/get_data')
 def get_data_admin():
     current_role = session.get('user_role')
-    if current_role not in ['admin', 'referee']:
+    if current_role not in ['admin']:
         cache_key = "get_data_public"
-        cached = get_cached_data(cache_key, ttl_seconds=20)
+        cached = get_cached_data(cache_key, ttl_seconds=10)
         if cached is not None:
             return jsonify(cached)
 
@@ -4926,30 +4930,25 @@ def search_query():
     if not q or len(q) < 1:
         return jsonify([])
 
+    cache_key = f"search_{q_type}_{q}"
+    cached = get_cached_data(cache_key, ttl_seconds=60)
+    if cached is not None:
+        return jsonify(cached)
+
     conn = get_db_connection()
     c = conn.cursor()
     try:
         if q_type == 'athlete':
-            sql = """
-                SELECT DISTINCT name, team_name, gender, bib 
-                FROM registrations 
-                WHERE name LIKE ? OR bib = ?
-                LIMIT 10
-            """
+            sql = "SELECT DISTINCT name, team_name, gender, bib FROM registrations WHERE name LIKE ? OR bib = ? LIMIT 10"
             rows = c.execute(sql, (f"{q}%", q)).fetchall() 
         else:
-            sql = """
-                SELECT DISTINCT t.name, g.name as group_name
-                FROM cfg_teams t
-                LEFT JOIN cfg_groups g ON t.group_id = g.id
-                WHERE t.name LIKE ?
-                LIMIT 10
-            """
+            sql = "SELECT DISTINCT t.name, g.name as group_name FROM cfg_teams t LEFT JOIN cfg_groups g ON t.group_id = g.id WHERE t.name LIKE ? LIMIT 10"
             rows = c.execute(sql, (f"%{q}%",)).fetchall()
-        return jsonify([dict(r) for r in rows])
+        res = [dict(r) for r in rows]
+        set_cached_data(cache_key, res, ttl_seconds=60)
+        return jsonify(res)
     finally:
         conn.close()
-
 # 2. 个人战绩档案接口（解决“数据异常”弹窗）
 @app.route('/api/get_athlete_profile', methods=['POST'])
 def get_athlete_profile():
@@ -4957,21 +4956,20 @@ def get_athlete_profile():
     name = data.get('name', '').strip()
     if not name:
         return jsonify({"status": "error", "msg": "缺少姓名"})
-    
+
+    cache_key = f"ath_profile_{name}"
+    cached = get_cached_data(cache_key, ttl_seconds=30)
+    if cached is not None:
+        return jsonify(cached)
+
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        sql = """
-            SELECT 
-                r.name, r.team_name, r.group_name, r.gender, r.bib, 
-                r.event_name, r.score, r.rank
-            FROM registrations r
-            WHERE r.name = ?
-        """
+        sql = "SELECT r.name, r.team_name, r.group_name, r.gender, r.bib, r.event_name, r.score, r.rank FROM registrations r WHERE r.name = ?"
         rows = c.execute(sql, (name,)).fetchall()
         if not rows:
             return jsonify({"status": "error", "msg": "未找到该运动员档案"})
-        
+
         info = dict(rows[0])
         events = []
         for r in rows:
@@ -4980,8 +4978,8 @@ def get_athlete_profile():
                 "score": r['score'] if r['score'] and str(r['score']).strip() != '' else '未出成绩',
                 "rank": r['rank'] if r['rank'] and str(r['rank']).strip() != '' else '--'
             })
-        
-        return jsonify({
+
+        res_payload = {
             "status": "success",
             "name": info['name'],
             "team_name": info['team_name'],
@@ -4989,7 +4987,9 @@ def get_athlete_profile():
             "gender": info['gender'],
             "bib": info['bib'],
             "events": events
-        })
+        }
+        set_cached_data(cache_key, res_payload, ttl_seconds=30)
+        return jsonify(res_payload)
     finally:
         conn.close()
 # ---------------- 运动会基础模板管理 ---------------- #
