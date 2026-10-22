@@ -864,79 +864,102 @@
         }
 
         function loadTeamRank(groupName) {
-            const gName = groupName || window.activeRankGroup;
-            const tbody = document.getElementById('rankTableBody');
-            if (!tbody) return;
+    const gName = groupName || window.activeRankGroup;
+    const tbody = document.getElementById('rankTableBody');
+    const thead = document.querySelector('#panel-team-score table thead tr');
+    if (!tbody) return;
 
-            if (!gName) {
-                tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-slate-400 text-sm">暂无组别数据</td></tr>';
-                return;
-            }
+    if (!gName) {
+        tbody.innerHTML = '<tr><td colspan="10" class="p-6 text-slate-400 text-sm">暂无组别数据</td></tr>';
+        return;
+    }
 
-            tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-blue-500 font-medium"><svg class="animate-spin h-5 w-5 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>正在极速核算积分...</td></tr>';
-            
-            fetch('/api/calculate_team_ranking', {
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'}, 
-                body: JSON.stringify({ group_name: gName })
-            })
-            .then(r => r.json())
-            .then(res => {
-                const d = new Date();
-                const timeEl = document.getElementById('rankTime');
-                if (timeEl) {
-                    timeEl.innerText = `已更新 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-                }
-
-                const teamsList = Array.isArray(res) ? res : (res.teams || []);
-
-                if (teamsList.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400 text-sm">该组别暂无队伍获得积分</td></tr>'; 
-                    return;
-                }
-
-                // 🌟 修复语法断裂：完整渲染各行，金/银/铜点击直接进全屏明细页过滤
-                tbody.innerHTML = teamsList.map((t, i) => {
-                    const gold = parseInt(t.gold || 0);
-                    const silver = parseInt(t.silver || 0);
-                    const bronze = parseInt(t.bronze || 0);
-
-                    return `
-                    <tr>
-                        <td class="font-bold text-slate-500 text-[14px]">${i===0?'🥇':(i===1?'🥈':(i===2?'🥉':i+1))}</td>
-                        <td class="text-left font-extrabold text-slate-800 text-[14px]">${t.name}</td>
-                        <!-- 点击总分：查看全部项目明细 -->
-                        <td class="font-black text-blue-600 text-[16px] underline cursor-pointer hover:text-blue-800 transition" 
-                            title="查看全部得分项目"
-                            onclick="goToTeamDetail('${t.name}', '${gName}', 'all')">
-                            ${t.score}
-                        </td>
-                        <!-- 点击金牌：只显示第1名 -->
-                        <td class="font-bold ${gold > 0 ? 'text-yellow-600 underline cursor-pointer hover:text-yellow-700' : 'text-slate-300'}" 
-                            ${gold > 0 ? `onclick="goToTeamDetail('${t.name}', '${gName}', 1)" title="查看金牌获得者"` : ''}>
-                            ${gold}
-                        </td>
-                        <!-- 点击银牌：只显示第2名 -->
-                        <td class="font-bold ${silver > 0 ? 'text-slate-500 underline cursor-pointer hover:text-slate-700' : 'text-slate-300'}" 
-                            ${silver > 0 ? `onclick="goToTeamDetail('${t.name}', '${gName}', 2)" title="查看银牌获得者"` : ''}>
-                            ${silver}
-                        </td>
-                        <!-- 点击铜牌：只显示第3名 -->
-                        <td class="font-bold ${bronze > 0 ? 'text-orange-500 underline cursor-pointer hover:text-orange-700' : 'text-slate-300'}" 
-                            ${bronze > 0 ? `onclick="goToTeamDetail('${t.name}', '${gName}', 3)" title="查看铜牌获得者"` : ''}>
-                            ${bronze}
-                        </td>
-                        <td>
-                            <span class="${t.total_record_bonus > 0 ? 'text-red-500 font-black bg-red-50 px-1.5 py-0.5 rounded-md' : 'text-slate-300'}">+${t.total_record_bonus || 0}</span>
-                        </td>
-                    </tr>`;
-                }).join('');
-            })
-            .catch(err => {
-                console.error("加载总分失败:", err);
-                tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-red-400 text-sm">加载失败，请点击组别重试</td></tr>';
-            });
+    tbody.innerHTML = '<tr><td colspan="10" class="p-8 text-center text-blue-500 font-medium"><svg class="animate-spin h-5 w-5 mx-auto mb-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>正在极速核算积分...</td></tr>';
+    
+    fetch('/api/calculate_team_ranking', {
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'}, 
+        body: JSON.stringify({ group_name: gName })
+    })
+    .then(r => r.json())
+    .then(res => {
+        const d = new Date();
+        const timeEl = document.getElementById('rankTime');
+        if (timeEl) {
+            timeEl.innerText = `已更新 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
         }
+
+        const customCols = res.columns || [];
+        const teamsList = Array.isArray(res) ? res : (res.teams || []);
+
+        // 🌟 1. 动态生成表头（插入附加集体项目列）
+        if (thead) {
+            let customThs = customCols.map(col => `<th class="text-indigo-600 whitespace-nowrap px-2">${col}</th>`).join('');
+            thead.innerHTML = `
+                <th class="w-10">No</th>
+                <th class="text-left">单位</th>
+                <th class="text-blue-600">总分</th>
+                ${customThs}
+                <th>金</th>
+                <th>银</th>
+                <th>铜</th>
+                <th class="text-red-500">破纪</th>
+            `;
+        }
+
+        if (teamsList.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="${7 + customCols.length}" class="p-6 text-center text-slate-400 text-sm">该组别暂无队伍获得积分</td></tr>`; 
+            return;
+        }
+
+        // 🌟 2. 动态生成数据行（渲染附加分）
+        tbody.innerHTML = teamsList.map((t, i) => {
+            const gold = parseInt(t.gold || 0);
+            const silver = parseInt(t.silver || 0);
+            const bronze = parseInt(t.bronze || 0);
+            const sMap = t.custom_scores || {};
+
+            // 渲染附加集体列单元格
+            let customTds = customCols.map(col => {
+                const val = sMap[col] !== undefined ? sMap[col] : 0;
+                return `<td class="font-mono font-bold whitespace-nowrap px-2 ${val > 0 ? 'text-indigo-600' : 'text-slate-300'}">
+                    ${val > 0 ? '+' + val : (val < 0 ? val : '-')}
+                </td>`;
+            }).join('');
+
+            return `
+            <tr>
+                <td class="font-bold text-slate-500 text-[14px]">${i===0?'🥇':(i===1?'🥈':(i===2?'🥉':i+1))}</td>
+                <td class="text-left font-extrabold text-slate-800 text-[14px] whitespace-nowrap">${t.name}</td>
+                <td class="font-black text-blue-600 text-[16px] underline cursor-pointer hover:text-blue-800 transition" 
+                    title="查看全部得分项目"
+                    onclick="goToTeamDetail('${t.name}', '${gName}', 'all')">
+                    ${t.score}
+                </td>
+                ${customTds}
+                <td class="font-bold ${gold > 0 ? 'text-yellow-600 underline cursor-pointer hover:text-yellow-700' : 'text-slate-300'}" 
+                    ${gold > 0 ? `onclick="goToTeamDetail('${t.name}', '${gName}', 1)" title="查看金牌获得者"` : ''}>
+                    ${gold}
+                </td>
+                <td class="font-bold ${silver > 0 ? 'text-slate-500 underline cursor-pointer hover:text-slate-700' : 'text-slate-300'}" 
+                    ${silver > 0 ? `onclick="goToTeamDetail('${t.name}', '${gName}', 2)" title="查看银牌获得者"` : ''}>
+                    ${silver}
+                </td>
+                <td class="font-bold ${bronze > 0 ? 'text-orange-500 underline cursor-pointer hover:text-orange-700' : 'text-slate-300'}" 
+                    ${bronze > 0 ? `onclick="goToTeamDetail('${t.name}', '${gName}', 3)" title="查看铜牌获得者"` : ''}>
+                    ${bronze}
+                </td>
+                <td>
+                    <span class="${t.total_record_bonus > 0 ? 'text-red-500 font-black bg-red-50 px-1.5 py-0.5 rounded-md' : 'text-slate-300'}">+${t.total_record_bonus || 0}</span>
+                </td>
+            </tr>`;
+        }).join('');
+    })
+    .catch(err => {
+        console.error("加载总分失败:", err);
+        tbody.innerHTML = '<tr><td colspan="10" class="p-6 text-center text-red-400 text-sm">加载失败，请点击组别重试</td></tr>';
+    });
+}
 
        function goToTeamDetail(teamName, groupName, medalFilter = 'all') {
             const titleSuffix = {
@@ -977,20 +1000,39 @@
                     return;
                 }
                 
-                let html = '';
-                displayData.forEach(row => {
-                    const isRelay = row.event_name.includes('接力') || row.event_name.includes('4×') || row.event_name.includes('4*');
-                    const displayName = isRelay ? '集 体' : row.name;
+               let html = '';
+        displayData.forEach(row => {
+            const isCustom = row.is_custom === true;
+            const isRelay = row.event_name.includes('接力') || row.event_name.includes('4×') || row.event_name.includes('4*');
+            
+            let displayName = row.name;
+            if (isCustom) displayName = '全班集体';
+            else if (isRelay) displayName = '集体接力队';
+            let rankDisplay = '--';
+            if (row.rank == 1) rankDisplay = '🥇 第1名';
+            else if (row.rank == 2) rankDisplay = '🥈 第2名';
+            else if (row.rank == 3) rankDisplay = '🥉 第3名';
+            else if (row.rank && !isNaN(parseInt(row.rank))) rankDisplay = `第 ${row.rank} 名`;
+            else if (row.rank && row.rank !== '--' && row.rank !== '附加') rankDisplay = row.rank;
 
-                    html += `<tr>
-                        <td class="text-left pl-3 text-slate-800 font-bold border-r border-slate-50">${row.event_name} <br><span class="text-[10px] text-slate-400 font-normal">(${row.gender})</span></td>
-                        <td class="font-bold whitespace-nowrap px-2 ${!isRelay ? 'text-blue-600 underline cursor-pointer' : 'text-slate-600'} border-r border-slate-50" ${!isRelay ? `onclick="goToAthleteDetail('${row.name}')"` : ''}>${displayName}</td>
-                        <td class="text-right font-mono font-bold text-slate-700 pr-3 border-r border-slate-50">${row.score}</td>
-                        <td class="text-center font-bold text-orange-600 border-r border-slate-50">${row.rank}</td>
-                        <td class="text-center font-black text-red-500 bg-red-50/50">+${row.points}</td>
-                    </tr>`;
-                });
-                tbody.innerHTML = html;
+            html += `<tr class="${isCustom ? 'bg-indigo-50/40' : ''}">
+                <td class="text-left pl-3 text-slate-800 font-bold border-r border-slate-50">
+                    ${isCustom ? `<span class="text-indigo-700">⭐ ${row.event_name}</span>` : row.event_name}
+                    <br><span class="text-[10px] text-slate-400 font-normal">(${row.gender})</span>
+                </td>
+                <td class="font-bold whitespace-nowrap px-2 ${!isRelay && !isCustom ? 'text-blue-600 underline cursor-pointer' : 'text-slate-600'} border-r border-slate-50" ${(!isRelay && !isCustom) ? `onclick="goToAthleteDetail('${row.name}')"` : ''}>
+                    ${displayName}
+                </td>
+                <td class="text-right font-mono font-bold text-slate-700 pr-3 border-r border-slate-50">${row.score}</td>
+                <td class="text-center font-bold ${isCustom ? 'text-indigo-600' : 'text-orange-600'} border-r border-slate-50">
+                    ${rankDisplay}
+                </td>
+                <td class="text-center font-black ${isCustom ? 'text-indigo-600 bg-indigo-50/50' : 'text-red-500 bg-red-50/50'}">
+                    +${row.points}
+                </td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
             }).catch(e => {
                 tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-red-500 text-sm">数据提取失败，请检查网络</td></tr>';
             });

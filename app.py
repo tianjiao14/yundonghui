@@ -1560,65 +1560,107 @@ def calculate_detailed_matrix():
 @app.route('/api/get_team_score_details', methods=['POST'])
 def get_team_score_details():
     data = request.json or {}
-    g_name = data.get('group_name')
-    t_name = data.get('team_name')
+    g_name = str(data.get('group_name') or '').strip()
+    t_name = str(data.get('team_name') or '').strip()
 
     conn = get_db_connection()
     c = conn.cursor()
 
     try:
-        # 🌟 核心改进：直接读取结算核算时已正确写入的 rank 字段
+        # 1. 查询该班级单项常规得分
         sql = """
             SELECT name, team_name, event_name, gender, score, points, rank
             FROM registrations
-            WHERE group_name = ? AND points > 0
+            WHERE TRIM(group_name) = ? AND TRIM(team_name) = ? AND points > 0
         """
-        rows = c.execute(sql, (g_name,)).fetchall()
-
-        events_data = {}
-        for r in rows:
-            key = f"{r['event_name']}_{r['gender']}"
-            if key not in events_data:
-                events_data[key] = []
-            events_data[key].append(dict(r))
+        rows = c.execute(sql, (g_name, t_name)).fetchall()
 
         team_details = []
+        for r in rows:
+            final_rank = r['rank']
+            if not final_rank or str(final_rank).strip() == '':
+                final_rank = '--'
+            else:
+                try: final_rank = int(final_rank)
+                except Exception: pass
 
-        for key, items in events_data.items():
-            event_name = items[0]['event_name']
-            gender = items[0]['gender']
-            
-            # 优先从数据库 registrations 表读取核算完毕的实际名次
-            for item in items:
-                if item['team_name'] == t_name:
-                    # 如果库里已有 rank，优先使用；若无则降级显示
-                    final_rank = item.get('rank')
-                    if not final_rank or str(final_rank).strip() == '':
-                        final_rank = '--'
-                    else:
-                        try:
-                            final_rank = int(final_rank)
-                        except Exception:
-                            pass
+            team_details.append({
+                'event_name': r['event_name'],
+                'gender': r['gender'],
+                'name': r['name'],
+                'score': r['score'],
+                'rank': final_rank,
+                'points': r['points'],
+                'is_custom': False
+            })
 
-                    team_details.append({
-                        'event_name': event_name,
-                        'gender': gender,
-                        'name': item['name'],
-                        'score': item['score'],
-                        'rank': final_rank,
-                        'points': item['points']
-                    })
+        # 🌟 2. 查出系统当前生效的集体附加项目
+        col_row = c.execute("SELECT value FROM sys_config WHERE key = 'custom_score_cols'").fetchone()
+        custom_cols = []
+        if col_row and col_row['value']:
+            try: custom_cols = json.loads(col_row['value'])
+            except Exception: custom_cols = []
+        if not custom_cols:
+            custom_cols = ["跑操比赛"]
 
-        # 按得分高低降序，同分按项目名排序
-        team_details.sort(key=lambda x: (-x['points'], x['event_name']))
+        # 🌟 3. 读取双倍积分规则（默认 9, 7, 6, 5, 4, 3, 2, 1）
+        rule_row = c.execute("SELECT score_rule FROM cfg_events WHERE score_rule IS NOT NULL AND score_rule != '' LIMIT 1").fetchone()
+        rule_str = rule_row['score_rule'] if rule_row and rule_row['score_rule'] else "9,7,6,5,4,3,2,1"
+        rules = [int(x.strip()) for x in rule_str.replace('，', ',').split(',') if x.strip().isdigit()]
+        if not rules:
+            rules = [9, 7, 6, 5, 4, 3, 2, 1]
+
+        def get_custom_double_rank(val_num):
+            if val_num <= 0:
+                return '--'
+            # 精确匹配双倍分值 (18->1, 14->2, 12->3, 10->4, 8->5, 6->6, 4->7, 2->8)
+            for idx, r in enumerate(rules):
+                if abs(val_num - r * 2) < 0.001:
+                    return idx + 1
+            # 兼容区间 (如录入 16 分归入第 2 名)
+            for idx, r in enumerate(rules):
+                if val_num >= r * 2:
+                    return idx + 1
+            return '--'
+
+        # 🌟 4. 读取该班级的集体项目并反推计算名次
+        team_row = c.execute("""
+            SELECT t.custom_scores 
+            FROM cfg_teams t
+            LEFT JOIN cfg_groups g ON t.group_id = g.id
+            WHERE TRIM(t.name) = ? AND (TRIM(g.name) = ? OR ? = '')
+            LIMIT 1
+        """, (t_name, g_name, g_name)).fetchone()
+
+        if team_row and team_row['custom_scores']:
+            try:
+                score_dict = json.loads(team_row['custom_scores'])
+                for col in custom_cols:
+                    try: val = float(score_dict.get(col, 0) or 0)
+                    except (ValueError, TypeError): val = 0.0
+
+                    if val > 0:
+                        calc_rank = get_custom_double_rank(val)
+                        disp_val = int(val) if val == int(val) else val
+                        team_details.append({
+                            'event_name': col,
+                            'gender': '集体',
+                            'name': '全班集体',
+                            'score': f"{disp_val}分",
+                            'rank': calc_rank,
+                            'points': disp_val,
+                            'is_custom': True
+                        })
+            except Exception as ex:
+                print("解析custom_scores异常:", ex)
+
+        team_details.sort(key=lambda x: (-float(x['points'] or 0), str(x['event_name'])))
         return jsonify(team_details)
     except Exception as e:
         print("获取班级得分明细异常:", e)
         return jsonify([])
     finally:
         conn.close()
-
 @app.route('/api/reset_system', methods=['POST'])
 @login_required('admin')
 def reset_system():
@@ -4106,15 +4148,15 @@ def init_template_table():
 @login_required('admin')
 def update_team_custom_score():
     data = request.json or {}
-    team_name = data.get('team_name')
-    group_name = data.get('group_name')
-    item_key = data.get('item_key')      # 比如 "跑操"
+    team_name = str(data.get('team_name') or '').strip()
+    group_name = str(data.get('group_name') or '').strip()
+    item_key = str(data.get('item_key') or '').strip()
     val = float(data.get('score', 0) or 0)
 
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        row = c.execute("SELECT custom_scores FROM cfg_teams WHERE name = ?", (team_name,)).fetchone()
+        row = c.execute("SELECT custom_scores FROM cfg_teams WHERE TRIM(name) = ? OR REPLACE(name, ' ', '') = REPLACE(?, ' ', '')", (team_name, team_name)).fetchone()
         scores = {}
         if row and row['custom_scores']:
             try: scores = json.loads(row['custom_scores'])
@@ -4122,19 +4164,21 @@ def update_team_custom_score():
 
         scores[item_key] = val
 
-        c.execute("UPDATE cfg_teams SET custom_scores = ? WHERE name = ?", (json.dumps(scores, ensure_ascii=False), team_name))
+        c.execute("UPDATE cfg_teams SET custom_scores = ? WHERE TRIM(name) = ? OR REPLACE(name, ' ', '') = REPLACE(?, ' ', '')", 
+                  (json.dumps(scores, ensure_ascii=False), team_name, team_name))
         conn.commit()
 
-        if 'socketio' in globals() and socketio:
-            socketio.emit('rank_updated', {'group_name': group_name}, room=f"rank_{group_name}")
-            socketio.emit('score_updated', {})
+        # 🌟 必须彻底清理服务端该组别的所有榜单缓存！
+        if '_cache_store' in globals():
+            for k in list(_cache_store.keys()):
+                if k.startswith("rank_") or k.startswith("team_detail_"):
+                    _cache_store.pop(k, None)
 
-        return jsonify({"status": "success", "msg": "已更新"})
+        return jsonify({"status": "success", "msg": "已更新", "score": val, "team_name": team_name, "item_key": item_key})
     except Exception as e:
         return jsonify({"status": "error", "msg": str(e)})
     finally:
         conn.close()
-
 # 2. 增加/删除系统附加项目标签列（如新增一个“入场式”列）
 @app.route('/api/manage_custom_score_columns', methods=['POST'])
 @login_required('admin')

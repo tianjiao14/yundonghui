@@ -816,7 +816,7 @@
 
     <div class="flex items-center gap-2">
     <label class="flex items-center space-x-1.5 cursor-pointer select-none bg-yellow-50 px-3 py-2 rounded-lg border border-yellow-200 text-yellow-800 font-bold text-xs hover:bg-yellow-100 transition">
-        <input type="checkbox" id="enableEditRankScore" onchange="calculateTeamRanking()" class="w-3.5 h-3.5 text-yellow-600 rounded focus:ring-yellow-500 cursor-pointer">
+        <input type="checkbox" id="enableEditRankScore" onchange="onToggleEditRankScore(this)" class="w-3.5 h-3.5 text-yellow-600 rounded focus:ring-yellow-500 cursor-pointer">
         <span>🔓 开启附加分编辑</span>
     </label>
 
@@ -1436,6 +1436,27 @@ window.deleteSelectedTemplate = function(id, name) {
         switchStep(0); 
         if (typeof renderQRCodes === 'function') renderQRCodes();
     };
+if (typeof io !== 'undefined') {
+        window.socket = window.socket || io();
+
+        window.socket.on('rank_updated', function(data) {
+            const isEditing = document.getElementById('enableEditRankScore')?.checked;
+            // 只要管理员开启了附加分编辑，坚决不重绘表格，防止光标丢失或输入数值被冲掉
+            if (isEditing) {
+                return;
+            }
+            if (typeof calculateTeamRanking === 'function' && window.currentRankGroupName) {
+                calculateTeamRanking(window.currentRankGroupName);
+            }
+        });
+
+        window.socket.on('score_updated', function(data) {
+            const isEditing = document.getElementById('enableEditRankScore')?.checked;
+            if (isEditing) {
+                return; // 编辑状态下屏蔽全局重绘刷新
+            }
+        });
+    }
 
     // --- Step 6 横排按钮全局变量 ---
     window.curResGroup = '';
@@ -4567,6 +4588,14 @@ window.showAdminTeamScoreDetail = function(groupName, teamName, totalScore) {
             const isRelay = item.event_name.includes('接力') || item.event_name.includes('4×') || item.event_name.includes('4*');
             const displayName = isRelay ? '集体接力队' : item.name;
 
+            // 🌟 格式化名次：1/2/3 显示金银铜，其余显示标准名次，消灭“第 附加 名”
+            let rankDisplay = '--';
+            if (item.rank == 1) rankDisplay = '🥇 第1名';
+            else if (item.rank == 2) rankDisplay = '🥈 第2名';
+            else if (item.rank == 3) rankDisplay = '🥉 第3名';
+            else if (item.rank && !isNaN(parseInt(item.rank))) rankDisplay = `第 ${item.rank} 名`;
+            else if (item.rank && item.rank !== '--' && item.rank !== '附加') rankDisplay = item.rank;
+
             return `
             <tr class="hover:bg-blue-50/50 transition border-b border-gray-100 text-xs">
                 <td class="p-2.5 text-center font-mono text-gray-400">${idx + 1}</td>
@@ -4577,7 +4606,7 @@ window.showAdminTeamScoreDetail = function(groupName, teamName, totalScore) {
                 <td class="p-2.5 text-left font-bold text-blue-700">${displayName}</td>
                 <td class="p-2.5 text-center font-mono font-bold text-gray-700">${item.score || '--'}</td>
                 <td class="p-2.5 text-center font-bold text-orange-600">
-                    ${item.rank == 1 ? '🥇 第1名' : (item.rank == 2 ? '🥈 第2名' : (item.rank == 3 ? '🥉 第3名' : `第 ${item.rank} 名`))}
+                    ${rankDisplay}
                 </td>
                 <td class="p-2.5 text-right font-mono font-black text-emerald-600 text-sm">
                     +${item.points}
@@ -4615,32 +4644,35 @@ window.closeTeamScoreDetailModal = function() {
 };
     window.customScoreColumns = ["跑操比赛"]; // 默认
 
-    window.calculateTeamRanking = function(gName) {
+    window.calculateTeamRanking = function(gName, forceNoCache = false) {
         const targetGroup = gName || window.currentRankGroupName;
         const div = document.getElementById('rankOutput');
         if (!div) return;
         
         if (!targetGroup) {
-            div.innerHTML = '<div class="text-center text-gray-400 mt-20">请在上方选择组别查看</div>';
+            div.innerHTML = '<div class="text-center text-gray-400 mt-20 font-bold text-xs">请在上方选择组别查看排行榜</div>';
             return; 
         }
 
         const isEditMode = document.getElementById('enableEditRankScore')?.checked || false;
-        div.innerHTML = '<div class="text-center text-blue-500 mt-10 font-bold">正在核算积分与附加项...</div>';
+        div.innerHTML = '<div class="text-center text-blue-500 mt-20 font-bold text-sm animate-pulse">正在核算积分与附加项...</div>';
 
-        fetch('/api/calculate_team_ranking', {
+        fetch('/api/calculate_team_ranking?_t=' + Date.now(), {
             method: 'POST', 
             headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({ group_name: targetGroup })
+            body: JSON.stringify({ group_name: targetGroup, nocache: forceNoCache })
         })
-        .then(r => r.json())
+        .then(r => {
+            if (!r.ok) throw new Error("网络请求失败: " + r.status);
+            return r.json();
+        })
         .then(res => {
-            const cols = res.columns || ["跑操比赛"];
+            const cols = (res && Array.isArray(res.columns) && res.columns.length > 0) ? res.columns : ["跑操比赛"];
             window.customScoreColumns = cols;
-            const data = res.teams || [];
+            const data = (res && Array.isArray(res.teams)) ? res.teams : [];
 
             if (data.length === 0) { 
-                div.innerHTML = `<div class="text-center text-gray-400 mt-20 font-bold">【${targetGroup}】暂无成绩数据</div>`; 
+                div.innerHTML = `<div class="text-center text-gray-400 mt-20 font-bold text-sm">【${targetGroup}】暂无成绩数据</div>`; 
                 return; 
             }
             
@@ -4650,6 +4682,7 @@ window.closeTeamScoreDetailModal = function() {
             // 动态构建表头各附加列
             let customHeaders = cols.map(c => `<th class="w-24 text-indigo-700 bg-indigo-50/50">${c}</th>`).join('');
 
+            // 渲染各行
             let rows = '';
             data.forEach((t, idx) => {
                 let rankIcon = idx + 1; 
@@ -4659,14 +4692,20 @@ window.closeTeamScoreDetailModal = function() {
                 else if (idx === 2) { rankIcon = '🥉'; rowClass = "bg-amber-50/50"; }
                 
                 const sMap = t.custom_scores || {};
+                const totalScoreVal = parseFloat(t.score) || 0;
+                const extraSumVal = parseFloat(t.extra_sum) || 0;
+                // 安全计算基础竞技单项分（防 NaN）
+                const baseAthScore = Math.round((totalScoreVal - extraSumVal) * 100) / 100;
 
-                // 动态构建各附加分输入框/展示格
+                // 动态构建各附加分输入框
                 let customCells = cols.map(col => {
-                    const val = sMap[col] !== undefined ? sMap[col] : 0;
+                    const val = (sMap[col] !== undefined && sMap[col] !== null) ? sMap[col] : 0;
                     if (isEditMode) {
                         return `<td class="text-center">
                             <input type="number" step="0.5" value="${val}" 
-                                class="w-16 text-center font-bold font-mono border border-indigo-300 rounded py-1 bg-white text-indigo-800 outline-none focus:ring-1 focus:ring-indigo-400 shadow-inner"
+                                class="team-custom-input w-16 text-center font-bold font-mono border border-indigo-300 rounded py-1 bg-white text-indigo-800 outline-none focus:ring-2 focus:ring-indigo-400 shadow-inner"
+                                data-col="${col}"
+                                oninput="recalcRowTotalScore(this)"
                                 onblur="saveTeamCustomScore('${t.name}', '${targetGroup}', '${col}', this)">
                         </td>`;
                     } else {
@@ -4677,18 +4716,18 @@ window.closeTeamScoreDetailModal = function() {
                 }).join('');
 
                 rows += `
-                <tr class="${rowClass} border-b border-gray-200 hover:bg-pink-50/30 transition text-center">
+                <tr class="${rowClass} border-b border-gray-200 hover:bg-pink-50/30 transition text-center team-rank-row" data-base-score="${baseAthScore}">
                     <td class="font-bold text-lg py-3">${rankIcon}</td> 
                     <td class="font-black text-base text-left pl-6 text-gray-800">${t.name}</td> 
-                    <td class="font-bold text-yellow-600">${t.gold}</td> 
-                    <td class="font-bold text-gray-500">${t.silver}</td> 
-                    <td class="font-bold text-orange-600">${t.bronze}</td> 
+                    <td class="font-bold text-yellow-600">${t.gold || 0}</td> 
+                    <td class="font-bold text-gray-500">${t.silver || 0}</td> 
+                    <td class="font-bold text-orange-600">${t.bronze || 0}</td> 
                     <td class="font-bold text-red-500 bg-red-50/60 font-mono">+${t.total_record_bonus || 0}</td>
                     ${customCells}
-                    <td class="font-black text-xl text-blue-700 font-mono underline cursor-pointer hover:text-blue-900 transition active:scale-95" 
+                    <td class="font-black text-xl text-blue-700 font-mono underline cursor-pointer hover:text-blue-900 transition active:scale-95 team-row-total" 
                         title="点击查看详细得分明细"
-                        onclick="showAdminTeamScoreDetail('${targetGroup}', '${t.name}', ${t.score})">
-                        ${t.score}
+                        onclick="showAdminTeamScoreDetail('${targetGroup}', '${t.name}', this.innerText.trim())">
+                        ${totalScoreVal}
                     </td>
                 </tr>`;
             });
@@ -4720,36 +4759,76 @@ window.closeTeamScoreDetailModal = function() {
                     <span>日期：________________</span> 
                 </div>
             </div>`;
-        });
-    };
-
-    // 🌟 保存单项附加分
-    window.saveTeamCustomScore = function(teamName, groupName, itemKey, inputEl) {
-        const val = parseFloat(inputEl.value.trim()) || 0;
-        inputEl.style.backgroundColor = '#fef3c7';
-
-        fetch('/api/update_team_custom_score', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                team_name: teamName,
-                group_name: groupName,
-                item_key: itemKey,
-                score: val
-            })
         })
-        .then(r => r.json())
-        .then(res => {
-            if (res.status === 'success') {
-                inputEl.style.backgroundColor = '#dcfce7';
-                setTimeout(() => {
-                    inputEl.style.backgroundColor = '';
-                    calculateTeamRanking(groupName);
-                }, 600);
-            }
+        .catch(err => {
+            console.error("加载团体排名失败:", err);
+            div.innerHTML = `<div class="text-center text-red-500 mt-20 font-bold text-sm">核算积分失败: ${err.message}<br><button onclick="calculateTeamRanking('${targetGroup}', true)" class="mt-3 px-3 py-1 bg-blue-600 text-white rounded text-xs">点击重试</button></div>`;
         });
     };
 
+window.onToggleEditRankScore = function(checkboxEl) {
+    if (!checkboxEl.checked) {
+        // 关闭编辑：统一重绘并更新排名与总分
+        calculateTeamRanking(window.currentRankGroupName);
+    } else {
+        // 开启编辑：仅渲染出带输入框的表格，不打乱焦点
+        calculateTeamRanking(window.currentRankGroupName);
+    }
+};
+
+// 🌟 保存单个附加分：只静默更新后台和输入框样式，不刷新重绘 DOM
+window.saveTeamCustomScore = function(teamName, groupName, itemKey, inputEl) {
+    const rawVal = inputEl.value.trim();
+    const val = parseFloat(rawVal) || 0;
+    
+    // 立即锁定当前输入框显示的数值
+    inputEl.value = val;
+    inputEl.style.backgroundColor = '#fef3c7'; // 保存中黄底
+
+    fetch('/api/update_team_custom_score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            team_name: teamName,
+            group_name: groupName,
+            item_key: itemKey,
+            score: val
+        })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') {
+            // 🌟 强行再次确认数值，坚决防止被旧数据覆写
+            inputEl.value = val;
+            inputEl.style.backgroundColor = '#dcfce7'; // 保存成功变绿
+            setTimeout(() => {
+                inputEl.style.backgroundColor = '';
+            }, 600);
+        } else {
+            alert('保存失败：' + (res.msg || ''));
+            inputEl.style.backgroundColor = '#fee2e2';
+        }
+    })
+    .catch(() => {
+        inputEl.style.backgroundColor = '#fee2e2';
+    });
+};
+window.recalcRowTotalScore = function(inputEl) {
+    const tr = inputEl.closest('tr');
+    if (!tr) return;
+
+    const baseScore = parseFloat(tr.dataset.baseScore || 0);
+    let customSum = 0;
+    tr.querySelectorAll('.team-custom-input').forEach(inp => {
+        const v = parseFloat(inp.value.trim()) || 0;
+        customSum += v;
+    });
+
+    const totalCell = tr.querySelector('.team-row-total');
+    if (totalCell) {
+        totalCell.innerText = Math.round((baseScore + customSum) * 100) / 100;
+    }
+};
     window.manageCustomColsPrompt = function() {
 
         const existingList = window.customScoreColumns || ["跑操比赛"];
