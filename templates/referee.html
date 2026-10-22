@@ -321,12 +321,17 @@ socket.on('track_released', function(payload) {
 });
 
 // 监听成绩更新事件
+let scoreUpdatedTimer = null;
 socket.on('score_updated', function(payload) {
     if (currentRole === 'starter' || currentRole === 'checkin') {
         if (payload && (payload.heat_completed === true || payload.auto_finals_promoted === true)) {
             window.isTrackBusy = false;
         }
-        loadCheckinSchedule();
+        // 增加 1.5 秒防抖合并，避免终点连续输入造成发令端频繁拉取全库
+        clearTimeout(scoreUpdatedTimer);
+        scoreUpdatedTimer = setTimeout(() => {
+            loadCheckinSchedule();
+        }, 1500);
     } else if (currentRole === 'timing') {
         const curEvt = document.getElementById('selEvent')?.value || '';
         if (payload && payload.auto_finals_promoted === true && curEvt.includes('决赛')) {
@@ -1153,14 +1158,18 @@ window.saveFieldScore = function(regId, roundNum, input, callback) {
     let overallBest = Math.max(0, ...allValid);
     athlete.score = overallBest > 0 ? overallBest.toFixed(2) : (athlete.attempts.some(v => String(v).includes('弃权')) ? '弃权' : '');
 
-    // 局部更新本行试跳记录与最好成绩
+    // 新增：即时写入本地存储，防止手机熄屏或误刷新丢分
+    const storageKey = `field_draft_${athlete.event_name}_${athlete.group_name}_${athlete.gender}`;
+    try {
+        localStorage.setItem(storageKey, JSON.stringify(fieldAthletesData));
+    } catch (e) {}
+
     if (typeof updateFieldRowDOM === 'function') {
         updateFieldRowDOM(athlete, roundNum);
     } else {
         renderCurrentFieldList();
     }
 
-    // 视觉反馈 + 震动提醒（本地已暂存）
     input.classList.remove('saving', 'error');
     input.classList.add('saved');
     if (typeof triggerVibrate === 'function') triggerVibrate(40);

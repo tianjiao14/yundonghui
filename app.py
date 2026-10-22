@@ -85,7 +85,6 @@ _last_recalc_time = 0
 # 4. 数据库连接基础函数（👈 补回此处缺失的函数）
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE, timeout=60) 
-    conn.execute('PRAGMA journal_mode=WAL;') 
     conn.execute('PRAGMA synchronous = NORMAL;')
     conn.execute('PRAGMA cache_size = -32000;')  # 分配约 32MB 内存页缓存
     conn.execute('PRAGMA temp_store = MEMORY;')
@@ -305,35 +304,29 @@ def _get_lock_for_key(key):
         return _key_locks[key]
 
 def get_cached_data(cache_key, ttl_seconds=15):
-    """
-    高并发防击穿读取：
-    1. 命中未过期缓存，毫秒级直接返回；
-    2. 若缓存过期，只有【第1个协程】能穿透去查数据库；
-    3. 后续并发的几十/几百个协程在此排队，等第1个查完写入缓存后，直接复用结果返回，彻底消除数据库锁竞争！
-    """
     now = time.time()
-    
-    # 第一次快速无锁检查（绝大多数请求在这里直接命中返回）
     cached = _cache_store.get(cache_key)
     if cached and now < cached['expire_at']:
         return cached['data']
 
-    # 缓存未命中或过期，获取该 Key 专属的互斥锁
     lock = _get_lock_for_key(cache_key)
-    lock.acquire()
-    
-    # 拿到锁后做二次检查（DCL 模式：可能前一个排队的协程刚刚已经更新并写入缓存了）
-    cached = _cache_store.get(cache_key)
-    if cached and now < cached['expire_at']:
-        lock.release()
-        return cached['data']
+    # 增加超时限制，防止异常卡死
+    if not lock.acquire(blocking=True, timeout=1.5):
+        return None
 
-    # 如果依然没有，说明当前协程是【天选之子】，由它负责去执行下面的数据库查询
-    # 注意：此时不释放 lock，等该请求执行完 set_cached_data 时再自动释放！
-    return None
+    try:
+        cached = _cache_store.get(cache_key)
+        if cached and now < cached['expire_at']:
+            return cached['data']
+        return None
+    finally:
+        # 始终确保锁在当前函数结束时被释放
+        try:
+            lock.release()
+        except Exception:
+            pass
 
 def set_cached_data(cache_key, data, ttl_seconds=15):
-    """写入缓存并唤醒所有等待的排队协程"""
     _cache_store[cache_key] = {
         'data': data,
         'expire_at': time.time() + ttl_seconds
@@ -594,22 +587,26 @@ def toggle_checkin():
         c.execute("UPDATE start_list SET checked_in = ? WHERE id = ?", (status, start_id))
         
         cur_event_name = start_row['event_name']
+        clean_core_evt = re.sub(r"\(.*?\)|（.*?）|预赛|决赛", "", cur_event_name).strip()
+
         if status == 2:
             c.execute("""
                 UPDATE registrations 
                 SET score = '弃权' 
-                WHERE name = ? AND team_name = ? AND group_name = ? 
-                  AND event_name = ?
+                WHERE (name = ? OR ? LIKE '%' || name || '%')
+                  AND team_name = ? AND group_name = ? 
+                  AND (event_name = ? OR event_name = ? OR event_name LIKE ? || '%')
                   AND (score = '' OR score IS NULL OR score = '弃权')
-            """, (start_row['name'], start_row['team_name'], start_row['group_name'], cur_event_name))
+            """, (start_row['name'], start_row['name'], start_row['team_name'], start_row['group_name'], cur_event_name, clean_core_evt, clean_core_evt))
         else:
             c.execute("""
                 UPDATE registrations 
                 SET score = '' 
-                WHERE name = ? AND team_name = ? AND group_name = ? 
-                  AND event_name = ?
+                WHERE (name = ? OR ? LIKE '%' || name || '%')
+                  AND team_name = ? AND group_name = ? 
+                  AND (event_name = ? OR event_name = ? OR event_name LIKE ? || '%')
                   AND score = '弃权'
-            """, (start_row['name'], start_row['team_name'], start_row['group_name'], cur_event_name))
+            """, (start_row['name'], start_row['name'], start_row['team_name'], start_row['group_name'], cur_event_name, clean_core_evt, clean_core_evt))
 
         conn.commit()
         if '_cache_store' in globals():
@@ -758,12 +755,6 @@ def do_recalculate():
     c = conn.cursor()
     count = 0
     try:
-        try: c.execute("ALTER TABLE registrations ADD COLUMN points INTEGER DEFAULT 0")
-        except Exception: pass
-        try: c.execute("ALTER TABLE registrations ADD COLUMN record_bonus INTEGER DEFAULT 0")
-        except Exception: pass
-
-        # 🌟 核心优化：先在内存中计算出所有待更新的变更列表，避免长事务死锁和行锁挂起
         updates_individual = []
         updates_team_reset = []
 
@@ -1004,7 +995,7 @@ def do_recalculate():
 
                     if is_team_event:
                         updates_team_reset.append((str(rnk), item['team_name'], g_name, gender, item['event_name']))
-                        updates_individual.append((p, max_bonus, item['id']))
+                        updates_individual.append((p, max_bonus, str(rnk), item['id']))
                     else:
                         updates_individual.append((p, max_bonus, str(rnk), item['id']))
                 count += 1
@@ -3345,8 +3336,7 @@ def submit_score():
         conn.commit()
 
         if is_heat_fully_completed:
-            try: do_recalculate()
-            except Exception as rec_err: pass
+            gevent.spawn(do_recalculate) 
 
         pure_event = re.sub(r"\(.*?\)|（.*?）|决赛|预赛|男子|女子|混合", "", event_name).strip()
         invalidate_event_cache(event_name, group_name)
@@ -3702,7 +3692,7 @@ def import_system():
         
         # 2. 确保目标表结构存在（直接用当前连接建表，包含所有最新字段）
         c.execute('''CREATE TABLE IF NOT EXISTS cfg_groups (id INTEGER PRIMARY KEY, name TEXT, prefix TEXT, sort_order INTEGER DEFAULT 0)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS cfg_teams (id INTEGER PRIMARY KEY, group_id INTEGER, name TEXT, leader TEXT, coach TEXT DEFAULT '', phone TEXT DEFAULT '', sort_order INTEGER DEFAULT 0)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS cfg_teams (id INTEGER PRIMARY KEY, group_id INTEGER, name TEXT, leader TEXT, coach TEXT DEFAULT '', phone TEXT DEFAULT '', sort_order INTEGER DEFAULT 0, custom_scores TEXT DEFAULT '{}')''')
         c.execute('''CREATE TABLE IF NOT EXISTS cfg_events (id INTEGER PRIMARY KEY, name TEXT, type TEXT, gender TEXT, score_rule TEXT, record TEXT, record_bonus TEXT, is_double_score BOOLEAN, need_lane BOOLEAN, has_prelim BOOLEAN, is_relay BOOLEAN, is_team TEXT DEFAULT '0', limit_count INTEGER, allowed_groups TEXT DEFAULT '', duration REAL DEFAULT 5, venue_count INTEGER DEFAULT 1, is_fun TEXT DEFAULT '0', qualify_count INTEGER DEFAULT 8, dense_rank TEXT DEFAULT '0')''')
         c.execute('''CREATE TABLE IF NOT EXISTS sys_config (key TEXT PRIMARY KEY, value TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS team_auth (id INTEGER PRIMARY KEY AUTOINCREMENT, team_name TEXT, password TEXT)''')
@@ -3710,6 +3700,24 @@ def import_system():
         c.execute('''CREATE TABLE IF NOT EXISTS cfg_group_records (id INTEGER PRIMARY KEY AUTOINCREMENT, group_name TEXT, event_name TEXT, gender TEXT, records_json TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS registrations (id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER, group_name TEXT, team_id INTEGER, team_name TEXT, name TEXT, gender TEXT, bib TEXT, event_name TEXT, score TEXT DEFAULT '', rank TEXT DEFAULT '', lane TEXT DEFAULT '', heat TEXT DEFAULT '', submit_time TEXT, points INTEGER DEFAULT 0, record_bonus INTEGER DEFAULT 0, attempts_json TEXT DEFAULT '', relay_leg TEXT DEFAULT '')''')
         c.execute('''CREATE TABLE IF NOT EXISTS start_list (id INTEGER PRIMARY KEY AUTOINCREMENT, group_name TEXT, event_name TEXT, gender TEXT, heat TEXT, lane TEXT, bib TEXT, name TEXT, team_name TEXT, type TEXT, total_lanes INTEGER DEFAULT 8, est_time TEXT DEFAULT '', time_index INTEGER DEFAULT 0, is_field INTEGER DEFAULT 0, score TEXT DEFAULT '', checked_in INTEGER DEFAULT 0, is_started INTEGER DEFAULT 0, attempts_json TEXT DEFAULT '')''')
+
+        # 🌟 补齐旧表可能缺失的所有新字段，避免导入报错
+        for tbl, col, dtype in [
+            ("cfg_groups", "prefix", "TEXT DEFAULT '-'"),
+            ("cfg_groups", "sort_order", "INTEGER DEFAULT 0"),
+            ("cfg_teams", "leader", "TEXT DEFAULT ''"),
+            ("cfg_teams", "coach", "TEXT DEFAULT ''"),
+            ("cfg_teams", "phone", "TEXT DEFAULT ''"),
+            ("cfg_teams", "sort_order", "INTEGER DEFAULT 0"),
+            ("cfg_teams", "custom_scores", "TEXT DEFAULT '{}'"),
+            ("cfg_events", "qualify_count", "INTEGER DEFAULT 8"),
+            ("cfg_events", "dense_rank", "TEXT DEFAULT '0'"),
+            ("cfg_events", "is_fun", "TEXT DEFAULT '0'"),
+            ("cfg_events", "is_team", "TEXT DEFAULT '0'"),
+            ("start_list", "is_manual_final", "INTEGER DEFAULT 0")
+        ]:
+            try: c.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {dtype}")
+            except Exception: pass
 
         # 3. 开启单连接事务
         c.execute("BEGIN IMMEDIATE;")
@@ -3731,11 +3739,12 @@ def import_system():
             teams_data = [(
                 t.get('id'), t.get('group_id') or t.get('groupId'), t.get('name', ''), 
                 t.get('leader', ''), t.get('coach', ''), t.get('phone', ''),
-                t.get('sort_order', idx)
+                t.get('sort_order', idx),
+                t.get('custom_scores') if isinstance(t.get('custom_scores'), str) else json.dumps(t.get('custom_scores') or {}, ensure_ascii=False)
             ) for idx, t in enumerate(data['teams'])]
             c.executemany("""
-                INSERT OR REPLACE INTO cfg_teams (id, group_id, name, leader, coach, phone, sort_order) 
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO cfg_teams (id, group_id, name, leader, coach, phone, sort_order, custom_scores) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, teams_data)
 
         # 7. 批量写入 cfg_events
