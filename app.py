@@ -5268,7 +5268,44 @@ def apply_template():
         return jsonify({"status": "error", "msg": str(e)}), 500
     finally:
         conn.close()
+@app.route('/api/draft_field_score', methods=['POST'])
+@login_required('referee')
+def draft_field_score():
+    """田赛极轻量暂存接口：仅持久化成绩与轮次明细，绝不重算积分，绝不广播全网"""
+    data = request.json or {}
+    start_id = data.get('id')
+    score_str = str(data.get('score', '')).strip()
+    attempts_json = data.get('attempts_json', '[]')
 
+    if not start_id:
+        return jsonify({"status": "error", "msg": "缺少ID"}), 400
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        # 单条轻量写入 start_list
+        c.execute("""
+            UPDATE start_list 
+            SET score = ?, attempts_json = ? 
+            WHERE id = ?
+        """, (score_str, attempts_json, start_id))
+        
+        # 同步更新 registrations
+        reg_id = data.get('reg_id')
+        if reg_id:
+            c.execute("""
+                UPDATE registrations 
+                SET score = ?, attempts_json = ? 
+                WHERE id = ?
+            """, (score_str, attempts_json, reg_id))
+        
+        conn.commit()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "msg": str(e)}), 500
+    finally:
+        conn.close()
 @app.route('/api/templates/delete', methods=['POST'])
 @login_required('admin')
 def delete_template():

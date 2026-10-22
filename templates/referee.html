@@ -1022,24 +1022,48 @@ let currentFieldRound = 1;
 let fieldAthletesData = []; 
 
 function initFieldAthletesData(data) {
+    let localDraftMap = {};
+    if (data.length > 0) {
+        const storageKey = `field_draft_${data[0].event_name}_${data[0].group_name}_${data[0].gender}`;
+        try {
+            const rawDraft = localStorage.getItem(storageKey);
+            if (rawDraft) {
+                const draftArr = JSON.parse(rawDraft);
+                draftArr.forEach(d => {
+                    const k = `${d.name}_${d.team_name}`;
+                    localDraftMap[k] = d.attempts;
+                });
+            }
+        } catch(e) {}
+    }
+
     fieldAthletesData = data.map((p, idx) => {
         let parsedAttempts = ['', '', '', '', '', ''];
+        
+        // 1. 优先读取后端已有的 attempts_json
         if (p.attempts_json && p.attempts_json.trim() !== '' && p.attempts_json !== '[]') {
             try { parsedAttempts = JSON.parse(p.attempts_json); } catch(e) {}
         } else if (p.score && p.score.trim() !== '' && p.score !== '弃权') {
             parsedAttempts[0] = String(p.score);
         }
+
+        // 2. 本地若有录入未上传的内容，深度补充合并
+        const draftKey = `${p.name}_${p.team_name}`;
+        if (localDraftMap[draftKey]) {
+            parsedAttempts = parsedAttempts.map((v, i) => localDraftMap[draftKey][i] || v);
+        }
+
         return { ...p, orderIndex: idx + 1, attempts: parsedAttempts };
     });
+
     currentFieldRound = 1;
-    // 重置 1~6 次轮次按钮高亮与状态
     document.querySelectorAll('.round-pill').forEach(btn => {
         const r = parseInt(btn.dataset.round);
         if (r === 1) {
             btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-black bg-orange-600 text-white shadow-xs";
         } else {
             btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200";
-            if (r > 3) btn.disabled = true; // 前3次之后重新锁定
+            if (r > 3) btn.disabled = true;
         }
     });
 }
@@ -1158,7 +1182,7 @@ window.saveFieldScore = function(regId, roundNum, input, callback) {
     let overallBest = Math.max(0, ...allValid);
     athlete.score = overallBest > 0 ? overallBest.toFixed(2) : (athlete.attempts.some(v => String(v).includes('弃权')) ? '弃权' : '');
 
-    // 新增：即时写入本地存储，防止手机熄屏或误刷新丢分
+    // ① 本地存一份（防止断网/熄屏）
     const storageKey = `field_draft_${athlete.event_name}_${athlete.group_name}_${athlete.gender}`;
     try {
         localStorage.setItem(storageKey, JSON.stringify(fieldAthletesData));
@@ -1170,12 +1194,29 @@ window.saveFieldScore = function(regId, roundNum, input, callback) {
         renderCurrentFieldList();
     }
 
-    input.classList.remove('saving', 'error');
-    input.classList.add('saved');
-    if (typeof triggerVibrate === 'function') triggerVibrate(40);
-    setTimeout(() => input.classList.remove('saved'), 600);
+    // ② 轻量暂存上云：走无重算无锁的轻量接口
+    fetch('/api/draft_field_score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            id: athlete.id,
+            reg_id: athlete.reg_id,
+            score: athlete.score,
+            attempts_json: JSON.stringify(athlete.attempts)
+        })
+    }).then(r => r.json()).then(res => {
+        if (res.status === 'success') {
+            input.classList.remove('saving', 'error');
+            input.classList.add('saved');
+            setTimeout(() => input.classList.remove('saved'), 600);
+        }
+    }).catch(e => {
+        // 网络异常时，有本地 LocalStorage 保障，提示暂存本地即可
+        input.classList.remove('saving');
+    });
 
-    showTip("📝 成绩已暂存本地，全部录完后请点击【提交最终名次】", "text-amber-600");
+    if (typeof triggerVibrate === 'function') triggerVibrate(40);
+    showTip("📝 成绩已暂存", "text-amber-600");
     if (typeof callback === 'function') callback({ status: 'success' });
 };
 window.saveAndNextFieldAthlete = function(regId, roundNum) {
@@ -1258,6 +1299,10 @@ window.finalizeFieldCompetition = function() {
     .then(r => r.json())
     .then(res => {
         if (res.status === 'success') {
+            const storageKey = `field_draft_${fieldAthletesData[0]?.event_name}_${fieldAthletesData[0]?.group_name}_${fieldAthletesData[0]?.gender}`;
+try {
+    localStorage.removeItem(storageKey);
+} catch (e) {}
             if (typeof triggerVibrate === 'function') triggerVibrate([80, 50, 80]);
             showTip("✅ 已统一提交！", "text-emerald-600");
             loadAthletes();
