@@ -148,13 +148,17 @@
     </div>
 
     <div id="view-event-detail" class="view-panel flex flex-col flex-1 hidden bg-slate-50">
-        <header class="gradient-bg text-white p-4 sticky top-0 z-20 shadow-md flex justify-between items-center">
-            <div>
-                <div class="text-[10px] text-blue-200/80 mb-0.5 uppercase tracking-widest font-semibold">竞赛信息</div>
-                <div class="text-[18px] font-extrabold tracking-wide drop-shadow-sm" id="detEventName">--</div>
-            </div>
-            <button onclick="switchView('view-home')" class="text-xs bg-white/20 hover:bg-white/30 text-white font-medium px-3.5 py-2 rounded-lg backdrop-blur transition active:scale-95">返回首页</button>
-        </header>
+        <!-- 修改后 -->
+<header class="gradient-bg text-white p-4 sticky top-0 z-20 shadow-md flex justify-between items-center">
+    <div>
+        <div class="text-[10px] text-blue-200/80 mb-0.5 uppercase tracking-widest font-semibold">竞赛信息</div>
+        <div class="text-[18px] font-extrabold tracking-wide drop-shadow-sm" id="detEventName">--</div>
+    </div>
+    <div class="flex items-center gap-2">
+        <button id="btnRefreshEventDet" class="text-xs bg-white/20 hover:bg-white/30 text-white font-medium px-3 py-2 rounded-lg backdrop-blur transition active:scale-95">🔄 刷新</button>
+        <button onclick="switchView('view-home')" class="text-xs bg-white/20 hover:bg-white/30 text-white font-medium px-3.5 py-2 rounded-lg backdrop-blur transition active:scale-95">返回</button>
+    </div>
+</header>
         <div class="bg-white px-4 py-2.5 flex justify-between items-center text-[13px] font-bold text-blue-600 shadow-sm z-10">
             <span id="detHeatLabel" class="flex items-center gap-1">✨ 数据同步中...</span>
         </div>
@@ -382,28 +386,40 @@
             `).join('');
         }
 
-        function goToEventDetail(eventName, isFinalsList, isSilent = false) {
+        // 🌟 单项静态缓存字典：避免重复拉取
+        window.eventDetailCache = {};
+
+        function goToEventDetail(eventName, isFinalsList, isSilent = false, forceReload = false) {
             let cleanCore = eventName.replace('决赛', '').replace('预赛', '').replace(/[\(（].*?[\)）]/g, '').trim();
 
             document.getElementById('detEventName').innerText = eventName;
             document.getElementById('detHeatLabel').innerHTML = isFinalsList ? '✨ 晋级决赛检录名单' : '🏅 综合成绩公告';
+            
+            // 绑定右上角手动刷新按钮
+            const btnRefresh = document.getElementById('btnRefreshEventDet');
+            if (btnRefresh) {
+                btnRefresh.onclick = () => goToEventDetail(eventName, isFinalsList, true, true);
+            }
+
             const contentArea = document.getElementById('detContentArea');
+            const cacheKey = `${eventName}_${isFinalsList}`;
+
+            // 🌟 1. 命中内存缓存，且不是手动强制刷新时：直接渲染，不发网络请求
+            if (!forceReload && window.eventDetailCache[cacheKey]) {
+                renderEventDetailDOM(eventName, isFinalsList, window.eventDetailCache[cacheKey], cleanCore, isSilent);
+                return;
+            }
 
             if (!isSilent) {
                 contentArea.innerHTML = `
                     <div class="flex flex-col items-center justify-center py-20 text-slate-400">
                         <svg class="animate-spin h-8 w-8 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        <span class="font-bold">正在同步成绩矩阵与纪录档案...</span>
+                        <span class="font-bold">正在提取官方核定成绩...</span>
                     </div>`;
                 switchView('view-event-detail');
             }
 
-            let coreMatchName = cleanCore;
-            if (coreMatchName.startsWith('女') && !coreMatchName.startsWith('女子')) coreMatchName = coreMatchName.replace('女', '女子');
-            if (coreMatchName.startsWith('男') && !coreMatchName.startsWith('男子')) coreMatchName = coreMatchName.replace('男', '男子');
-            
-            const evtCfg = db.events?.find(e => e.name === coreMatchName || e.name === eventName);
-            
+            // 🌟 2. 纯只读拉取后端数据并写入缓存
             fetch('/api/get_event_start_list', {
                 method: 'POST', 
                 headers: {'Content-Type': 'application/json'},
@@ -411,101 +427,89 @@
             })
             .then(r => r.json())
             .then(data => {
-                if(!data || data.length === 0) {
-                    contentArea.innerHTML = '<div class="p-10 text-center text-slate-400 font-medium">该项目暂无编排数据</div>'; 
-                    return;
-                }
-              let roundStatus = "决赛";
-                if (eventName.includes('预赛')) {
-                    roundStatus = "预赛";
-                } else if (eventName.includes('决赛')) {
-                    roundStatus = "决赛";
-                } else {
-                    // 后端 cfg_events 接口返回每一行真实设置：has_prelim === true 有预赛，false/null 为直决赛
-                    const hasPrelimSetting = Boolean(data[0] && (data[0].has_prelim === true || String(data[0].has_prelim) === 'true' || String(data[0].has_prelim) === '1'));
-                    roundStatus = hasPrelimSetting ? "预赛" : "决赛";
-                }
-                const qualifyLimit = (data && data.length > 0 && data[0].qualify_count !== undefined) 
-                     ? parseInt(data[0].qualify_count) 
-                     : 8;
-                const uniqueGroups = [...new Set(data.map(i => i.group_name).filter(Boolean))];
-                
-                Promise.all(uniqueGroups.map(g => 
-                    getGroupRecordsWithCache(g).then(recs => ({ group: g, records: recs }))
-                )).then(recordResults => {
-                    const globalRecordMap = {};
-                    recordResults.forEach(rr => { globalRecordMap[rr.group] = rr.records; });
+                window.eventDetailCache[cacheKey] = data;
+                renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent);
+            })
+            .catch(err => {
+                console.error("加载编排数据失败:", err);
+                contentArea.innerHTML = '<div class="p-10 text-center text-red-500 font-medium">数据连接异常，请点击右上角刷新</div>';
+            });
+        }
 
-                    const isField = eventName.includes('跳') || eventName.includes('投') || eventName.includes('球') || eventName.includes('掷');
+        // 🌟 纯只读渲染函数：100% 依据管理端存储的 rank 和 points 显示
+        function renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent) {
+            const contentArea = document.getElementById('detContentArea');
+            if(!data || data.length === 0) {
+                contentArea.innerHTML = '<div class="p-10 text-center text-slate-400 font-medium">该项目暂无编排数据</div>'; 
+                return;
+            }
 
-                    function getRecordBadge(scoreStr, groupName, gender) {
-                        const scoreVal = parseTimeVal(scoreStr);
-                        if (scoreVal <= 0) return '';
-                        
-                        const groupRecs = globalRecordMap[groupName] || {};
-                        const myRecords = (groupRecs[`${coreMatchName}_${gender}`] || []).filter(r => r.en && parseTimeVal(r.val) > 0);
-                        
-                        let brokenCode = '';
-                        let maxBonus = -1; 
-                        
-                        myRecords.forEach(rec => {
-                            const recVal = parseTimeVal(rec.val);
-                            const isBroken = isField ? (scoreVal > recVal) : (scoreVal < recVal);
-                            if (isBroken && rec.bonus >= maxBonus) {
-                                maxBonus = rec.bonus;
-                                brokenCode = rec.code || 'XR'; 
-                            }
-                        });
-                        
-                        if (brokenCode) {
-                            return `<span class="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-md font-bold shadow-sm tracking-wider ml-1">${brokenCode}</span>`;
+            let coreMatchName = cleanCore;
+            if (coreMatchName.startsWith('女') && !coreMatchName.startsWith('女子')) coreMatchName = coreMatchName.replace('女', '女子');
+            if (coreMatchName.startsWith('男') && !coreMatchName.startsWith('男子')) coreMatchName = coreMatchName.replace('男', '男子');
+
+            const isRelayEvent = eventName.includes('接力') || eventName.includes('4×') || eventName.includes('4*') || eventName.includes('4x');
+            const isPrelim = eventName.includes('预赛');
+            const uniqueGroups = [...new Set(data.map(i => i.group_name).filter(Boolean))];
+
+            Promise.all(uniqueGroups.map(g => 
+                getGroupRecordsWithCache(g).then(recs => ({ group: g, records: recs }))
+            )).then(recordResults => {
+                const globalRecordMap = {};
+                recordResults.forEach(rr => { globalRecordMap[rr.group] = rr.records; });
+
+                const isField = eventName.includes('跳') || eventName.includes('投') || eventName.includes('球') || eventName.includes('掷');
+
+                function getRecordBadge(scoreStr, groupName, gender) {
+                    const scoreVal = parseTimeVal(scoreStr);
+                    if (scoreVal <= 0) return '';
+                    
+                    const groupRecs = globalRecordMap[groupName] || {};
+                    const myRecords = (groupRecs[`${coreMatchName}_${gender}`] || []).filter(r => r.en && parseTimeVal(r.val) > 0);
+                    
+                    let brokenCode = '';
+                    let maxBonus = -1; 
+                    
+                    myRecords.forEach(rec => {
+                        const recVal = parseTimeVal(rec.val);
+                        const isBroken = isField ? (scoreVal > recVal) : (scoreVal < recVal);
+                        if (isBroken && rec.bonus >= maxBonus) {
+                            maxBonus = rec.bonus;
+                            brokenCode = rec.code || 'XR'; 
                         }
-                        return '';
+                    });
+                    
+                    if (brokenCode) {
+                        return `<span class="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-md font-bold shadow-sm tracking-wider ml-1">${brokenCode}</span>`;
                     }
+                    return '';
+                }
 
-                    const grouped = {};
-                    data.forEach(item => {
-                        const key = `${item.group_name} (${item.gender})`;
-                        if(!grouped[key]) grouped[key] = [];
-                        grouped[key].push(item);
+                const grouped = {};
+                data.forEach(item => {
+                    const key = `${item.group_name} (${item.gender})`;
+                    if(!grouped[key]) grouped[key] = [];
+                    grouped[key].push(item);
+                });
+
+                let html = '';
+
+                Object.keys(grouped).sort().forEach((groupKey, gIndex) => {
+                    const groupData = grouped[groupKey];
+                    const contentId = `grp_content_${gIndex}`;
+                    const currentGroupName = groupData[0].group_name;
+                    const currentGender = groupData[0].gender;
+
+                    const realAthletesInGroup = groupData.filter(i => i.name && !i.name.includes('待定') && i.team_name !== '预赛出线');
+                    
+                    // 判断是否有未完赛
+                    const hasUnfinished = realAthletesInGroup.some(i => {
+                        const s = String(i.score || '').trim();
+                        const isAbandoned = s.includes('弃权') || s.includes('DNS') || String(i.checked_in) === '2';
+                        return !isAbandoned && (s === '' || s === '-');
                     });
+                    const isAllHeatsFinished = (realAthletesInGroup.length > 0 && !hasUnfinished);
 
-                    let html = '';
-
-                    Object.keys(grouped).sort().forEach((groupKey, gIndex) => {
-                        const groupData = grouped[groupKey];
-                        const contentId = `grp_content_${gIndex}`;
-                        const currentGroupName = groupData[0].group_name;
-                        const currentGender = groupData[0].gender;
-
-                        const isRealScore = (scoreStr) => {
-                        if (!scoreStr) return false;
-                        const s = String(scoreStr).trim();
-                        if (s === '' || s === '-' || s === '--' || s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || s.includes('DNF')) return false;
-                        return parseTimeVal(s) > 0;
-                    };
-
-                    const isAthleteAbandoned = (item) => {
-                        const s = String(item.score || '').trim();
-                        return s.includes('弃权') || s.includes('DNS') || String(item.checked_in) === '2';
-                    };
-
-                    // 1. 过滤掉占位选手
-                    const realAthletesInGroup = groupData.filter(i => {
-                        return i.name && !i.name.includes('待定') && i.team_name !== '预赛出线';
-                    });
-
-                    // 2. 统计已出成绩人数、弃权人数
-                    const scoredAthletes = realAthletesInGroup.filter(i => isRealScore(i.score));
-                    const abandonedAthletes = realAthletesInGroup.filter(i => isAthleteAbandoned(i));
-
-                    const totalAthletesCount = realAthletesInGroup.length;
-                    const finishedCount = scoredAthletes.length + abandonedAthletes.length;
-
-                    // 🌟 铁律：只有当 (已出成绩 + 弃权) 严格等于 总人数，且总人数 > 0 时，才算全部完赛！
-                    const isAllHeatsFinished = (totalAthletesCount > 0 && finishedCount >= totalAthletesCount);
-
-                    // 3. 渲染顶部的状态标签
                     let statusDotHtml = '';
                     if (isAllHeatsFinished) {
                         statusDotHtml = `
@@ -513,315 +517,216 @@
                                 <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
                                 <span>全部完赛</span>
                             </span>`;
-                    } else if (scoredAthletes.length > 0) {
-                        statusDotHtml = `
-                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300">
-                                <span class="relative flex h-2 w-2">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                                </span>
-                                <span>成绩更新中 (${scoredAthletes.length}/${totalAthletesCount})</span>
-                            </span>`;
                     }
 
-                        html += `
-                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 mb-3 overflow-hidden grp-card-container" data-groupkey="${groupKey}">
-                            <div class="px-4 py-3.5 bg-white hover:bg-slate-50 flex justify-between items-center cursor-pointer transition select-none" onclick="document.getElementById('${contentId}').classList.toggle('hidden')">
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="font-extrabold text-slate-800 text-[14px]">🏢 ${groupKey}</span>
-                                    ${statusDotHtml}
-                                </div>
-                                <span class="text-blue-500 bg-blue-50 text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0">展开/折叠</span>
+                    html += `
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 mb-3 overflow-hidden grp-card-container" data-groupkey="${groupKey}">
+                        <div class="px-4 py-3.5 bg-white hover:bg-slate-50 flex justify-between items-center cursor-pointer transition select-none" onclick="document.getElementById('${contentId}').classList.toggle('hidden')">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-extrabold text-slate-800 text-[14px]">🏢 ${groupKey}</span>
+                                ${statusDotHtml}
                             </div>
-                            <div id="${contentId}" class="grp-content-box hidden transition-all duration-300">`;
+                            <span class="text-blue-500 bg-blue-50 text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0">展开/折叠</span>
+                        </div>
+                        <div id="${contentId}" class="grp-content-box hidden transition-all duration-300">`;
 
-                        if (isFinalsList) {
-                            const heats = {};
-                            groupData.forEach(i => { const h = i.heat || '1'; if(!heats[h]) heats[h] = []; heats[h].push(i); });
-                            
-                            Object.keys(heats).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(h => {
-                                html += `<div class="px-4 py-2 text-[12px] font-bold text-slate-400 bg-slate-50 border-y border-slate-100 flex items-center gap-1"><span>🚩</span> 第 ${h} 组 (决赛)</div>`;
-                                html += `<table class="modern-table">
+                    if (isFinalsList) {
+                        const heats = {};
+                        groupData.forEach(i => { const h = i.heat || '1'; if(!heats[h]) heats[h] = []; heats[h].push(i); });
+                        Object.keys(heats).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(h => {
+                            html += `<div class="px-4 py-2 text-[12px] font-bold text-slate-400 bg-slate-50 border-y border-slate-100">🚩 第 ${h} 组 (决赛)</div>
+                                    <table class="modern-table">
                                     <thead><tr><th class="w-12 text-center">道次</th><th class="w-16">号码</th><th class="text-left pl-2">姓名</th><th class="text-left pl-2">单位</th></tr></thead>
                                     <tbody>`;
-                                const heatItems = heats[h].sort((a,b) => parseInt(a.lane) - parseInt(b.lane));
-                                heatItems.forEach(item => {
-                                    html += `<tr>
-                                        <td class="text-slate-400 font-bold">${item.lane || '-'}</td>
-                                        <td class="font-mono font-bold text-slate-500">${item.bib || '---'}</td>
-                                        <td class="text-left pl-2 font-bold text-blue-600 underline cursor-pointer" onclick="goToAthleteDetail('${item.name}')">${item.name}</td>
-                                        <td class="text-left pl-2 text-slate-600 truncate max-w-[120px]">${item.team_name}</td>
-                                    </tr>`;
-                                });
-                                html += `</tbody></table>`;
+                            const heatItems = heats[h].sort((a,b) => (parseInt(a.lane) || 0) - (parseInt(b.lane) || 0));
+                            heatItems.forEach(item => {
+                                html += `<tr>
+                                    <td class="text-slate-400 font-bold">${item.lane || '-'}</td>
+                                    <td class="font-mono font-bold text-slate-500">${item.bib || '---'}</td>
+                                    <td class="text-left pl-2 font-bold text-blue-600 underline cursor-pointer" onclick="goToAthleteDetail('${item.name}')">${item.name}</td>
+                                    <td class="text-left pl-2 text-slate-600 truncate max-w-[120px]">${item.team_name}</td>
+                                </tr>`;
                             });
-                        } else {
-                            const heats = {};
-                            groupData.forEach(i => { const h = i.heat || '1'; if(!heats[h]) heats[h] = []; heats[h].push(i); });
-                            
-                            // 🌟 判定是否为接力或团体项目
-                            const isRelayEvent = eventName.includes('接力') || eventName.includes('4×') || eventName.includes('4*') || eventName.includes('4x');
-
-                            Object.keys(heats).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(h => {
-                                html += `<div class="px-4 py-2 text-[12px] font-bold text-slate-400 bg-slate-50 border-y border-slate-100 flex items-center gap-1"><span>🚩</span> 第 ${h} 小组成绩</div>`;
-                                html += `<table class="modern-table">
+                            html += `</tbody></table>`;
+                        });
+                    } else {
+                        // 分组小组成绩表格展示
+                        const heats = {};
+                        groupData.forEach(i => { const h = i.heat || '1'; if(!heats[h]) heats[h] = []; heats[h].push(i); });
+                        Object.keys(heats).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(h => {
+                            html += `<div class="px-4 py-2 text-[12px] font-bold text-slate-400 bg-slate-50 border-y border-slate-100">🚩 第 ${h} 小组成绩</div>
+                                    <table class="modern-table">
                                     <thead><tr><th class="w-10">道序</th><th class="w-14">号码</th><th class="text-left">${isRelayEvent ? '接力队员/棒次' : '姓名'}</th><th class="text-left">单位</th><th class="text-right pr-4">成绩</th></tr></thead>
                                     <tbody>`;
-
-                                let heatItems = heats[h];
-
-                                // 🌟 核心：接力项目按代表队（team_name）去重，一个班级只展示一行！
-                                if (isRelayEvent) {
-                                    const teamMap = {};
-                                    heatItems.forEach(it => {
-                                        const tKey = it.team_name || it.teamName;
-                                        if (!teamMap[tKey]) {
-                                            teamMap[tKey] = { ...it };
-                                        } else {
-                                            // 保留有效成绩和道次
-                                            if (!teamMap[tKey].score && it.score) {
-                                                teamMap[tKey].score = it.score;
-                                            }
-                                            if ((!teamMap[tKey].lane || teamMap[tKey].lane === '-') && it.lane) {
-                                                teamMap[tKey].lane = it.lane;
-                                            }
-                                        }
-                                    });
-                                    heatItems = Object.values(teamMap);
-                                }
-
-                                heatItems.sort((a,b) => (parseInt(a.lane) || 0) - (parseInt(b.lane) || 0));
-
-                                heatItems.forEach(item => {
-                                    const badge = getRecordBadge(item.score, currentGroupName, currentGender);
-                                    html += `<tr>
-                                        <td class="text-slate-400 text-[12px] font-bold font-mono">${item.lane || '-'}</td>
-                                        <td class="font-mono text-slate-400 text-[12px]">${isRelayEvent ? '-' : (item.bib || '-')}</td>
-                                        <td class="text-left font-bold text-slate-700 ${!isRelayEvent ? 'cursor-pointer hover:text-blue-600' : ''}" ${!isRelayEvent ? `onclick="goToAthleteDetail('${item.name}')"` : ''}>
-                                            ${item.name}
-                                        </td>
-                                        <td class="text-left text-slate-500 text-[12px] font-bold truncate max-w-[90px]">${item.team_name}</td>
-                                        <td class="text-right pr-4">
-                                            <div class="flex items-center justify-end">
-                                                <span class="font-mono font-bold text-slate-700">${item.score || '-'}</span>
-                                                ${badge}
-                                            </div>
-                                        </td>
-                                    </tr>`;
-                                });
-                                html += `</tbody></table>`;
-                            });
-
-                            const hasUnfinishedRunners = groupData.some(item => {
-                                const s = String(item.score || '').trim();
-                                const isAbandoned = s.includes('弃权') || s.includes('DNS') || String(item.checked_in) === '2';
-                                return !isAbandoned && !isRealScore(s);
-                            });
-                            const isAllHeatsFinished = !hasUnfinishedRunners;
-
-                            // 统计当前组别已完赛与弃权选手
-                            const scored = groupData.filter(i => isRealScore(i.score));
-                            const abandoned = groupData.filter(i => !isRealScore(i.score) && (String(i.score || '').includes('弃权') || String(i.checked_in) === '2' || String(i.score || '').includes('DNS')));
-
-                            // 🌟 1. 综合排名过滤有效成绩与弃权选手（接力按队伍去重）
-                            let rawScored = groupData.filter(i => isRealScore(i.score));
-                            let rawAbandoned = groupData.filter(i => !isRealScore(i.score) && (String(i.score || '').includes('弃权') || String(i.checked_in) === '2' || String(i.score || '').includes('DNS')));
-
+                            let heatItems = heats[h];
                             if (isRelayEvent) {
-                                const scoredTeamMap = {};
-                                rawScored.forEach(it => {
-                                    const tKey = String(it.team_name || it.teamName).trim();
-                                    if (!scoredTeamMap[tKey]) scoredTeamMap[tKey] = it;
+                                const teamMap = {};
+                                heatItems.forEach(it => {
+                                    const tKey = it.team_name || it.teamName;
+                                    if (!teamMap[tKey]) teamMap[tKey] = { ...it };
+                                    else if (!teamMap[tKey].score && it.score) teamMap[tKey].score = it.score;
                                 });
-                                rawScored = Object.values(scoredTeamMap);
-
-                                const abTeamMap = {};
-                                rawAbandoned.forEach(it => {
-                                    const tKey = String(it.team_name || it.teamName).trim();
-                                    if (!abTeamMap[tKey]) abTeamMap[tKey] = it;
-                                });
-                                rawAbandoned = Object.values(abTeamMap);
+                                heatItems = Object.values(teamMap);
                             }
-
-                            const scoredAthletes = rawScored;
-                            const abandonedAthletes = rawAbandoned;
-
-                            if (!isAllHeatsFinished) {
-                                const statusText = roundStatus === '预赛' ? '预赛进行中' : '比赛进行中';
-                                html += `
-                                <div class="px-4 py-3 font-extrabold text-orange-700 bg-orange-50 border-y border-orange-100 mt-2 flex items-center justify-between">
-                                    <span class="flex items-center gap-2"><span class="text-lg">🏆</span> 综合成绩汇总</span>
-                                    <span class="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⏳ ${statusText} (已录 ${scoredAthletes.length}/${totalAthletesCount}人)</span>
-                                </div>
-                                <div class="p-6 text-center text-slate-500 bg-slate-50/50">
-                                    <div class="text-sm font-bold text-slate-700 mb-1">🏁 尚有选手未完成比赛</div>
-                                    <div class="text-xs text-slate-400">当前组别共 ${totalAthletesCount} 人，已录入 ${scoredAthletes.length} 人。全部成绩录毕后，系统将自动公布官方最终名次。</div>
-                                </div>`;
-                            } else if (scoredAthletes.length > 0 || abandonedAthletes.length > 0) {
-                                const finishTagText = (roundStatus === '预赛') ? '✅ 预赛已全部完赛' : '🏁 比赛已全部完赛';
-                                
-                                // 🌟 检查后端下发的决赛是否已产生标记
-                                const isFinalReady = Boolean(data[0] && data[0].final_ready);
-                                const finalTargetName = eventName.replace(' (预赛)', ' (决赛)').replace('（预赛）', '（决赛）');
-
-                                html += `
-                                <div class="px-4 py-3 font-extrabold text-orange-700 bg-orange-50 border-y border-orange-100 mt-2 flex items-center justify-between">
-                                    <span class="flex items-center gap-2"><span class="text-lg">🏆</span> 综合排名结果</span>
-                                    <span class="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">${finishTagText}</span>
-                                </div>`;
-
-                                // 🌟 如果是预赛，且决赛名单已出，直接插入醒目的通知横幅卡片：
-                                if (roundStatus === '预赛' && isFinalReady) {
-                                    html += `
-                                    <div class="m-3 p-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl shadow-md flex items-center justify-between cursor-pointer active:scale-98 transition"
-                                         onclick="goToEventDetail('${finalTargetName}', true)">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xl animate-bounce">⚡</span>
-                                            <div>
-                                                <div class="font-black text-xs tracking-wider">决赛名单已生成出炉！</div>
-                                                <div class="text-[10px] text-purple-200">已按世界田联规程排定道次，点击查看道次检录表</div>
-                                            </div>
+                            heatItems.sort((a,b) => (parseInt(a.lane) || 0) - (parseInt(b.lane) || 0));
+                            heatItems.forEach(item => {
+                                const badge = getRecordBadge(item.score, currentGroupName, currentGender);
+                                html += `<tr>
+                                    <td class="text-slate-400 text-[12px] font-bold font-mono">${item.lane || '-'}</td>
+                                    <td class="font-mono text-slate-400 text-[12px]">${isRelayEvent ? '-' : (item.bib || '-')}</td>
+                                    <td class="text-left font-bold text-slate-700 ${!isRelayEvent ? 'cursor-pointer hover:text-blue-600' : ''}" ${!isRelayEvent ? `onclick="goToAthleteDetail('${item.name}')"` : ''}>
+                                        ${item.name}
+                                    </td>
+                                    <td class="text-left text-slate-500 text-[12px] font-bold truncate max-w-[90px]">${item.team_name}</td>
+                                    <td class="text-right pr-4">
+                                        <div class="flex items-center justify-end">
+                                            <span class="font-mono font-bold text-slate-700">${formatDisplayScore(item.score)}</span>
+                                            ${badge}
                                         </div>
-                                        <span class="bg-white/20 hover:bg-white/30 text-[11px] font-bold px-2.5 py-1 rounded-lg backdrop-blur">
-                                            立即查看 ➜
-                                        </span>
-                                    </div>`;
-                                }
+                                    </td>
+                                </tr>`;
+                            });
+                            html += `</tbody></table>`;
+                        });
 
-                                const isTimingEvent = ['跑', '绕杆', '计时', '接力', '障碍', '运球', '冲刺', '50米', '100米', '200米', '400米', '800米', '1000米'].some(k => eventName.includes(k));
-                                const isCountingOrField = ['仰卧', '起坐', '引体', '向上', '跳绳', '垫球', '踢毽', '立定跳远', '跳远', '跳高', '实心球', '铅球', '标枪', '铁饼', '投', '掷'].some(k => eventName.includes(k));
+                        // 综合排名表格：严格按照管理端落盘的 rank 排序与展示，禁止前端重排
+                        let scoredAthletes = groupData.filter(i => i.score && !i.score.includes('弃权') && i.score !== '-');
+                        let abandonedAthletes = groupData.filter(i => i.score && (i.score.includes('弃权') || String(i.checked_in) === '2'));
 
-                                let sortAsc = true;
-                                if (isTimingEvent) sortAsc = true;
-                                else if (isCountingOrField) sortAsc = false;
-                                else sortAsc = scoredAthletes.some(i => String(i.score).includes(':') || String(i.score).includes('：'));
+                        if (isRelayEvent) {
+                            const sm = {}; scoredAthletes.forEach(i => { if(!sm[i.team_name]) sm[i.team_name] = i; });
+                            scoredAthletes = Object.values(sm);
+                            const am = {}; abandonedAthletes.forEach(i => { if(!am[i.team_name]) am[i.team_name] = i; });
+                            abandonedAthletes = Object.values(am);
+                        }
 
-                                scoredAthletes.sort((a, b) => {
-                                    const sa = parseTimeVal(a.score);
-                                    const sb = parseTimeVal(b.score);
-                                    return sortAsc ? (sa - sb) : (sb - sa);
-                                });
+                        // 🌟 核心：管理端怎么排的就怎么排（按 rank 升序，未核算按成绩展示）
+                        scoredAthletes.sort((a, b) => {
+                            const rA = parseInt(a.rank) || 999;
+                            const rB = parseInt(b.rank) || 999;
+                            if (rA !== rB) return rA - rB;
+                            return parseTimeVal(a.score) - parseTimeVal(b.score);
+                        });
 
-                                // 🌟 核心：优先匹配已经在决赛名单中的选手姓名；若决赛未出，严格按 qualifyLimit 截取
-                                const finalNamesList = (data[0] && Array.isArray(data[0].final_names)) ? data[0].final_names : [];
-                                const hasRealFinalists = (finalNamesList.length > 0);
-                                
-                                // 如果项目设置是 6 人，强制生效 qualifyLimit（如 6）
-                                const actualQualifyCount = (data[0] && data[0].qualify_count) ? parseInt(data[0].qualify_count) : (qualifyLimit || 6);
+                        const finalNamesList = (data[0] && Array.isArray(data[0].final_names)) ? data[0].final_names : [];
+                        const hasRealFinalists = (finalNamesList.length > 0);
+                        const isFinalReady = Boolean(data[0] && data[0].final_ready);
+                        const finalTargetName = eventName.replace(' (预赛)', ' (决赛)').replace('（预赛）', '（决赛）');
 
-                                const qualifiedIds = new Set(scoredAthletes.slice(0, actualQualifyCount).map(i => i.id));
-                                let extraColName = (roundStatus === '预赛') ? '录取' : '积分';
+                        html += `
+                        <div class="px-4 py-3 font-extrabold text-orange-700 bg-orange-50 border-y border-orange-100 mt-2 flex items-center justify-between">
+                            <span class="flex items-center gap-2"><span class="text-lg">🏆</span> 官方核定名次</span>
+                            <span class="text-[11px] font-bold ${isAllHeatsFinished ? 'text-emerald-700 bg-emerald-100' : 'text-amber-700 bg-amber-100'} px-2 py-0.5 rounded-full">
+                                ${isAllHeatsFinished ? (isPrelim ? '✅ 预赛已完赛' : '🏁 决赛已完赛') : '⏳ 比赛进行中'}
+                            </span>
+                        </div>`;
 
-                                html += `<table class="modern-table">
-                                    <thead class="bg-orange-50/50"><tr>
-                                        <th class="w-10 text-orange-800">名次</th>
-                                        <th class="w-12">号码</th>
-                                        <th class="text-left pl-2">${isRelayEvent ? '接力代表队' : '姓名'}</th>
-                                        <th class="text-left pl-2">单位</th>
-                                        <th class="text-right pr-4 w-20 text-orange-800">成绩</th>
-                                        <th class="w-12 text-orange-800">${extraColName}</th>
-                                    </tr></thead>
-                                    <tbody>`;
+                        if (isPrelim && isFinalReady) {
+                            html += `
+                            <div class="m-3 p-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl shadow-md flex items-center justify-between cursor-pointer active:scale-98 transition"
+                                 onclick="goToEventDetail('${finalTargetName}', true)">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xl animate-bounce">⚡</span>
+                                    <div>
+                                        <div class="font-black text-xs tracking-wider">决赛名单已生成！</div>
+                                        <div class="text-[10px] text-purple-200">点击查看决赛抽签道次表</div>
+                                    </div>
+                                </div>
+                                <span class="bg-white/20 hover:bg-white/30 text-[11px] font-bold px-2.5 py-1 rounded-lg backdrop-blur">查看 ➜</span>
+                            </div>`;
+                        }
 
-                                let currentRank = 1;
-                                scoredAthletes.forEach((item, idx) => {
-                                    if (idx > 0 && parseTimeVal(item.score) !== parseTimeVal(scoredAthletes[idx-1].score)) {
-                                        currentRank = idx + 1;
-                                    }
-                                    const badge = getRecordBadge(item.score, currentGroupName, currentGender);
+                        let extraColName = isPrelim ? '录取' : '得分';
+                        html += `<table class="modern-table">
+                            <thead class="bg-orange-50/50"><tr>
+                                <th class="w-10 text-orange-800">名次</th>
+                                <th class="w-12">号码</th>
+                                <th class="text-left pl-2">${isRelayEvent ? '接力单位' : '姓名'}</th>
+                                <th class="text-left pl-2">单位</th>
+                                <th class="text-right pr-4 w-20 text-orange-800">成绩</th>
+                                <th class="w-12 text-orange-800">${extraColName}</th>
+                            </tr></thead>
+                            <tbody>`;
 
-                                    let extraColHtml = '';
-                                    if (roundStatus === '预赛') {
-                                        // 🌟 双重锁定：如果决赛名单已出，直接比对其是否在决赛名单中；否则严格检查是否在前 actualQualifyCount 名内
-                                        const isPromoted = hasRealFinalists 
-                                            ? finalNamesList.includes(item.name.trim()) 
-                                            : qualifiedIds.has(item.id);
+                        scoredAthletes.forEach(item => {
+                            const badge = getRecordBadge(item.score, currentGroupName, currentGender);
+                            const rnk = item.rank ? String(item.rank).trim() : '';
 
-                                        if (isPromoted) {
-                                            extraColHtml = '<span class="font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-[14px] font-mono shadow-sm">q</span>';
-                                        } else {
-                                            extraColHtml = '<span class="text-slate-300 font-mono text-xs">--</span>';
-                                        }
-                                    }else {
-                                        let pts = item.points || 0;
-                                        extraColHtml = pts > 0 
-                                            ? `<span class="font-extrabold text-amber-600 bg-amber-50 px-2 py-0.5 rounded shadow-sm text-[13px] font-mono">${pts}</span>` 
-                                            : '<span class="text-slate-300 font-mono text-xs">--</span>';
-                                    }
-
-                                    let rankBadge = `<span class="font-bold text-slate-500">${currentRank}</span>`;
-                                    let rowBg = '';
-
-                                    if (roundStatus === '决赛') {
-                                        if (currentRank === 1) { rankBadge = '🥇'; rowBg = 'bg-yellow-50/30'; }
-                                        else if (currentRank === 2) { rankBadge = '🥈'; rowBg = 'bg-slate-100/50'; }
-                                        else if (currentRank === 3) { rankBadge = '🥉'; rowBg = 'bg-orange-50/30'; }
-                                    } else {
-                                        rankBadge = `<span class="font-extrabold text-slate-700">${currentRank}</span>`;
-                                    }
-
-                                    html += `<tr class="${rowBg}">
-                                        <td class="text-[14px]">${rankBadge}</td>
-                                        <td class="font-mono text-slate-400 text-[12px]">${isRelayEvent ? '-' : (item.bib || '-')}</td>
-                                        <td class="text-left pl-2 font-bold text-blue-600 underline cursor-pointer" onclick="${!isRelayEvent ? `goToAthleteDetail('${item.name}')` : ''}">${item.name}</td>
-                                        <td class="text-left pl-2 text-slate-700 text-[12px] truncate max-w-[80px]">${item.team_name}</td>
-                                        <td class="text-right pr-4">
-                                            <div class="flex items-center justify-end">
-                                                <span class="font-mono font-bold text-red-600 text-[14px]">${formatDisplayScore(item.score)}</span>
-                                                ${badge}
-                                            </div>
-                                        </td>
-                                        <td class="text-center">${extraColHtml}</td>
-                                    </tr>`;
-                                });
-
-                                // 弃权选手紧随其后渲染
-                                abandonedAthletes.forEach(item => {
-                                    html += `<tr class="text-slate-400 bg-slate-50/40">
-                                        <td class="text-[12px] font-mono font-bold text-slate-400">--</td>
-                                        <td class="font-mono text-slate-400 text-[12px]">${item.bib || '-'}</td>
-                                        <td class="text-left pl-2 font-medium text-slate-500">${item.name}</td>
-                                        <td class="text-left pl-2 text-slate-400 text-[12px] truncate max-w-[80px]">${item.team_name}</td>
-                                        <td class="text-right pr-4 font-bold text-red-500 text-xs">弃权</td>
-                                        <td class="text-center text-slate-300">-</td>
-                                    </tr>`;
-                                });
-
-                                html += `</tbody></table>`;
-                            } else {
-                                html += `<div class="px-4 py-8 text-sm text-center text-slate-400">成绩核算中，请等待裁判录入</div>`;
+                            let rankBadge = `<span class="font-bold text-slate-500">${rnk || '--'}</span>`;
+                            let rowBg = '';
+                            if (!isPrelim) {
+                                if (rnk === '1') { rankBadge = '🥇'; rowBg = 'bg-yellow-50/30'; }
+                                else if (rnk === '2') { rankBadge = '🥈'; rowBg = 'bg-slate-100/50'; }
+                                else if (rnk === '3') { rankBadge = '🥉'; rowBg = 'bg-orange-50/30'; }
                             }
-                        }
-                        html += `</div></div>`; 
-                    });
 
-                    const openedCardKeys = Array.from(document.querySelectorAll('.grp-card-container'))
-                        .filter(el => {
-                            const box = el.querySelector('.grp-content-box');
-                            return box && !box.classList.contains('hidden');
-                        })
-                        .map(el => el.dataset.groupkey);
-                    const currentScrollY = contentArea.scrollTop;
+                            let extraColHtml = '<span class="text-slate-300 font-mono text-xs">--</span>';
+                            if (isPrelim) {
+                                const isPromoted = hasRealFinalists && finalNamesList.includes(item.name.trim());
+                                if (isPromoted) {
+                                    extraColHtml = '<span class="font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-[14px] font-mono shadow-sm">q</span>';
+                                }
+                            } else {
+                                const pts = item.points || 0;
+                                if (pts > 0) {
+                                    extraColHtml = `<span class="font-extrabold text-amber-600 bg-amber-50 px-2 py-0.5 rounded shadow-sm text-[13px] font-mono">+${pts}</span>`;
+                                }
+                            }
 
-                    contentArea.innerHTML = html;
+                            html += `<tr class="${rowBg}">
+                                <td class="text-[14px]">${rankBadge}</td>
+                                <td class="font-mono text-slate-400 text-[12px]">${isRelayEvent ? '-' : (item.bib || '-')}</td>
+                                <td class="text-left pl-2 font-bold text-blue-600 underline cursor-pointer" onclick="${!isRelayEvent ? `goToAthleteDetail('${item.name}')` : ''}">${item.name}</td>
+                                <td class="text-left pl-2 text-slate-700 text-[12px] truncate max-w-[80px]">${item.team_name}</td>
+                                <td class="text-right pr-4">
+                                    <div class="flex items-center justify-end">
+                                        <span class="font-mono font-bold text-red-600 text-[14px]">${formatDisplayScore(item.score)}</span>
+                                        ${badge}
+                                    </div>
+                                </td>
+                                <td class="text-center">${extraColHtml}</td>
+                            </tr>`;
+                        });
 
-                    openedCardKeys.forEach(key => {
-                        const targetCard = Array.from(document.querySelectorAll('.grp-card-container')).find(el => el.dataset.groupkey === key);
-                        if (targetCard) {
-                            const box = targetCard.querySelector('.grp-content-box');
-                            if (box) box.classList.remove('hidden');
-                        }
-                    });
-                    if (isSilent) {
-                        contentArea.scrollTop = currentScrollY;
+                        abandonedAthletes.forEach(item => {
+                            html += `<tr class="text-slate-400 bg-slate-50/40">
+                                <td class="text-[12px] font-mono font-bold text-slate-400">--</td>
+                                <td class="font-mono text-slate-400 text-[12px]">${item.bib || '-'}</td>
+                                <td class="text-left pl-2 font-medium text-slate-500">${item.name}</td>
+                                <td class="text-left pl-2 text-slate-400 text-[12px] truncate max-w-[80px]">${item.team_name}</td>
+                                <td class="text-right pr-4 font-bold text-red-500 text-xs">弃权</td>
+                                <td class="text-center text-slate-300">-</td>
+                            </tr>`;
+                        });
+
+                        html += `</tbody></table>`;
                     }
-                }).catch(err => {
-                    console.error("加载成绩失败:", err);
-                    contentArea.innerHTML = '<div class="p-10 text-center text-red-500 font-medium">成绩提取失败，请检查网络后重试</div>';
+                    html += `</div></div>`;
                 });
+
+                const openedCardKeys = Array.from(document.querySelectorAll('.grp-card-container'))
+                    .filter(el => {
+                        const box = el.querySelector('.grp-content-box');
+                        return box && !box.classList.contains('hidden');
+                    })
+                    .map(el => el.dataset.groupkey);
+                const currentScrollY = contentArea.scrollTop;
+
+                contentArea.innerHTML = html;
+
+                openedCardKeys.forEach(key => {
+                    const targetCard = Array.from(document.querySelectorAll('.grp-card-container')).find(el => el.dataset.groupkey === key);
+                    if (targetCard) {
+                        const box = targetCard.querySelector('.grp-content-box');
+                        if (box) box.classList.remove('hidden');
+                    }
+                });
+                if (isSilent) {
+                    contentArea.scrollTop = currentScrollY;
+                }
             }).catch(err => {
-                console.error("加载编排数据失败:", err);
-                contentArea.innerHTML = '<div class="p-10 text-center text-red-500 font-medium">编排数据连接异常</div>';
+                console.error("加载成绩失败:", err);
+                contentArea.innerHTML = '<div class="p-10 text-center text-red-500 font-medium">成绩提取失败，请检查网络后重试</div>';
             });
         }
 
@@ -1128,18 +1033,6 @@
             });
         }
 
-        // =======================================================
-// ✅ 观众端轻量轮询模式（零长连接、防宽带挤爆）
-// =======================================================
-let autoPollingTimer = null;
-
-// 当用户切回网页时，自动轻量刷新当前视图
-document.addEventListener('visibilitychange', function() {
-    if (!document.hidden) {
-        refreshCurrentActiveView();
-    }
-});
-
 function refreshCurrentActiveView() {
     const isDetailVisible = !document.getElementById('view-event-detail').classList.contains('hidden');
     const isRankVisible = !document.getElementById('panel-team-score').classList.contains('hidden');
@@ -1154,17 +1047,6 @@ function refreshCurrentActiveView() {
     }
 }
 
-function scheduleNextPoll() {
-    const randomJitter = Math.floor(Math.random() * 10000) - 5000; // -5s ~ +5s
-    const nextInterval = Math.max(20000, 30000 + randomJitter);
-    setTimeout(() => {
-        if (!document.hidden) {
-            refreshCurrentActiveView();
-        }
-        scheduleNextPoll();
-    }, nextInterval);
-}
-scheduleNextPoll();
 
     </script>
 </body>

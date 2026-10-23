@@ -1637,12 +1637,13 @@ function renderNormalTrackList(filteredData) {
                 <td class="p-2 text-right w-40">
                     <div class="flex items-center justify-end gap-1">
                         <input type="text" inputmode="decimal" value="${p.score || ''}" 
-                               id="${inputId}"
-                               placeholder=""
-                               data-heat="${heatNum}"
-                               class="input-score w-24 border border-blue-200 bg-blue-50/50 rounded-lg p-1.5 text-center shadow-inner text-blue-950 font-bold text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-400"
-                               oninput="autoSaveTrackScoreDebounced(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})"
-                               onblur="saveScore(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})">
+       id="${inputId}"
+       placeholder=""
+       data-heat="${heatNum}"
+       data-last-val="${p.score || ''}"
+       class="input-score w-24 border border-blue-200 bg-blue-50/50 rounded-lg p-1.5 text-center shadow-inner text-blue-950 font-bold text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-400"
+       onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault(); this.blur();}"
+       onblur="handleTrackScoreBlur(this, ${p.id}, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})">
                         <button type="button" onclick="quickMarkAbsent(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})" 
                                 class="px-1.5 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md active:scale-95 transition shrink-0">
                             弃权
@@ -1717,53 +1718,56 @@ function updateTimingHeatProgress(heatNum) {
     }
 }
 
-function saveScore(regId, input, pData) {
-    clearTimeout(trackDebounceTimers[regId]); // 清除延时器
-
+window.handleTrackScoreBlur = function(input, regId, pData) {
     const val = input.value.trim();
-    if (!val) {
-        input.classList.remove('saving');
-        return;
-    }
+    const lastVal = input.dataset.lastVal || '';
+    
+    // 内容未变更时不重复发网络包
+    if (val === lastVal) return;
+    input.dataset.lastVal = val;
+    saveScore(regId, input, pData);
+};
 
-    input.classList.add('saving');
-    const payload = { id: regId, score: val };
-    if (pData) {
-        payload.start_id = pData.id;
-        payload.reg_id = pData.reg_id;
-        payload.name = pData.name;
-        payload.team_name = pData.team_name;
-        payload.group_name = pData.group_name;
-        payload.event_name = pData.event_name;
-        payload.gender = pData.gender;
-        payload.heat = pData.heat;
-    }
+function saveScore(regId, input, pData) {
+    const val = input.value.trim();
+    if (!val) return;
+
+    // 🌟 先行高亮变绿（乐观反馈），光标零延迟切入下一道
+    input.classList.remove('saving', 'error');
+    input.classList.add('saved');
+    if (typeof triggerVibrate === 'function') triggerVibrate(30);
+    setTimeout(() => input.classList.remove('saved'), 400);
+
     fetch('/api/submit_score', {
         method: 'POST', 
         headers: {'Content-Type': 'application/json'}, 
-        body: JSON.stringify(payload) 
+        body: JSON.stringify({ 
+            id: regId, 
+            score: val,
+            name: pData?.name,
+            team_name: pData?.team_name,
+            group_name: pData?.group_name,
+            event_name: pData?.event_name,
+            gender: pData?.gender
+        }) 
     })
     .then(r => r.json())
     .then(res => {
-        input.classList.remove('saving');
         if (res.status === 'success') {
-            input.classList.add('saved');
-            input.classList.remove('bg-yellow-50', 'border-yellow-300', 'bg-cyan-50', 'border-cyan-400');
-            if (res.new_score) { input.value = res.new_score; } 
-            
-            triggerVibrate(60);
-            updateTimingHeatProgress(input.dataset.heat || (pData && pData.heat) || '1'); 
-            setTimeout(() => input.classList.remove('saved'), 1000);
+            if (res.new_score) { 
+                input.value = res.new_score; 
+                input.dataset.lastVal = res.new_score;
+            }
+            updateTimingHeatProgress(input.dataset.heat || pData?.heat || '1');
         } else {
             input.classList.add('error');
-            triggerVibrate([100, 50, 100]); 
-            alert(res.msg);
-            setTimeout(() => input.classList.remove('error'), 2000);
+            input.dataset.lastVal = '';
+            alert("保存失败：" + res.msg);
         }
-    }).catch(err => {
-        input.classList.remove('saving'); 
+    })
+    .catch(() => {
         input.classList.add('error');
-        triggerVibrate([100, 50, 100]);
+        input.dataset.lastVal = '';
     });
 }
 function showTip(msg, colorClass) {
