@@ -1050,12 +1050,17 @@ function initFieldAthletesData(data) {
         // 2. 本地若有录入未上传的内容，深度补充合并
         const draftKey = `${p.name}_${p.team_name}`;
         if (localDraftMap[draftKey]) {
-            parsedAttempts = parsedAttempts.map((v, i) => localDraftMap[draftKey][i] || v);
+            parsedAttempts = parsedAttempts.map((v, i) => {
+                const draftVal = localDraftMap[draftKey][i];
+                return draftVal !== undefined ? draftVal : v;
+            });
         }
-
-        return { ...p, orderIndex: idx + 1, attempts: parsedAttempts };
+return {
+            ...p,
+            orderIndex: idx + 1,
+            attempts: parsedAttempts
+        };
     });
-
     currentFieldRound = 1;
     document.querySelectorAll('.round-pill').forEach(btn => {
         const r = parseInt(btn.dataset.round);
@@ -1177,12 +1182,13 @@ window.saveFieldScore = function(regId, roundNum, input, callback) {
     let athlete = fieldAthletesData.find(a => (a.reg_id || a.id) === regId);
     if (!athlete) return;
 
+    // 更新当前轮次（即使是空值也更新进去）
     athlete.attempts[roundNum - 1] = val;
     let allValid = athlete.attempts.map(v => parseFloat(v) || 0);
     let overallBest = Math.max(0, ...allValid);
     athlete.score = overallBest > 0 ? overallBest.toFixed(2) : (athlete.attempts.some(v => String(v).includes('弃权')) ? '弃权' : '');
 
-    // ① 本地存一份（防止断网/熄屏）
+    // 1. 同步更新本地 LocalStorage 草稿
     const storageKey = `field_draft_${athlete.event_name}_${athlete.group_name}_${athlete.gender}`;
     try {
         localStorage.setItem(storageKey, JSON.stringify(fieldAthletesData));
@@ -1194,7 +1200,7 @@ window.saveFieldScore = function(regId, roundNum, input, callback) {
         renderCurrentFieldList();
     }
 
-    // ② 轻量暂存上云：走无重算无锁的轻量接口
+    // 2. 无论是有值还是空值，都上报轻量暂存接口清空数据库
     fetch('/api/draft_field_score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1211,12 +1217,10 @@ window.saveFieldScore = function(regId, roundNum, input, callback) {
             setTimeout(() => input.classList.remove('saved'), 600);
         }
     }).catch(e => {
-        // 网络异常时，有本地 LocalStorage 保障，提示暂存本地即可
         input.classList.remove('saving');
     });
 
     if (typeof triggerVibrate === 'function') triggerVibrate(40);
-    showTip("📝 成绩已暂存", "text-amber-600");
     if (typeof callback === 'function') callback({ status: 'success' });
 };
 window.saveAndNextFieldAthlete = function(regId, roundNum) {
@@ -1644,10 +1648,16 @@ function renderNormalTrackList(filteredData) {
        class="input-score w-24 border border-blue-200 bg-blue-50/50 rounded-lg p-1.5 text-center shadow-inner text-blue-950 font-bold text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-400"
        onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault(); this.blur();}"
        onblur="handleTrackScoreBlur(this, ${p.id}, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})">
-                        <button type="button" onclick="quickMarkAbsent(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})" 
-                                class="px-1.5 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md active:scale-95 transition shrink-0">
-                            弃权
-                        </button>
+                        <div class="flex items-center gap-1 shrink-0">
+    <button type="button" onclick="quickMarkDQ(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})" 
+            class="px-1.5 py-1 text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-md active:scale-95 transition">
+        犯规
+    </button>
+    <button type="button" onclick="quickMarkAbsent(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})" 
+            class="px-1.5 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md active:scale-95 transition">
+        弃权
+    </button>
+</div>
                     </div>
                 </td>
             </tr>`;
@@ -1730,9 +1740,9 @@ window.handleTrackScoreBlur = function(input, regId, pData) {
 
 function saveScore(regId, input, pData) {
     const val = input.value.trim();
-    if (!val) return;
+    // 🌟 核心修复：允许提交空值（清空成绩）
+    // 删掉原本的 if (!val) return;
 
-    // 🌟 先行高亮变绿（乐观反馈），光标零延迟切入下一道
     input.classList.remove('saving', 'error');
     input.classList.add('saved');
     if (typeof triggerVibrate === 'function') triggerVibrate(30);
@@ -1743,7 +1753,7 @@ function saveScore(regId, input, pData) {
         headers: {'Content-Type': 'application/json'}, 
         body: JSON.stringify({ 
             id: regId, 
-            score: val,
+            score: val, // 允许为空串 ""
             name: pData?.name,
             team_name: pData?.team_name,
             group_name: pData?.group_name,
@@ -1754,10 +1764,8 @@ function saveScore(regId, input, pData) {
     .then(r => r.json())
     .then(res => {
         if (res.status === 'success') {
-            if (res.new_score) { 
-                input.value = res.new_score; 
-                input.dataset.lastVal = res.new_score;
-            }
+            input.value = res.new_score || ''; 
+            input.dataset.lastVal = res.new_score || '';
             updateTimingHeatProgress(input.dataset.heat || pData?.heat || '1');
         } else {
             input.classList.add('error');
@@ -2035,11 +2043,58 @@ function switchToActiveHeat() {
     });
 }
 
+// 🌟 修复后的终点弃权处理函数
 window.quickMarkAbsent = function(regId, btn, pData) {
-    const input = btn.previousElementSibling;
+    // 优先通过 ID 精确查找输入框，找不到再通过层级兜底查找
+    const input = document.getElementById(`score_input_${regId}`) 
+               || btn.closest('td')?.querySelector('.input-score');
     if (!input) return;
+
     if (!confirm(`确定标记【${pData?.name || '该选手'}】在本场【${pData?.event_name || '当前项目'}】中弃权吗？\n（仅本场比赛弃权，不影响该生其他参赛项目）`)) return;
+
+    // 1. 立即更新输入框内容
     input.value = "弃权";
+
+    // 2. 实时更新当前行的视觉效果（姓名加删除线、显示弃权红标、整行变淡红背景）
+    const row = input.closest('tr');
+    if (row) {
+        row.classList.add('bg-red-50/40');
+        const nameSpan = row.querySelector('td:nth-child(3) span:first-child');
+        if (nameSpan) {
+            nameSpan.classList.add('line-through', 'text-gray-400');
+        }
+        // 如果原本没有弃权标签，则动态追加一个
+        let tagAbsent = row.querySelector('.tag-absent-flag');
+        if (!tagAbsent) {
+            const nameBox = row.querySelector('td:nth-child(3) div:first-child');
+            if (nameBox) {
+                tagAbsent = document.createElement('span');
+                tagAbsent.className = 'tag-absent-flag text-[9px] bg-red-100 text-red-600 px-1 rounded font-bold';
+                tagAbsent.innerText = '弃权';
+                nameBox.appendChild(tagAbsent);
+            }
+        }
+    }
+
+    // 3. 上报保存并更新组次进度
+    saveScore(regId, input, pData);
+};
+
+// 🌟 顺便修复犯规按钮的节点获取
+window.quickMarkDQ = function(regId, btn, pData) {
+    const input = document.getElementById(`score_input_${regId}`) 
+               || btn.closest('td')?.querySelector('.input-score');
+    if (!input) return;
+
+    if (!confirm(`确定判罚【${pData?.name || '该选手'}】在【${pData?.event_name || '本项比赛'}】中【犯规 (DQ)】吗？\n（将无成绩、不计名次与积分）`)) return;
+
+    input.value = "犯规";
+
+    const row = input.closest('tr');
+    if (row) {
+        row.classList.add('bg-amber-50/40');
+    }
+
     saveScore(regId, input, pData);
 };
 // 监听发车广播

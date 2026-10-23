@@ -2991,7 +2991,7 @@ function selectView(m, id, n) {
                    ${a.name}
                 </a>
             </td>
-            <td class="text-center w-16">
+                   <td class="text-center w-16">
                 <span class="px-1.5 py-0.5 rounded font-bold ${a.gender==='男' ? 'text-blue-600 bg-blue-50 border border-blue-100' : 'text-pink-600 bg-pink-50 border border-pink-100'}">
                     ${a.gender}
                 </span>
@@ -3000,14 +3000,40 @@ function selectView(m, id, n) {
             <td class="text-gray-700 pl-3 font-medium">
                 ${a.events.map(e => `<span class="inline-block bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded mr-1 font-bold text-[11px]">${e}</span>`).join('')}
             </td>
-            <td class="text-center w-16">
-                <button onclick="deleteAthlete('${a.name}', '${a.teamId}')" class="text-red-500 font-bold hover:text-red-700 px-2 py-1 hover:bg-red-50 rounded transition">
+            <td class="text-center w-28">
+                <button onclick="promptRenameAthlete('${a.name}', '${a.teamId}')" class="text-blue-600 font-bold hover:text-blue-800 px-1.5 py-1 hover:bg-blue-50 rounded transition text-xs">
+                    改名
+                </button>
+                <button onclick="deleteAthlete('${a.name}', '${a.teamId}')" class="text-red-500 font-bold hover:text-red-700 px-1.5 py-1 hover:bg-red-50 rounded transition text-xs">
                     删除
                 </button>
             </td>
         </tr>`).join('');
 }
+window.promptRenameAthlete = function(oldName, teamId) {
+    const newName = prompt(`请输入运动员【${oldName}】的新姓名：`, oldName);
+    if (!newName || newName.trim() === '' || newName.trim() === oldName) return;
 
+    fetch('/api/rename_athlete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            old_name: oldName,
+            new_name: newName.trim(),
+            team_id: teamId
+        })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') {
+            alert(res.msg);
+            fetchLatestData(); // 重新拉取本地数据并刷新表格
+        } else {
+            alert('❌ ' + res.msg);
+        }
+    })
+    .catch(() => alert('网络通信失败，请检查服务器连接！'));
+};
     function addAthlete() {
         if(viewMode !== 'team') return alert("请先在左侧树状菜单中选择一个具体的班级/代表队！");
         const n = document.getElementById('athName').value.trim();
@@ -3540,8 +3566,10 @@ function selectView(m, id, n) {
         const clean = eventName.replace(" (预赛)", "").replace(" (决赛)", "").trim();
         const isStraight = ['100米', '100m', '110米', '110m', '60米', '50米', '栏'].some(k => clean.includes(k)) && !clean.includes('400') && !clean.includes('接力');
         const is200 = clean.includes('200') || clean.includes('300');
-        
-        // 🌟 6人决赛：绝对只在 1~6 道内分配
+        if (numAthletes <= 4) {
+    const t = [2, 3, 1, 4].sort(() => Math.random() - 0.5);
+    return t.slice(0, numAthletes);
+}
         if (numAthletes === 6) {
             const t1 = [3, 4].sort(() => Math.random() - 0.5); // 1-2名
             const t2 = [5, 6].sort(() => Math.random() - 0.5); // 3-4名
@@ -3830,7 +3858,6 @@ function selectView(m, id, n) {
                 body: JSON.stringify({ event_name: rawEventName, group_name: groupName, gender: gender }) 
             })
             .then(r => r.json()).then(data => {
-               // 🌟 辅助：判定是否为包含有效用时的真实成绩（剔除弃权、DNS等）
                 const isRealScore = (scoreStr) => {
                 if (!scoreStr) return false;
                 const s = String(scoreStr).trim();
@@ -3841,20 +3868,16 @@ function selectView(m, id, n) {
             const hasUnfinishedRunners = data.some(item => {
                 const s = String(item.score || '').trim();
                 const isAbandoned = s.includes('弃权') || s.includes('DNS') || item.checked_in == 2;
-                // 既没弃权，又没有有效时间，说明该组该道次尚未比完
                 return !isAbandoned && (s === '' || s === '-' || parseTimeVal(s) <= 0);
             });
-
-            // 只有当所有小组的非弃权选手全部跑完出成绩，才允许产生录取名单 (q)
             const isAllHeatsFinished = !hasUnfinishedRunners;
 
-            // 🌟 判定当前项目是否属于接力/团体项目
             const isRelayAnnouncement = rawEventName.includes('接力') || rawEventName.includes('4×') || rawEventName.includes('4*') || rawEventName.includes('4x');
-
             let rawValid = data.filter(i => isRealScore(i.score));
-            let rawAbandoned = data.filter(i => !isRealScore(i.score) && (String(i.score).includes('弃权') || i.checked_in == 2 || String(i.score).includes('DNS')));
-
-            // 🌟 核心修复：如果是接力项目，按单位（team_name）去重，每个班级只保留一行！
+            let rawInvalid = data.filter(i => {
+                const s = String(i.score || '').trim().toUpperCase();
+                return s.includes('犯规') || s.includes('DQ') || s.includes('弃权') || s.includes('DNS') || String(i.checked_in) === '2';
+            });
             if (isRelayAnnouncement) {
                 const validTeamMap = {};
                 rawValid.forEach(item => {
@@ -3862,7 +3885,6 @@ function selectView(m, id, n) {
                     if (!validTeamMap[tKey]) {
                         validTeamMap[tKey] = { ...item };
                     } else {
-                        // 优先保留非空积分和有效成绩
                         if ((!validTeamMap[tKey].points || validTeamMap[tKey].points === 0) && item.points) {
                             validTeamMap[tKey].points = item.points;
                         }
@@ -3873,20 +3895,20 @@ function selectView(m, id, n) {
                 });
                 rawValid = Object.values(validTeamMap);
 
-                const abTeamMap = {};
-                rawAbandoned.forEach(item => {
+                const invalidTeamMap = {};
+                rawInvalid.forEach(item => {
                     const tKey = String(item.team_name || item.teamName).trim();
-                    if (!abTeamMap[tKey]) {
-                        abTeamMap[tKey] = { ...item };
+                    if (!invalidTeamMap[tKey]) {
+                        invalidTeamMap[tKey] = { ...item };
                     }
                 });
-                rawAbandoned = Object.values(abTeamMap);
+                rawInvalid = Object.values(invalidTeamMap);
             }
 
             const validAthletes = rawValid;
-            const abandonedAthletes = rawAbandoned;
+            const invalidAthletes = rawInvalid; // 👈 统一命名为 invalidAthletes
 
-            if(validAthletes.length === 0 && abandonedAthletes.length === 0) {
+            if(validAthletes.length === 0 && invalidAthletes.length === 0) {
                 div.innerHTML = `<div class="text-center text-gray-400 mt-10"><p class="text-xl mb-2">该项目暂无成绩</p></div>`;
                 return;
             }
@@ -3914,86 +3936,96 @@ function selectView(m, id, n) {
             });
 
             const myRecords = (groupRecordsData[`${coreMatchName}_${gender}`] || []).filter(r => r.en && parseTimeVal(r.val) > 0);
-                let rowsHtml = ''; let currentRank = 1;
-                validAthletes.forEach((p, idx) => {
-                    if (idx > 0 && parseTimeVal(p.score) !== parseTimeVal(validAthletes[idx-1].score)) currentRank = idx + 1;
-                    
-                    let points = 0;
-                    let remark = '';
-                    let qualifyStr = '';
+let rowsHtml = ''; 
+let currentRank = 1;
+const rules = [9, 7, 6, 5, 4, 3, 2, 1];
+const settingQualifyCount = parseInt(document.getElementById('finalsTopN')?.value) || topN || 8;
 
-                    let brokenCodeFrontend = ''; 
-                    let isRecordBrokenFrontend = false;
-                    const scoreVal = parseTimeVal(p.score);
-                    
-                    if (scoreVal > 0) {
-                        let maxBonusFrontend = -1; 
-                        myRecords.forEach(rec => {
-                            const recVal = parseTimeVal(rec.val);
-                            const isBroken = isField ? (scoreVal > recVal) : (scoreVal < recVal);
-                            if (isBroken) {
-                                isRecordBrokenFrontend = true;
-                                if (rec.bonus >= maxBonusFrontend) {
-                                    maxBonusFrontend = rec.bonus;
-                                    brokenCodeFrontend = rec.code || '纪录';
-                                }
-                            }
-                        });
-                    }
+validAthletes.forEach((p, idx) => {
+    if (idx > 0 && parseTimeVal(p.score) !== parseTimeVal(validAthletes[idx-1].score)) {
+        currentRank = idx + 1;
+    }
 
-                   const settingQualifyCount = parseInt(document.getElementById('finalsTopN')?.value) || topN || 8;
+    let points = 0;
+    let remark = '';
+    let qualifyStr = '';
 
-                    if (actualRound === '决赛') {
-                        if (currentRank <= settingQualifyCount) {
-                            points = p.points || 0;
-                        } else {
-                            points = 0;
-                        }
-                        const dbRecordBonus = p.record_bonus || 0;
-                        
-                        if (dbRecordBonus > 0 || isRecordBrokenFrontend) {
-                            let displayCode = brokenCodeFrontend;
-                            if (!displayCode && dbRecordBonus > 0) {
-                                const matchingRec = myRecords.find(r => r.bonus === dbRecordBonus);
-                                if (matchingRec) displayCode = matchingRec.code;
-                            }
-                            remark = `<span style="color:red; font-weight:bold;">${displayCode || '纪录'} ${dbRecordBonus > 0 ? '+'+dbRecordBonus+'分' : ''}</span>`;
-                        }
-                    } 
-                    else if (actualRound === '预赛') {
-                            if (isAllHeatsFinished && currentRank <= topN) {
-                            qualifyStr = 'q';
-                        }
-                        if (isRecordBrokenFrontend) {
-                            remark = `<span style="color:red; font-weight:bold;">${brokenCodeFrontend}</span>`;
-                        }
-                    }
+    let backendPts = (p.points !== undefined && p.points !== null) ? parseInt(p.points) : 0;
 
-                    rowsHtml += `
-                    <tr style="transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#f3f6f9';" onmouseout="this.style.backgroundColor='transparent';">
-                        <td style="font-weight:bold; font-size:12pt; border:1px solid #000; height:35px;">${currentRank}</td>
-                        <td style="font-family:Times New Roman; font-weight:bold; border:1px solid #000;">${p.bib || ''}</td>
-                        <td style="font-weight:bold; text-align:left; padding-left:20px; border:1px solid #000;">${p.name}</td>
-                        <td style="border:1px solid #000;">${p.team_name}</td>
-                        <td style="font-family:Times New Roman; font-weight:bold; font-size:12pt; border:1px solid #000;">${formatTrackTime(p.score)}</td>
-                        <td style="font-weight:bold; font-family:Times New Roman; color:#000; font-size:16pt; border:1px solid #000;">${qualifyStr}</td>
-                        <td style="font-weight:bold; color:#b45309; font-size:12pt; border:1px solid #000;">${points > 0 ? points : ''}</td>
-                        <td style="font-size:10pt; border:1px solid #000;">${remark}</td>
-                    </tr>`;
-                });
-               abandonedAthletes.forEach(p => {
+    if (actualRound === '决赛') {
+        if (backendPts > 0) {
+            points = backendPts;
+        } else if (currentRank <= settingQualifyCount) {
+            points = rules[currentRank - 1] || 0;
+        } else {
+            points = 0;
+        }
+    } else if (actualRound === '预赛') {
+        if (isAllHeatsFinished && currentRank <= topN) {
+            qualifyStr = 'q';
+        }
+    }
+
+    // 破纪录判定与加分
+    const scoreVal = parseTimeVal(p.score);
+    let brokenCodeFrontend = ''; 
+    let isRecordBrokenFrontend = false;
+    if (scoreVal > 0) {
+        let maxBonusFrontend = -1; 
+        myRecords.forEach(rec => {
+            const recVal = parseTimeVal(rec.val);
+            const isBroken = isField ? (scoreVal > recVal) : (scoreVal < recVal);
+            if (isBroken) {
+                isRecordBrokenFrontend = true;
+                if (rec.bonus >= maxBonusFrontend) {
+                    maxBonusFrontend = rec.bonus;
+                    brokenCodeFrontend = rec.code || '纪录';
+                }
+            }
+        });
+    }
+
+    const dbRecordBonus = p.record_bonus || 0;
+    if (dbRecordBonus > 0 || isRecordBrokenFrontend) {
+        let displayCode = brokenCodeFrontend;
+        if (!displayCode && dbRecordBonus > 0) {
+            const matchingRec = myRecords.find(r => r.bonus === dbRecordBonus);
+            if (matchingRec) displayCode = matchingRec.code;
+        }
+        remark = `<span style="color:red; font-weight:bold;">${displayCode || '纪录'} ${dbRecordBonus > 0 ? '+'+dbRecordBonus+'分' : ''}</span>`;
+    }
+
     rowsHtml += `
-    <tr style="color: #64748b; background-color: #f8fafc;">
-        <td style="font-family:Times New Roman; font-weight:bold; border:1px solid #000; height:35px;">--</td>
+    <tr style="transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#f3f6f9';" onmouseout="this.style.backgroundColor='transparent';">
+        <td style="font-weight:bold; font-size:12pt; border:1px solid #000; height:35px;">${currentRank}</td>
         <td style="font-family:Times New Roman; font-weight:bold; border:1px solid #000;">${p.bib || ''}</td>
         <td style="font-weight:bold; text-align:left; padding-left:20px; border:1px solid #000;">${p.name}</td>
         <td style="border:1px solid #000;">${p.team_name}</td>
-        <td style="font-weight:bold; color:red; border:1px solid #000;">弃权</td>
-        <td style="border:1px solid #000;"></td>
-        <td style="border:1px solid #000;"></td>
-        <td style="font-size:10pt; border:1px solid #000;">未参赛</td>
+        <td style="font-family:Times New Roman; font-weight:bold; font-size:12pt; border:1px solid #000;">${formatTrackTime(p.score)}</td>
+        <td style="font-weight:bold; font-family:Times New Roman; color:#000; font-size:16pt; border:1px solid #000;">${qualifyStr}</td>
+        <td style="font-weight:bold; color:#b45309; font-size:12pt; border:1px solid #000;">${points > 0 ? points : ''}</td>
+        <td style="font-size:10pt; border:1px solid #000;">${remark}</td>
     </tr>`;
 });
+               invalidAthletes.forEach(p => {
+                const s = String(p.score || '').trim().toUpperCase();
+                const isDQ = s.includes('犯规') || s.includes('DQ');
+                const labelText = isDQ ? '犯规' : '弃权';
+                const tagColor = isDQ ? 'color: #d97706;' : 'color: red;';
+                const remarkText = isDQ ? '犯规无成绩' : '未参赛';
+
+                rowsHtml += `
+                <tr style="color: #64748b; background-color: #f8fafc;">
+                    <td style="font-family:Times New Roman; font-weight:bold; border:1px solid #000; height:35px;">--</td>
+                    <td style="font-family:Times New Roman; font-weight:bold; border:1px solid #000;">${p.bib || ''}</td>
+                    <td style="font-weight:bold; text-align:left; padding-left:20px; border:1px solid #000;">${p.name}</td>
+                    <td style="border:1px solid #000;">${p.team_name}</td>
+                    <td style="font-weight:bold; ${tagColor} border:1px solid #000;">${labelText}</td>
+                    <td style="border:1px solid #000;">--</td>
+                    <td style="border:1px solid #000;">--</td>
+                    <td style="font-size:10pt; border:1px solid #000;">${remarkText}</td>
+                </tr>`;
+            });
                 const today = new Date(); const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
                 const finalHtml = `
                 <div class="rc-card break-inside-avoid" style="background:#fff; padding:30px;">
@@ -4296,7 +4328,49 @@ function exportWord() {
             });
             const qualifiedIds = new Set(allScoredItems.slice(0, qualifyLimit).map(i => i.id));
 
-            // 3. 按小组分流
+       const globalRankMap = {};
+            const globalPointMap = {};
+
+            const allValidAthletes = data.filter(i => isRealScore(i.score));
+            allValidAthletes.sort((a, b) => {
+                const sa = safeParseVal(a.score);
+                const sb = safeParseVal(b.score);
+                return sortAsc ? (sa - sb) : (sb - sa);
+            });
+
+            const isDenseRank = (String(evtCfg?.dense_rank) === '1' || String(evtCfg?.denseRank) === 'true' || evtCfg?.type === '健康测试');
+            const ruleStr = evtCfg?.scoreRule || evtCfg?.score_rule || "9,7,6,5,4,3,2,1";
+            const rules = ruleStr.replace(/，/g, ',').split(',').map(Number);
+            const settingQualifyCount = parseInt(document.getElementById('finalsTopN')?.value) || qualifyLimit || 8;
+
+            let gRank = 1;
+            allValidAthletes.forEach((item, idx) => {
+                if (idx > 0 && safeParseVal(item.score) !== safeParseVal(allValidAthletes[idx - 1].score)) {
+                    gRank = isDenseRank ? (gRank + 1) : (idx + 1);
+                }
+                const finalRank = (item.rank && item.rank !== '') ? parseInt(item.rank) || gRank : gRank;
+                globalRankMap[item.id] = finalRank;
+
+                if (roundStatus === '决赛') {
+                    if (item.points !== undefined && item.points !== null && parseInt(item.points) > 0) {
+                        globalPointMap[item.id] = parseInt(item.points);
+                    } else if (finalRank <= settingQualifyCount) {
+                        globalPointMap[item.id] = rules[finalRank - 1] || 0;
+                    } else {
+                        globalPointMap[item.id] = 0;
+                    }
+                } else {
+                    globalPointMap[item.id] = 0;
+                }
+            });
+
+            data.forEach(p => {
+                if (!isRealScore(p.score)) {
+                    globalRankMap[p.id] = '--';
+                    globalPointMap[p.id] = 0;
+                }
+            });
+
             const heats = {};
             data.forEach(item => { 
                 const h = isField ? '1' : String(item.heat || '1'); 
@@ -4390,8 +4464,11 @@ function exportWord() {
 
                     displaySortedItems.forEach((p, seqIdx) => {
                         const val = p.score || '';
-                        const pts = p.points || 0;
                         const isAbsent = (val === '弃权' || String(p.checked_in) === '2');
+
+                        // 🌟 直接读取全场统一核算好的总积分与总名次
+                        let pts = globalPointMap[p.id] || 0;
+                        let rankDisplay = globalRankMap[p.id] || '--';
 
                         let scoreContent = '';
                         if (isEditMode) {
@@ -4424,7 +4501,7 @@ function exportWord() {
                                 </td>
                                 <td style="border: 1px solid #000; font-size: 11pt;">${p.team_name}</td>
                                 <td style="border: 1px solid #000;">${scoreContent}</td>
-                                <td style="border: 1px solid #000; font-weight:bold; font-size: 13pt;">${rankMap[p.id] || '--'}</td>
+                                <td style="border: 1px solid #000; font-weight:bold; font-size: 13pt;">${rankDisplay}</td>
                                 <td style="border: 1px solid #000;">${extraColContent}</td>
                             </tr>
                         `;
@@ -4469,13 +4546,18 @@ function exportWord() {
                                         content = `<span style="font-family:Times New Roman; font-weight:bold; font-size:13pt; ${val === '弃权' ? 'color:red;' : ''}">${formatTrackTime(val)}</span>`; 
                                     }
                                 } else if (cfg.type === 'point_cell') {
-                                    const val = p.points || 0;
-                                    if (isEditMode) { 
-                                        content = `<input type="number" value="${val}" class="text-center font-bold bg-gray-50 border-b-2 border-gray-300 w-16 text-gray-500" onblur="updateAdminPoint(${p.reg_id || p.id}, this)">`; 
-                                    } else { 
-                                        content = `<span style="color:#b45309; font-weight:bold; font-size:14pt;">${val > 0 ? val : ''}</span>`; 
-                                    }
-                                } else if (cfg.type === 'qualify_cell') {
+                                    let val = parseInt(p.points) || 0;
+const curRankNum = parseInt(rankMap[p.id]);
+if (val <= 0 && roundStatus === '决赛' && !isNaN(curRankNum)) {
+    const settingQualifyCount = parseInt(document.getElementById('finalsTopN')?.value) || qualifyLimit || 8;
+    if (curRankNum <= settingQualifyCount) {
+        const ruleStr = evtCfg?.scoreRule || evtCfg?.score_rule || "9,7,6,5,4,3,2,1";
+        const rules = ruleStr.replace(/，/g, ',').split(',').map(Number);
+        val = rules[curRankNum - 1] || 0;
+    }
+}
+content = `<span style="color:#b45309; font-weight:bold; font-size:14pt;">${val > 0 ? val : ''}</span>`;
+                                                                 } else if (cfg.type === 'qualify_cell') {
                                     if (isAllHeatsFinished && isRealScore(p.score) && qualifiedIds.has(p.id)) {
                                         content = `<span style="color:#000; font-weight:bold; font-size:16pt; font-family:Times New Roman;">q</span>`;
                                     } else {
@@ -4933,7 +5015,7 @@ window.recalcRowTotalScore = function(inputEl) {
 
             const today = new Date(); 
             const year = today.getFullYear();
-            const tableHtml = `
+             const tableHtml = `
             <div class="rc-card break-inside-avoid" style="width: 100%; overflow-x: auto;">
                 <h1 style="text-align:center; font-size:22pt; font-weight:bold; margin-bottom:15px; font-family:SimSun;">${year} 年${eventTitle}团体总分明细表</h1>
                 <div style="text-align:left; font-weight:bold; margin-bottom:5px; font-size:12pt;">组别：${gName}</div>
@@ -4955,6 +5037,9 @@ window.recalcRowTotalScore = function(inputEl) {
                 <div style="text-align:center; margin-top:10px; color:#999; font-size:10px;" class="no-print"> * 提示：如项目较多，请在打印预览中选择“横向”纸张方向 </div>
             </div>`;
             div.innerHTML = tableHtml;
+        })
+        .catch(err => {
+            div.innerHTML = '<div class="text-center text-red-500 py-10 font-bold text-xs">加载失败，请检查网络！</div>';
         });
     };
 
@@ -6980,13 +7065,12 @@ function renderMobileTeamSelector() {
     const container = document.getElementById('mobileTeamSelector');
     if (!container) return;
     container.innerHTML = '';
-    
+
     if (!db.teams || db.teams.length === 0) {
         container.innerHTML = '<span class="text-xs text-gray-400 font-bold">暂无代表队班级</span>';
         return;
     }
 
-    // 默认选择第一个队伍
     if (!currentId && db.teams.length > 0) {
         currentId = db.teams[0].id;
         viewMode = 'team';
@@ -7006,24 +7090,23 @@ function renderMobileTeamSelector() {
         container.appendChild(btn);
     });
 }
-// 移动端待排池展开/收起切换
+
 function togglePoolMobile() {
-    if (window.innerWidth >= 1024) return;
     const pool = document.getElementById('timeBudgetContainer');
     const tip = document.getElementById('poolToggleTip');
     if (!pool) return;
     pool.classList.toggle('hidden');
     if (tip) tip.innerText = pool.classList.contains('hidden') ? '(点击展开)' : '(点击折叠)';
 }
-// 移动端运动会沙盘展开/收起切换
+
 function toggleGridMobile() {
-    if (window.innerWidth >= 1024) return;
     const grid = document.getElementById('manualScheduleGrid');
     const tip = document.getElementById('gridToggleTip');
     if (!grid) return;
     grid.classList.toggle('hidden');
     if (tip) tip.innerText = grid.classList.contains('hidden') ? '(点击展开)' : '(点击折叠)';
 }
+
 let rawAnalysisData = {};
     let dimensionBarChart = null;
     let dimensionRadarChart = null;

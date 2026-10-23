@@ -209,8 +209,8 @@
                             <th class="text-left pl-3">项目 (性别)</th>
                             <th class="w-24 whitespace-nowrap">姓名</th>
                             <th class="w-20 text-right pr-3">成绩</th>
-                            <th class="w-10 text-center">排</th>
-                            <th class="w-10 text-center">分</th>
+                            <th class="w-16 text-center whitespace-nowrap">名次</th>
+                            <th class="w-12 text-center whitespace-nowrap">积分</th>
                         </tr>
                     </thead>
                     <tbody id="teamTableBody"></tbody>
@@ -389,52 +389,66 @@
         // 🌟 单项静态缓存字典：避免重复拉取
         window.eventDetailCache = {};
 
-        function goToEventDetail(eventName, isFinalsList, isSilent = false, forceReload = false) {
-            let cleanCore = eventName.replace('决赛', '').replace('预赛', '').replace(/[\(（].*?[\)）]/g, '').trim();
+        // 🌟 1. 声明全局请求控制器，点击新项目时立即掐断旧请求
+let currentEventAbortController = null;
 
-            document.getElementById('detEventName').innerText = eventName;
-            document.getElementById('detHeatLabel').innerHTML = isFinalsList ? '✨ 晋级决赛检录名单' : '🏅 综合成绩公告';
-            
-            // 绑定右上角手动刷新按钮
-            const btnRefresh = document.getElementById('btnRefreshEventDet');
-            if (btnRefresh) {
-                btnRefresh.onclick = () => goToEventDetail(eventName, isFinalsList, true, true);
-            }
+function goToEventDetail(eventName, isFinalsList, isSilent = false, forceReload = false) {
+    let cleanCore = eventName.replace('决赛', '').replace('预赛', '').replace(/[\(（].*?[\)）]/g, '').trim();
 
-            const contentArea = document.getElementById('detContentArea');
-            const cacheKey = `${eventName}_${isFinalsList}`;
+    document.getElementById('detEventName').innerText = eventName;
+    document.getElementById('detHeatLabel').innerHTML = isFinalsList ? '✨ 晋级决赛检录名单' : '🏅 综合成绩公告';
+    
+    const btnRefresh = document.getElementById('btnRefreshEventDet');
+    if (btnRefresh) {
+        btnRefresh.onclick = () => goToEventDetail(eventName, isFinalsList, true, true);
+    }
 
-            // 🌟 1. 命中内存缓存，且不是手动强制刷新时：直接渲染，不发网络请求
-            if (!forceReload && window.eventDetailCache[cacheKey]) {
-                renderEventDetailDOM(eventName, isFinalsList, window.eventDetailCache[cacheKey], cleanCore, isSilent);
-                return;
-            }
+    const contentArea = document.getElementById('detContentArea');
+    const cacheKey = `${eventName}_${isFinalsList}`;
 
-            if (!isSilent) {
-                contentArea.innerHTML = `
-                    <div class="flex flex-col items-center justify-center py-20 text-slate-400">
-                        <svg class="animate-spin h-8 w-8 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        <span class="font-bold">正在提取官方核定成绩...</span>
-                    </div>`;
-                switchView('view-event-detail');
-            }
+    // 1. 命中内存缓存直接展示，0延迟
+    if (!forceReload && window.eventDetailCache[cacheKey]) {
+        renderEventDetailDOM(eventName, isFinalsList, window.eventDetailCache[cacheKey], cleanCore, isSilent);
+        switchView('view-event-detail');
+        return;
+    }
 
-            // 🌟 2. 纯只读拉取后端数据并写入缓存
-            fetch('/api/get_event_start_list', {
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ event_name: eventName, group_name: '', gender: '' }) 
-            })
-            .then(r => r.json())
-            .then(data => {
-                window.eventDetailCache[cacheKey] = data;
-                renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent);
-            })
-            .catch(err => {
-                console.error("加载编排数据失败:", err);
-                contentArea.innerHTML = '<div class="p-10 text-center text-red-500 font-medium">数据连接异常，请点击右上角刷新</div>';
-            });
-        }
+    // 2. 如果上一次请求还在挂起排队，立刻强制中断，释放网络通道！
+    if (currentEventAbortController) {
+        currentEventAbortController.abort();
+    }
+    currentEventAbortController = new AbortController();
+
+    if (!isSilent) {
+        contentArea.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-20 text-slate-400">
+                <svg class="animate-spin h-8 w-8 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <span class="font-bold">正在提取官方核定成绩...</span>
+            </div>`;
+        switchView('view-event-detail');
+    }
+
+    // 3. 携带 signal 发起请求，超时 5 秒自动断开，杜绝无限卡死
+    const timeoutId = setTimeout(() => currentEventAbortController.abort(), 5000);
+
+    fetch('/api/get_event_start_list', {
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ event_name: eventName, group_name: '', gender: '' }),
+        signal: currentEventAbortController.signal
+    })
+    .then(r => r.json())
+    .then(data => {
+        clearTimeout(timeoutId);
+        window.eventDetailCache[cacheKey] = data;
+        renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent);
+    })
+    .catch(err => {
+        if (err.name === 'AbortError') return; // 用户主动切去别的项目，静默丢弃
+        console.error("加载编排数据失败:", err);
+        contentArea.innerHTML = '<div class="p-10 text-center text-red-500 font-medium">数据连接超时，请点击右上角刷新重试</div>';
+    });
+}
 
         // 🌟 纯只读渲染函数：100% 依据管理端存储的 rank 和 points 显示
         function renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent) {
@@ -929,9 +943,9 @@
                     ${displayName}
                 </td>
                 <td class="text-right font-mono font-bold text-slate-700 pr-3 border-r border-slate-50">${row.score}</td>
-                <td class="text-center font-bold ${isCustom ? 'text-indigo-600' : 'text-orange-600'} border-r border-slate-50">
-                    ${rankDisplay}
-                </td>
+                <td class="text-center font-bold ${isCustom ? 'text-indigo-600' : 'text-orange-600'} border-r border-slate-50 whitespace-nowrap px-1">
+    ${rankDisplay}
+</td>
                 <td class="text-center font-black ${isCustom ? 'text-indigo-600 bg-indigo-50/50' : 'text-red-500 bg-red-50/50'}">
                     +${row.points}
                 </td>
