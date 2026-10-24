@@ -3942,7 +3942,7 @@ const rules = [9, 7, 6, 5, 4, 3, 2, 1];
 const settingQualifyCount = parseInt(document.getElementById('finalsTopN')?.value) || topN || 8;
 
 validAthletes.forEach((p, idx) => {
-    if (idx > 0 && parseTimeVal(p.score) !== parseTimeVal(validAthletes[idx-1].score)) {
+    if (idx > 0 && parseTimeVal(p.score) !== parseTimeVal(validAthletes[idx - 1].score)) {
         currentRank = idx + 1;
     }
 
@@ -3953,10 +3953,14 @@ validAthletes.forEach((p, idx) => {
     let backendPts = (p.points !== undefined && p.points !== null) ? parseInt(p.points) : 0;
 
     if (actualRound === '决赛') {
-        if (backendPts > 0) {
-            points = backendPts;
-        } else if (currentRank <= settingQualifyCount) {
-            points = rules[currentRank - 1] || 0;
+        if (isAllHeatsFinished) {
+            if (backendPts > 0) {
+                points = backendPts;
+            } else if (currentRank <= settingQualifyCount) {
+                points = rules[currentRank - 1] || 0;
+            } else {
+                points = 0;
+            }
         } else {
             points = 0;
         }
@@ -4351,7 +4355,7 @@ function exportWord() {
                 const finalRank = (item.rank && item.rank !== '') ? parseInt(item.rank) || gRank : gRank;
                 globalRankMap[item.id] = finalRank;
 
-                if (roundStatus === '决赛') {
+                if (roundStatus === '决赛' && isAllHeatsFinished) {
                     if (item.points !== undefined && item.points !== null && parseInt(item.points) > 0) {
                         globalPointMap[item.id] = parseInt(item.points);
                     } else if (finalRank <= settingQualifyCount) {
@@ -4360,6 +4364,7 @@ function exportWord() {
                         globalPointMap[item.id] = 0;
                     }
                 } else {
+                    // 比赛未全部结束，积分绝对为 0！
                     globalPointMap[item.id] = 0;
                 }
             });
@@ -4546,18 +4551,13 @@ function exportWord() {
                                         content = `<span style="font-family:Times New Roman; font-weight:bold; font-size:13pt; ${val === '弃权' ? 'color:red;' : ''}">${formatTrackTime(val)}</span>`; 
                                     }
                                 } else if (cfg.type === 'point_cell') {
-                                    let val = parseInt(p.points) || 0;
-const curRankNum = parseInt(rankMap[p.id]);
-if (val <= 0 && roundStatus === '决赛' && !isNaN(curRankNum)) {
-    const settingQualifyCount = parseInt(document.getElementById('finalsTopN')?.value) || qualifyLimit || 8;
-    if (curRankNum <= settingQualifyCount) {
-        const ruleStr = evtCfg?.scoreRule || evtCfg?.score_rule || "9,7,6,5,4,3,2,1";
-        const rules = ruleStr.replace(/，/g, ',').split(',').map(Number);
-        val = rules[curRankNum - 1] || 0;
-    }
-}
-content = `<span style="color:#b45309; font-weight:bold; font-size:14pt;">${val > 0 ? val : ''}</span>`;
-                                                                 } else if (cfg.type === 'qualify_cell') {
+    let val = globalPointMap[p.id] || 0;
+    if (isEditMode) { 
+        content = `<input type="number" value="${val}" class="text-center font-bold bg-gray-50 border-b-2 border-gray-300 w-16 text-gray-500" onblur="updateAdminPoint(${p.reg_id || p.id}, this)">`; 
+    } else { 
+        content = `<span style="color:#b45309; font-weight:bold; font-size:14pt;">${val > 0 ? val : ''}</span>`; 
+    } // 👈 补回这个闭合大括号！
+} else if (cfg.type === 'qualify_cell') {
                                     if (isAllHeatsFinished && isRealScore(p.score) && qualifiedIds.has(p.id)) {
                                         content = `<span style="color:#000; font-weight:bold; font-size:16pt; font-family:Times New Roman;">q</span>`;
                                     } else {
@@ -7060,6 +7060,7 @@ window.closeConflictModal = function() {
         calculateEventTimeBudget();
     }
 };
+
 // 渲染移动端横向滑动的班级胶囊栏
 function renderMobileTeamSelector() {
     const container = document.getElementById('mobileTeamSelector');
