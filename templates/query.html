@@ -245,7 +245,26 @@
                 })
                 .catch(e => console.error("数据连接异常:", e));
         };
-
+window.parseTimeVal = function(val) {
+    if (!val) return 0;
+    let s = String(val).trim().replace(/：/g, ':').replace(/。/g, '.');
+    if (s.includes(':')) {
+        let parts = s.split(':');
+        if (parts.length === 3) return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
+        if (parts.length === 2) return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+    }
+    if ((s.match(/\./g) || []).length >= 2) {
+        let parts = s.split('.');
+        if (parts.length === 3) {
+            let mins = parseInt(parts[0]) || 0;
+            let secs = parseInt(parts[1]) || 0;
+            let ms = parseFloat('0.' + parts[2]) || 0;
+            return mins * 60 + secs + ms;
+        }
+    }
+    let num = parseFloat(s);
+    return isNaN(num) ? 0 : num;
+};
         function renderWithNavData(data) {
             if (data.title) {
                 document.getElementById('sysTitle').innerText = data.title;
@@ -272,27 +291,6 @@
        // 🌟 1. 必须先给全局缓存初始化为空对象，防止报 undefined 异常
         window._globalRecordsMemory = window._globalRecordsMemory || {};
 
-        function getGroupRecordsWithCache(groupName) {
-            // 如果已查过，直接从内存读取，不再重复发请求
-            if (window._globalRecordsMemory && window._globalRecordsMemory[groupName]) {
-                return Promise.resolve(window._globalRecordsMemory[groupName]);
-            }
-            return fetch('/api/get_group_records', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ group_name: groupName })
-            })
-            .then(r => r.json())
-            .then(data => {
-                window._globalRecordsMemory[groupName] = data; // 存入内存
-                return data;
-            })
-            .catch(err => {
-                console.warn("读取组别纪录失败，降级为空:", err);
-                return {}; // 出错保底返回空对象，绝不让页面崩溃
-            });
-        }
-
         function toggleAcc(panelId) { 
             const panel = document.getElementById(panelId);
             if (!panel) return;
@@ -318,38 +316,7 @@
             }
             return s;
         }
-        function parseTimeVal(val) {
-    if (!val) return 0;
-    let s = String(val).trim().replace(/：/g, ':').replace(/。/g, '.');
-    
-    // 1. 冒号格式: 1:02.05 或 1:02:05
-    if (s.includes(':')) {
-        let parts = s.split(':');
-        if (parts.length === 2) return parseInt(parts[0]) * 60 + parseFloat(parts[1] || 0);
-        if (parts.length === 3) return parseInt(parts[0]) * 3600 + parseInt(parts[1] || 0) * 60 + parseFloat(parts[2] || 0);
-    }
-
-    // 2. 裁判小键盘常用双点格式: "1.02.05" -> 分.秒.百分秒
-    if ((s.match(/\./g) || []).length >= 2) {
-        let parts = s.split('.');
-        if (parts.length === 3) {
-            let mins = parseInt(parts[0]) || 0;
-            let secs = parseInt(parts[1]) || 0;
-            let ms = parseFloat('0.' + parts[2]) || 0;
-            return mins * 60 + secs + ms; // 1*60 + 2 + 0.05 = 62.05 秒
-        } else if (parts.length === 4) {
-            let hours = parseInt(parts[0]) || 0;
-            let mins = parseInt(parts[1]) || 0;
-            let secs = parseInt(parts[2]) || 0;
-            let ms = parseFloat('0.' + parts[3]) || 0;
-            return hours * 3600 + mins * 60 + secs + ms;
-        }
-    }
-
-    // 3. 常规纯秒格式: "58.06"
-    return parseFloat(s) || 0;
-}
-
+      
         function renderRealAnnouncements(eventNames) {
             const list = document.getElementById('resultList');
             if (!eventNames || !eventNames.length) {
@@ -406,18 +373,11 @@ function goToEventDetail(eventName, isFinalsList, isSilent = false, forceReload 
     const contentArea = document.getElementById('detContentArea');
     const cacheKey = `${eventName}_${isFinalsList}`;
 
-    // 1. 命中内存缓存直接展示，0延迟
     if (!forceReload && window.eventDetailCache[cacheKey]) {
         renderEventDetailDOM(eventName, isFinalsList, window.eventDetailCache[cacheKey], cleanCore, isSilent);
         switchView('view-event-detail');
         return;
     }
-
-    // 2. 如果上一次请求还在挂起排队，立刻强制中断，释放网络通道！
-    if (currentEventAbortController) {
-        currentEventAbortController.abort();
-    }
-    currentEventAbortController = new AbortController();
 
     if (!isSilent) {
         contentArea.innerHTML = `
@@ -428,295 +388,284 @@ function goToEventDetail(eventName, isFinalsList, isSilent = false, forceReload 
         switchView('view-event-detail');
     }
 
-    // 3. 携带 signal 发起请求，超时 5 秒自动断开，杜绝无限卡死
-    const timeoutId = setTimeout(() => currentEventAbortController.abort(), 5000);
-
+    // 稳健的无阻塞 Fetch 请求
     fetch('/api/get_event_start_list', {
         method: 'POST', 
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ event_name: eventName, group_name: '', gender: '' }),
-        signal: currentEventAbortController.signal
+        body: JSON.stringify({ event_name: eventName, group_name: '', gender: '' })
     })
-    .then(r => r.json())
+    .then(r => {
+        if (!r.ok) throw new Error("网络响应异常");
+        return r.json();
+    })
     .then(data => {
-        clearTimeout(timeoutId);
         window.eventDetailCache[cacheKey] = data;
         renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent);
     })
     .catch(err => {
-        if (err.name === 'AbortError') return; // 用户主动切去别的项目，静默丢弃
         console.error("加载编排数据失败:", err);
-        contentArea.innerHTML = '<div class="p-10 text-center text-red-500 font-medium">数据连接超时，请点击右上角刷新重试</div>';
+        contentArea.innerHTML = '<div class="p-10 text-center text-red-500 font-medium">数据加载失败，请点击右上角刷新重试</div>';
     });
 }
+     // 🌟 纯只读直出：100% 依照管理端核定的 score, rank, points, qualify 输出
+function renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent) {
+    const contentArea = document.getElementById('detContentArea');
+    if (!data || data.length === 0) {
+        contentArea.innerHTML = '<div class="p-10 text-center text-slate-400 font-medium">该项目暂无编排数据</div>'; 
+        return;
+    }
 
-        // 🌟 纯只读渲染函数：100% 依据管理端存储的 rank 和 points 显示
-      // 🌟 纯只读渲染函数：不进行任何本地计算，100% 直出管理端权威成绩、名次与积分
-        function renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent) {
-            const contentArea = document.getElementById('detContentArea');
-            if(!data || data.length === 0) {
-                contentArea.innerHTML = '<div class="p-10 text-center text-slate-400 font-medium">该项目暂无编排数据</div>'; 
-                return;
+    const isRelayEvent = eventName.includes('接力') || eventName.includes('4×') || eventName.includes('4*') || eventName.includes('4x');
+    const isPrelim = eventName.includes('预赛');
+
+    const grouped = {};
+    data.forEach(item => {
+        const key = `${item.group_name} (${item.gender})`;
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(item);
+    });
+
+    let html = '';
+
+    Object.keys(grouped).sort().forEach((groupKey, gIndex) => {
+        const groupData = grouped[groupKey];
+        const contentId = `grp_content_${gIndex}`;
+
+        // 判断该组别/项目是否全部完赛（非弃权选手均录入真实成绩）
+        const isAllHeatsFinished = groupData.length > 0 && groupData.every(i => {
+            const s = String(i.score || '').trim();
+            const isAbandoned = s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || String(i.checked_in) === '2';
+            return isAbandoned || (s !== '' && s !== '-');
+        });
+
+        let statusDotHtml = '';
+        if (isAllHeatsFinished) {
+            statusDotHtml = `
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                    <span>全部完赛</span>
+                </span>`;
+        }
+
+        html += `
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 mb-3 overflow-hidden grp-card-container" data-groupkey="${groupKey}">
+            <div class="px-4 py-3.5 bg-white hover:bg-slate-50 flex justify-between items-center cursor-pointer transition select-none" onclick="document.getElementById('${contentId}').classList.toggle('hidden')">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-extrabold text-slate-800 text-[14px]">🏢 ${groupKey}</span>
+                    ${statusDotHtml}
+                </div>
+                <span class="text-blue-500 bg-blue-50 text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0">展开/折叠</span>
+            </div>
+            <div id="${contentId}" class="grp-content-box hidden transition-all duration-300">`;
+
+        if (isFinalsList) {
+            // 决赛名单检录表展示
+            const heats = {};
+            groupData.forEach(i => { 
+                const h = i.heat || '1'; 
+                if (!heats[h]) heats[h] = []; 
+                heats[h].push(i); 
+            });
+
+            Object.keys(heats).sort((a, b) => parseInt(a) - parseInt(b)).forEach(h => {
+                html += `<div class="px-4 py-2 text-[12px] font-bold text-slate-400 bg-slate-50 border-y border-slate-100">🚩 第 ${h} 组 (决赛名单)</div>
+                        <table class="modern-table">
+                        <thead><tr><th class="w-12 text-center">道次</th><th class="w-16">号码</th><th class="text-left pl-2">姓名</th><th class="text-left pl-2">单位</th></tr></thead>
+                        <tbody>`;
+                const heatItems = heats[h].sort((a, b) => (parseInt(a.lane) || 0) - (parseInt(b.lane) || 0));
+                heatItems.forEach(item => {
+                    html += `<tr>
+                        <td class="text-slate-400 font-bold">${item.lane || '-'}</td>
+                        <td class="font-mono font-bold text-slate-500">${item.bib || '---'}</td>
+                        <td class="text-left pl-2 font-bold text-blue-600 underline cursor-pointer" onclick="goToAthleteDetail('${item.name}')">${item.name}</td>
+                        <td class="text-left pl-2 text-slate-600 truncate max-w-[120px]">${item.team_name}</td>
+                    </tr>`;
+                });
+                html += `</tbody></table>`;
+            });
+        } else {
+            // 1. 各小组成绩展示
+            const heats = {};
+            groupData.forEach(i => { 
+                const h = i.heat || '1'; 
+                if (!heats[h]) heats[h] = []; 
+                heats[h].push(i); 
+            });
+
+            Object.keys(heats).sort((a, b) => parseInt(a) - parseInt(b)).forEach(h => {
+                html += `<div class="px-4 py-2 text-[12px] font-bold text-slate-400 bg-slate-50 border-y border-slate-100">🚩 第 ${h} 小组成绩</div>
+                        <table class="modern-table">
+                        <thead><tr><th class="w-10">道序</th><th class="w-14">号码</th><th class="text-left">${isRelayEvent ? '接力队员/棒次' : '姓名'}</th><th class="text-left">单位</th><th class="text-right pr-4">成绩</th></tr></thead>
+                        <tbody>`;
+                let heatItems = heats[h];
+                if (isRelayEvent) {
+                    const teamMap = {};
+                    heatItems.forEach(it => {
+                        const tKey = it.team_name || it.teamName;
+                        if (!teamMap[tKey]) teamMap[tKey] = { ...it };
+                        else if (!teamMap[tKey].score && it.score) teamMap[tKey].score = it.score;
+                    });
+                    heatItems = Object.values(teamMap);
+                }
+                heatItems.sort((a, b) => (parseInt(a.lane) || 0) - (parseInt(b.lane) || 0));
+                heatItems.forEach(item => {
+                    html += `<tr>
+                        <td class="text-slate-400 text-[12px] font-bold font-mono">${item.lane || '-'}</td>
+                        <td class="font-mono text-slate-400 text-[12px]">${isRelayEvent ? '-' : (item.bib || '-')}</td>
+                        <td class="text-left font-bold text-slate-700 ${!isRelayEvent ? 'cursor-pointer hover:text-blue-600' : ''}" ${!isRelayEvent ? `onclick="goToAthleteDetail('${item.name}')"` : ''}>
+                            ${item.name}
+                        </td>
+                        <td class="text-left text-slate-500 text-[12px] font-bold truncate max-w-[90px]">${item.team_name}</td>
+                        <td class="text-right pr-4 font-mono font-bold text-slate-700">${formatDisplayScore(item.score)}</td>
+                    </tr>`;
+                });
+                html += `</tbody></table>`;
+            });
+
+            // 2. 🌟 官方核定综合名次表：100% 对齐管理端
+            let displayAthletes = [...groupData];
+
+            // 接力队伍聚合去重（确保一个单位只显示一条记录）
+            if (isRelayEvent) {
+                const relayMap = {};
+                displayAthletes.forEach(i => {
+                    const tKey = String(i.team_name || i.teamName).trim();
+                    if (!relayMap[tKey]) {
+                        relayMap[tKey] = { ...i };
+                    } else {
+                        // 优先保留有成绩、有名次、有积分的那一行
+                        if (i.score && !relayMap[tKey].score) relayMap[tKey].score = i.score;
+                        if (i.rank && (!relayMap[tKey].rank || relayMap[tKey].rank === '--')) relayMap[tKey].rank = i.rank;
+                        if (i.points && !relayMap[tKey].points) relayMap[tKey].points = i.points;
+                    }
+                });
+                displayAthletes = Object.values(relayMap);
             }
 
-            const isRelayEvent = eventName.includes('接力') || eventName.includes('4×') || eventName.includes('4*') || eventName.includes('4x');
-            const isPrelim = eventName.includes('预赛');
-
-            // 1. 按组别归集（用于折叠面板）
-            const grouped = {};
-            data.forEach(item => {
-                const key = `${item.group_name} (${item.gender})`;
-                if(!grouped[key]) grouped[key] = [];
-                grouped[key].push(item);
+            // 拆分有效完成选手与弃权/犯规选手
+            let validAthletes = displayAthletes.filter(i => {
+                const s = String(i.score || '').trim();
+                const isAb = s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || s.includes('犯规') || String(i.checked_in) === '2';
+                return !isAb && s !== '' && s !== '-';
             });
 
-            let html = '';
+            let invalidAthletes = displayAthletes.filter(i => {
+                const s = String(i.score || '').trim();
+                return s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || s.includes('犯规') || String(i.checked_in) === '2';
+            });
 
-            Object.keys(grouped).sort().forEach((groupKey, gIndex) => {
-                const groupData = grouped[groupKey];
-                const contentId = `grp_content_${gIndex}`;
+            // 排序：优先按管理端回写数据库的 rank 升序排；若 rank 尚未生成，按成绩排序
+            validAthletes.sort((a, b) => {
+                const rA = (a.rank && a.rank !== '--' && !isNaN(parseInt(a.rank))) ? parseInt(a.rank) : 999;
+                const rB = (b.rank && b.rank !== '--' && !isNaN(parseInt(b.rank))) ? parseInt(b.rank) : 999;
+                if (rA !== rB) return rA - rB;
+                return (parseTimeVal ? parseTimeVal(a.score) - parseTimeVal(b.score) : 0);
+            });
 
-                // 检查全组完赛状态（纯状态判断，不改写数据）
-                const isAllHeatsFinished = groupData.length > 0 && groupData.every(i => {
-                    const s = String(i.score || '').trim();
-                    return s !== '' && s !== '-';
-                });
+            let extraColName = isPrelim ? '录取' : '得分';
+            html += `
+            <div class="px-4 py-3 font-extrabold text-orange-700 bg-orange-50 border-y border-orange-100 mt-2 flex items-center justify-between">
+                <span class="flex items-center gap-2"><span class="text-lg">🏆</span> 官方核定名次</span>
+                <span class="text-[11px] font-bold ${isAllHeatsFinished ? 'text-emerald-700 bg-emerald-100' : 'text-amber-700 bg-amber-100'} px-2 py-0.5 rounded-full">
+                    ${isAllHeatsFinished ? (isPrelim ? '✅ 预赛已完赛' : '🏁 决赛已完赛') : '⏳ 比赛进行中'}
+                </span>
+            </div>
+            <table class="modern-table">
+                <thead class="bg-orange-50/50"><tr>
+                    <th class="w-14 whitespace-nowrap text-center text-orange-800">名次</th>
+                    <th class="w-12">号码</th>
+                    <th class="text-left pl-2">${isRelayEvent ? '接力单位' : '姓名'}</th>
+                    <th class="text-left pl-2">单位</th>
+                    <th class="text-right pr-4 w-20 text-orange-800">成绩</th>
+                    <th class="w-12 text-orange-800">${extraColName}</th>
+                </tr></thead>
+                <tbody>`;
 
-                let statusDotHtml = '';
-                if (isAllHeatsFinished) {
-                    statusDotHtml = `
-                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200">
-                            <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-                            <span>全部完赛</span>
-                        </span>`;
-                }
+            // 渲染有效完赛选手
+            validAthletes.forEach((item, idx) => {
+                // 优先取管理端落盘 rank，若为空且已全部跑完则取列表次序
+                let rnk = (item.rank && item.rank !== '--' && item.rank !== '') ? String(item.rank).trim() : (isAllHeatsFinished ? String(idx + 1) : '--');
+                const pts = parseInt(item.points) || 0;
+                const qLimit = parseInt(item.qualify_count) || 8;
 
-                html += `
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 mb-3 overflow-hidden grp-card-container" data-groupkey="${groupKey}">
-                    <div class="px-4 py-3.5 bg-white hover:bg-slate-50 flex justify-between items-center cursor-pointer transition select-none" onclick="document.getElementById('${contentId}').classList.toggle('hidden')">
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="font-extrabold text-slate-800 text-[14px]">🏢 ${groupKey}</span>
-                            ${statusDotHtml}
-                        </div>
-                        <span class="text-blue-500 bg-blue-50 text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0">展开/折叠</span>
-                    </div>
-                    <div id="${contentId}" class="grp-content-box hidden transition-all duration-300">`;
+               let rankBadge = `<span class="font-bold text-slate-500">${rnk || '--'}</span>`;
+let rowBg = '';
 
-                if (isFinalsList) {
-                    // 决赛道次检录表直出
-                    const heats = {};
-                    groupData.forEach(i => { 
-                        const h = i.heat || '1'; 
-                        if(!heats[h]) heats[h] = []; 
-                        heats[h].push(i); 
-                    });
+if (!isPrelim && rnk && rnk !== '--') {
+    if (rnk === '1') { rankBadge = '🥇'; rowBg = 'bg-yellow-50/30'; }
+    else if (rnk === '2') { rankBadge = '🥈'; rowBg = 'bg-slate-100/50'; }
+    else if (rnk === '3') { rankBadge = '🥉'; rowBg = 'bg-orange-50/30'; }
+    else { 
+        rankBadge = `<span class="font-extrabold text-slate-700 text-[14px] font-mono">${rnk}</span>`; 
+    }
+}
 
-                    Object.keys(heats).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(h => {
-                        html += `<div class="px-4 py-2 text-[12px] font-bold text-slate-400 bg-slate-50 border-y border-slate-100">🚩 第 ${h} 组 (决赛名单)</div>
-                                <table class="modern-table">
-                                <thead><tr><th class="w-12 text-center">道次</th><th class="w-16">号码</th><th class="text-left pl-2">姓名</th><th class="text-left pl-2">单位</th></tr></thead>
-                                <tbody>`;
-                        const heatItems = heats[h].sort((a,b) => (parseInt(a.lane) || 0) - (parseInt(b.lane) || 0));
-                        heatItems.forEach(item => {
-                            html += `<tr>
-                                <td class="text-slate-400 font-bold">${item.lane || '-'}</td>
-                                <td class="font-mono font-bold text-slate-500">${item.bib || '---'}</td>
-                                <td class="text-left pl-2 font-bold text-blue-600 underline cursor-pointer" onclick="goToAthleteDetail('${item.name}')">${item.name}</td>
-                                <td class="text-left pl-2 text-slate-600 truncate max-w-[120px]">${item.team_name}</td>
-                            </tr>`;
-                        });
-                        html += `</tbody></table>`;
-                    });
+                // 录取列 / 得分列
+                let extraColHtml = '<span class="text-slate-300 font-mono text-xs">--</span>';
+                if (isPrelim) {
+                    // 预赛完赛且名次在录取线内，显示管理端标准的 q
+                    if (isAllHeatsFinished && rnk !== '--' && parseInt(rnk) <= qLimit) {
+                        extraColHtml = '<span class="font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-[14px] font-mono shadow-sm">q</span>';
+                    }
                 } else {
-                    // 1. 各组实测成绩展示（道次升序）
-                    const heats = {};
-                    groupData.forEach(i => { 
-                        const h = i.heat || '1'; 
-                        if(!heats[h]) heats[h] = []; 
-                        heats[h].push(i); 
-                    });
-
-                    Object.keys(heats).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(h => {
-                        html += `<div class="px-4 py-2 text-[12px] font-bold text-slate-400 bg-slate-50 border-y border-slate-100">🚩 第 ${h} 小组成绩</div>
-                                <table class="modern-table">
-                                <thead><tr><th class="w-10">道序</th><th class="w-14">号码</th><th class="text-left">${isRelayEvent ? '接力队员/棒次' : '姓名'}</th><th class="text-left">单位</th><th class="text-right pr-4">成绩</th></tr></thead>
-                                <tbody>`;
-                        let heatItems = heats[h];
-                        if (isRelayEvent) {
-                            const teamMap = {};
-                            heatItems.forEach(it => {
-                                const tKey = it.team_name || it.teamName;
-                                if (!teamMap[tKey]) teamMap[tKey] = { ...it };
-                                else if (!teamMap[tKey].score && it.score) teamMap[tKey].score = it.score;
-                            });
-                            heatItems = Object.values(teamMap);
-                        }
-                        heatItems.sort((a,b) => (parseInt(a.lane) || 0) - (parseInt(b.lane) || 0));
-                        heatItems.forEach(item => {
-                            html += `<tr>
-                                <td class="text-slate-400 text-[12px] font-bold font-mono">${item.lane || '-'}</td>
-                                <td class="font-mono text-slate-400 text-[12px]">${isRelayEvent ? '-' : (item.bib || '-')}</td>
-                                <td class="text-left font-bold text-slate-700 ${!isRelayEvent ? 'cursor-pointer hover:text-blue-600' : ''}" ${!isRelayEvent ? `onclick="goToAthleteDetail('${item.name}')"` : ''}>
-                                    ${item.name}
-                                </td>
-                                <td class="text-left text-slate-500 text-[12px] font-bold truncate max-w-[90px]">${item.team_name}</td>
-                                <td class="text-right pr-4 font-mono font-bold text-slate-700">${formatDisplayScore(item.score)}</td>
-                            </tr>`;
-                        });
-                        html += `</tbody></table>`;
-                    });
-
-                    // 2. 官方核定综合名次表：直接以管理端计算并落盘的 rank 进行排序展示
-                   // 2. 官方核定综合名次表：精准对齐管理端名次
-                    let displayAthletes = [...groupData];
-                    if (isRelayEvent) {
-                        const sm = {}; 
-                        displayAthletes.forEach(i => { 
-                            if (!sm[i.team_name]) sm[i.team_name] = i; 
-                        });
-                        displayAthletes = Object.values(sm);
+                    // 决赛直接直读管理端 points
+                    if (isAllHeatsFinished && pts > 0) {
+                        extraColHtml = `<span class="font-extrabold text-amber-600 bg-amber-50 px-2 py-0.5 rounded shadow-sm text-[13px] font-mono">+${pts}</span>`;
                     }
-
-                    // 🌟 1. 严格判断成绩排列方向
-                    // 远度/投掷/计数类（越大越好）：立定跳远、跳绳、投篮、仰卧起坐、实心球、引体向上等
-                    // 计时类（越小越好）：足球绕杆、篮球绕杆、100米、200米、800米等
-                    const isDistanceOrCount = ['跳远', '跳高', '实心球', '铅球', '投掷', '掷', '跳绳', '投篮', '起坐', '引体', '垫球', '踢毽'].some(k => eventName.includes(k));
-                    const sortAsc = !isDistanceOrCount;
-
-                    // 🌟 2. 区分有效成绩与弃权选手
-                    const validAthletes = displayAthletes.filter(i => {
-                        const s = String(i.score || '').trim();
-                        return s !== '' && s !== '-' && !s.includes('弃权') && String(i.checked_in) !== '2' && parseTimeVal(s) > 0;
-                    });
-                    const abandonedAthletes = displayAthletes.filter(i => {
-                        const s = String(i.score || '').trim();
-                        return s.includes('弃权') || String(i.checked_in) === '2';
-                    });
-                    const unscoredAthletes = displayAthletes.filter(i => {
-                        const s = String(i.score || '').trim();
-                        return (s === '' || s === '-' || parseTimeVal(s) <= 0) && !s.includes('弃权') && String(i.checked_in) !== '2';
-                    });
-
-                    // 🌟 3. 排序：优先按管理端已有的 rank，若无则按数值升降序排列
-                    const hasBackendRanks = validAthletes.some(i => i.rank && !isNaN(parseInt(i.rank)));
-                    if (hasBackendRanks) {
-                        validAthletes.sort((a, b) => (parseInt(a.rank) || 999) - (parseInt(b.rank) || 999));
-                    } else {
-                        validAthletes.sort((a, b) => {
-                            const valA = parseTimeVal(a.score);
-                            const valB = parseTimeVal(b.score);
-                            return sortAsc ? (valA - valB) : (valB - valA);
-                        });
-                    }
-
-                    displayAthletes = [...validAthletes, ...abandonedAthletes, ...unscoredAthletes];
-
-                    let extraColName = isPrelim ? '录取' : '得分';
-                    html += `
-                    <div class="px-4 py-3 font-extrabold text-orange-700 bg-orange-50 border-y border-orange-100 mt-2 flex items-center justify-between">
-                        <span class="flex items-center gap-2"><span class="text-lg">🏆</span> 官方核定名次</span>
-                        <span class="text-[11px] font-bold ${isAllHeatsFinished ? 'text-emerald-700 bg-emerald-100' : 'text-amber-700 bg-amber-100'} px-2 py-0.5 rounded-full">
-                            ${isAllHeatsFinished ? (isPrelim ? '✅ 预赛已完赛' : '🏁 决赛已完赛') : '⏳ 比赛进行中'}
-                        </span>
-                    </div>
-                    <table class="modern-table">
-                        <thead class="bg-orange-50/50"><tr>
-                            <th class="w-10 text-orange-800">名次</th>
-                            <th class="w-12">号码</th>
-                            <th class="text-left pl-2">${isRelayEvent ? '接力单位' : '姓名'}</th>
-                            <th class="text-left pl-2">单位</th>
-                            <th class="text-right pr-4 w-20 text-orange-800">成绩</th>
-                            <th class="w-12 text-orange-800">${extraColName}</th>
-                        </tr></thead>
-                        <tbody>`;
-
-                    const rules = [9, 7, 6, 5, 4, 3, 2, 1];
-                    let autoRank = 1;
-
-                    displayAthletes.forEach((item, idx) => {
-                        const s = String(item.score || '').trim();
-                        const isAbandoned = s.includes('弃权') || String(item.checked_in) === '2';
-                        const isUnscored = (s === '' || s === '-') && !isAbandoned;
-
-                        let rnk = '';
-                        // 🌟 1. 读取名次：有管理端名次用管理端的，没有则按实际成绩排序输出
-                        if (!isAbandoned && !isUnscored) {
-                            if (hasBackendRanks && item.rank && item.rank !== '--') {
-                                rnk = String(item.rank).trim();
-                            } else {
-                                if (idx > 0) {
-                                    const prevItem = displayAthletes[idx - 1];
-                                    if (Math.abs(parseTimeVal(item.score) - parseTimeVal(prevItem.score)) > 0.0001) {
-                                        autoRank = idx + 1;
-                                    }
-                                }
-                                rnk = String(autoRank);
-                            }
-                        }
-
-                        // 格式化名次奖牌图标
-                        let rankBadge = `<span class="font-bold text-slate-500">${rnk || '--'}</span>`;
-                        let rowBg = '';
-                        if (!isPrelim && rnk) {
-                            if (rnk === '1') { rankBadge = '🥇'; rowBg = 'bg-yellow-50/30'; }
-                            else if (rnk === '2') { rankBadge = '🥈'; rowBg = 'bg-slate-100/50'; }
-                            else if (rnk === '3') { rankBadge = '🥉'; rowBg = 'bg-orange-50/30'; }
-                        }
-
-                        // 🌟 2. 核心修复【得分列展示】：
-                        // 查询端绝不擅自算分！只有后台数据库返回了有效 points 且全场已完赛，才显示积分；否则一律显示 '--'
-                        let extraColHtml = '<span class="text-slate-300 font-mono text-xs">--</span>';
-
-                        if (isPrelim) {
-                            // 预赛只展示晋级标志 q
-                            if (isAllHeatsFinished && (item.qualify === 'q' || (rnk && parseInt(rnk) <= 8 && !isAbandoned))) {
-                                extraColHtml = '<span class="font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-[14px] font-mono shadow-sm">q</span>';
-                            }
-                        } else {
-                            // 决赛：只有全场完赛，并且后台记录了实际得分才显示
-                            const backendPts = (item.points !== undefined && item.points !== null) ? parseInt(item.points) : 0;
-                            if (isAllHeatsFinished && backendPts > 0) {
-                                extraColHtml = `<span class="font-extrabold text-amber-600 bg-amber-50 px-2 py-0.5 rounded shadow-sm text-[13px] font-mono">+${backendPts}</span>`;
-                            } else {
-                                extraColHtml = '<span class="text-slate-300 font-mono text-xs">--</span>';
-                            }
-                        }
-
-                        html += `<tr class="${rowBg}">
-                            <td class="text-[14px]">${isAbandoned || isUnscored ? '--' : rankBadge}</td>
-                            <td class="font-mono text-slate-400 text-[12px]">${isRelayEvent ? '-' : (item.bib || '-')}</td>
-                            <td class="text-left pl-2 font-bold text-blue-600 underline cursor-pointer" onclick="${!isRelayEvent ? `goToAthleteDetail('${item.name}')` : ''}">${item.name}</td>
-                            <td class="text-left pl-2 text-slate-700 text-[12px] truncate max-w-[80px]">${item.team_name}</td>
-                            <td class="text-right pr-4 font-mono font-bold ${isAbandoned ? 'text-red-500' : 'text-slate-800'} text-[14px]">
-                                ${isAbandoned ? '弃权' : (isUnscored ? '-' : formatDisplayScore(item.score))}
-                            </td>
-                            <td class="text-center">${extraColHtml}</td>
-                        </tr>`;
-                    });
-
-                    html += `</tbody></table>`;
                 }
-                html += `</div></div>`;
+
+                html += `<tr class="${rowBg}">
+                    <td class="text-center whitespace-nowrap text-[14px]">${rankBadge}</td>
+                    <td class="font-mono text-slate-400 text-[12px] text-center">${isRelayEvent ? '-' : (item.bib || '-')}</td>
+                    <td class="text-left pl-2 font-bold text-blue-600 underline cursor-pointer" onclick="${!isRelayEvent ? `goToAthleteDetail('${item.name}')` : ''}">${item.name}</td>
+                    <td class="text-left pl-2 text-slate-700 text-[12px] truncate max-w-[80px]">${item.team_name}</td>
+                    <td class="text-right pr-4 font-mono font-bold text-slate-800 text-[14px]">
+                        ${formatDisplayScore(item.score)}
+                    </td>
+                    <td class="text-center">${extraColHtml}</td>
+                </tr>`;
             });
 
-            // 保持当前卡片的展开状态
-            const openedCardKeys = Array.from(document.querySelectorAll('.grp-card-container'))
-                .filter(el => {
-                    const box = el.querySelector('.grp-content-box');
-                    return box && !box.classList.contains('hidden');
-                })
-                .map(el => el.dataset.groupkey);
+            // 渲染弃权/犯规选手
+            invalidAthletes.forEach(item => {
+                const s = String(item.score || '').trim().toUpperCase();
+                const isDQ = s.includes('犯规') || s.includes('DQ');
+                const labelText = isDQ ? '犯规' : '弃权';
+                const tagColor = isDQ ? 'text-amber-600' : 'text-red-500';
 
-            contentArea.innerHTML = html;
-
-            openedCardKeys.forEach(key => {
-                const targetCard = Array.from(document.querySelectorAll('.grp-card-container')).find(el => el.dataset.groupkey === key);
-                if (targetCard) {
-                    const box = targetCard.querySelector('.grp-content-box');
-                    if (box) box.classList.remove('hidden');
-                }
+                html += `<tr class="text-slate-400 bg-slate-50/50">
+                    <td class="text-[13px] text-center font-bold">--</td>
+                    <td class="font-mono text-slate-400 text-[12px] text-center">${isRelayEvent ? '-' : (item.bib || '-')}</td>
+                    <td class="text-left pl-2 font-medium text-slate-500">${item.name}</td>
+                    <td class="text-left pl-2 text-slate-400 text-[12px] truncate max-w-[80px]">${item.team_name}</td>
+                    <td class="text-right pr-4 font-bold ${tagColor} text-[13px]">${labelText}</td>
+                    <td class="text-center font-mono text-slate-300">--</td>
+                </tr>`;
             });
+
+            html += `</tbody></table>`;
         }
+        html += `</div></div>`;
+    });
+
+    // 记录原先已经展开的卡片，重新渲染后保持展开状态
+    const openedCardKeys = Array.from(document.querySelectorAll('.grp-card-container'))
+        .filter(el => {
+            const box = el.querySelector('.grp-content-box');
+            return box && !box.classList.contains('hidden');
+        })
+        .map(el => el.dataset.groupkey);
+
+    contentArea.innerHTML = html;
+
+    openedCardKeys.forEach(key => {
+        const targetCard = Array.from(document.querySelectorAll('.grp-card-container')).find(el => el.dataset.groupkey === key);
+        if (targetCard) {
+            const box = targetCard.querySelector('.grp-content-box');
+            if (box) box.classList.remove('hidden');
+        }
+    });
+}
 
         window.activeRankGroup = '';
         function renderRankGroupTabs() {

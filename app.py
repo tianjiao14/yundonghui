@@ -83,11 +83,11 @@ _recalc_lock = threading.Lock()
 _last_recalc_time = 0
 
 # 4. 数据库连接基础函数（👈 补回此处缺失的函数）
-def get_db_connection():
+def get_db_connection(readonly=False):
     conn = sqlite3.connect(DB_FILE, timeout=60) 
     conn.execute('PRAGMA journal_mode = WAL;')
     conn.execute('PRAGMA synchronous = NORMAL;')
-    conn.execute('PRAGMA cache_size = -32000;')  # 分配约 32MB 内存页缓存
+    conn.execute('PRAGMA cache_size = -32000;')
     conn.execute('PRAGMA temp_store = MEMORY;')
     conn.execute('PRAGMA busy_timeout = 60000;')
     conn.row_factory = sqlite3.Row
@@ -304,8 +304,6 @@ def _get_lock_for_key(key):
             _key_locks[key] = Semaphore()
         return _key_locks[key]
 
-_cache_store = {}
-
 def get_cached_data(cache_key, ttl_seconds=15):
     now = time.time()
     cached = _cache_store.get(cache_key)
@@ -320,18 +318,18 @@ def set_cached_data(cache_key, data, ttl_seconds=15):
     }
 def invalidate_event_cache(event_name, group_name=""):
     """
-    精准失效受影响的项目和榜单缓存，坚决不清空全局导航等公共静态缓存
+    精准失效受影响的项目和榜单缓存
     """
     if not _cache_store:
         return
-    # 清洗项目核心名，确保预赛、决赛和原名都能匹配
     clean_core = re.sub(r"\(.*?\)|（.*?）|决赛|预赛", "", event_name).strip()
     
     keys_to_del = []
     for k in list(_cache_store.keys()):
+        # 只要涉及到该项目（无论有没有带具体 group_name），一律清除缓存！
         if k.startswith("startlist_") and clean_core in k:
             keys_to_del.append(k)
-        elif group_name and k == f"rank_{group_name}":
+        elif k.startswith("rank_"):
             keys_to_del.append(k)
             
     for k in keys_to_del:
@@ -2280,15 +2278,17 @@ def save_config():
                           (str(g['id']), g['name'], g.get('prefix', '-'), idx))
                   
         if 'teams' in data:
+            old_custom = {r['id']: r['custom_scores'] for r in c.execute("SELECT id, custom_scores FROM cfg_teams").fetchall()}
             c.execute("DELETE FROM cfg_teams")
             for idx, t in enumerate(data['teams']):
-                c.execute("""
-                    INSERT OR REPLACE INTO cfg_teams (id, group_id, name, leader, coach, phone, sort_order) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    str(t['id']), str(t.get('groupId') or t.get('group_id')), 
-                    t['name'], t.get('leader', '') or '', t.get('coach', '') or '', t.get('phone', '') or '', idx
-                ))
+                  c.execute("""
+                         INSERT OR REPLACE INTO cfg_teams (id, group_id, name, leader, coach, phone, sort_order, custom_scores) 
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                  """, (
+                         str(t['id']), str(t.get('groupId') or t.get('group_id')), 
+                         t['name'], t.get('leader', '') or '', t.get('coach', '') or '', t.get('phone', '') or '', idx,
+                         old_custom.get(str(t['id']), '{}')
+                  ))
                   
         if 'events' in data:
             c.execute("DELETE FROM cfg_events")
@@ -2851,19 +2851,17 @@ def get_referee_meta():
 @app.route('/api/get_event_start_list', methods=['POST'])
 def get_event_start_list():
     data = request.json or {}
-    event_name = data.get('event_name') or ''
-    group_name = data.get('group_name') or ''
-    gender = data.get('gender') or ''
-    cache_key = f"startlist_{group_name}_{gender}_{event_name}"
-    cached = get_cached_data(cache_key, ttl_seconds=20)
-    if cached is not None:
-        return jsonify(cached)
+    event_name = str(data.get('event_name') or '').strip()
+    group_name = str(data.get('group_name') or '').strip()
+    gender = str(data.get('gender') or '').strip()
 
-    conn = get_db_connection()
+    clean_core = re.sub(r"\(.*?\)|（.*?）|预赛|决赛|男子|女子|混合", "", event_name).strip()
+    norm_core = clean_core.replace('*', '×').replace('x', '×').replace('X', '×')
+
+    conn = get_db_connection(readonly=False)
     c = conn.cursor()
     try:
-        # 🌟 1. 严格从 cfg_events (项目设置表) 读取该项目的真实规程配置
-        clean_core = re.sub(r"\(.*?\)|（.*?）|预赛|决赛|男子|女子|混合", "", event_name).strip()
+        # 1. 规程配置查询
         cfg_row = c.execute("""
             SELECT type, is_fun, has_prelim, qualify_count 
             FROM cfg_events 
@@ -2871,131 +2869,128 @@ def get_event_start_list():
             LIMIT 1
         """, (event_name, clean_core, f"%{clean_core}%")).fetchone()
 
-        # 项目设置中是否设定了预赛 (has_prelim == '1') 与 录取名次 (qualify_count)
         has_prelim = False
         is_fun = False
-        qualify_count = 8
+        default_qualify_count = 8
         if cfg_row:
             has_prelim = (to_bool_str(cfg_row['has_prelim']) == '1')
             is_fun = (cfg_row['type'] in ['趣味', '趣味项目', '健康测试'] or to_bool_str(cfg_row['is_fun']) == '1')
             if cfg_row['qualify_count'] is not None and str(cfg_row['qualify_count']).isdigit():
-                qualify_count = int(cfg_row['qualify_count'])
+                default_qualify_count = int(cfg_row['qualify_count'])
+
+        # 2. 读取各组别自定义录取名次映射表
+        gq_map = {}
         try:
             gq_row = c.execute("SELECT value FROM sys_config WHERE key = 'group_qualify_map'").fetchone()
             if gq_row and gq_row['value']:
                 gq_map = json.loads(gq_row['value'])
-                if group_name and f"{group_name}_{clean_core}" in gq_map:
-                    qualify_count = int(gq_map[f"{group_name}_{clean_core}"])
         except Exception:
             pass
-        # 趣味项目未编排道次时的保底查询
+
+        # 3. 趣味项目保底直出（若 start_list 无编排道次）
         if is_fun:
-            check_sql = "SELECT COUNT(*) FROM start_list WHERE event_name = ? AND (group_name = ? OR ? = '')"
-            count_in_start = c.execute(check_sql, (event_name, group_name, group_name)).fetchone()[0]
-            
+            count_in_start = c.execute(
+                "SELECT COUNT(*) FROM start_list WHERE event_name = ? AND (? = '' OR group_name = ?)", 
+                (event_name, group_name, group_name)
+            ).fetchone()[0]
             if count_in_start == 0:
-                sql = """
+                rows = c.execute("""
                     SELECT 
-                        r.id AS id, 
-                        r.id AS reg_id, 
-                        r.group_name, 
-                        r.event_name, 
-                        r.gender, 
-                        '1' AS heat, 
-                        '' AS lane, 
-                        r.bib, 
-                        r.name, 
-                        r.team_name, 
-                        'fun' AS type,
-                        8 AS total_lanes, 
-                        '' AS est_time, 
-                        0 AS time_index, 
-                        0 AS is_field,
-                        0 AS checked_in, 
-                        r.score AS score, 
-                        r.score AS start_score,
-                        r.rank,
-                        r.points, 
-                        r.record_bonus
-                    FROM registrations r
-                    WHERE (r.event_name = ? OR r.event_name LIKE ? || '%')
-                      AND (r.group_name = ? OR ? = '')
-                      AND (r.gender = ? OR ? = '')
-                """
-                rows = c.execute(sql, (event_name, clean_core, group_name, group_name, gender, gender)).fetchall()
-                result = []
-                for r in rows:
-                    item = dict(r)
-                    item['has_prelim'] = has_prelim
-                    item['qualify_count'] = qualify_count
-                    result.append(item)
+                        id, id AS reg_id, group_name, event_name, gender, '1' AS heat, '' AS lane, 
+                        bib, name, team_name, 'fun' AS type, 8 AS total_lanes, '' AS est_time, 
+                        0 AS time_index, 0 AS is_field, 0 AS checked_in, 
+                        score, score AS start_score, rank, points, record_bonus
+                    FROM registrations
+                    WHERE (event_name = ? OR event_name LIKE ? || '%')
+                      AND (? = '' OR group_name = ?)
+                      AND (? = '' OR gender = ?)
+                """, (event_name, clean_core, group_name, group_name, gender, gender)).fetchall()
+                result = [dict(r) for r in rows]
+                for it in result:
+                    it_g = it.get('group_name', '')
+                    q_c = default_qualify_count
+                    for test_k in [f"{it_g}_{norm_core}", f"{it_g}_{clean_core}", f"{it_g}_{event_name}"]:
+                        if test_k in gq_map:
+                            q_c = int(gq_map[test_k])
+                            break
+                    it['has_prelim'] = has_prelim
+                    it['qualify_count'] = q_c
                 return jsonify(result)
 
-        is_finals = ('决赛' in event_name) and ('预赛' not in event_name)
-
-        join_event_condition = "r.event_name = s.event_name" if is_finals else """
-            (
-                r.event_name = s.event_name 
-                OR r.event_name = REPLACE(s.event_name, ' (预赛)', '')
-                OR r.event_name = TRIM(SUBSTR(s.event_name, 1, INSTR(s.event_name || ' (场地', ' (场地') - 1))
-            )
-        """
-
-        sql = f"""
+        # 4. 标准联合查询（参数数量：7 个，完全匹配 WHERE 条件里的 7 个问号）
+        sql = """
             SELECT 
-                s.id, s.group_name, s.event_name, s.gender, s.heat, s.lane, s.bib, s.name, s.team_name,
-                s.time_index, s.est_time, s.is_field, s.checked_in, s.score AS start_score,
-                IFNULL(s.points, r.points) AS points,
-                r.id AS reg_id, r.score AS reg_score, IFNULL(r.rank, '') as rank, r.record_bonus,
-                IFNULL(r.attempts_json, s.attempts_json) AS attempts_json
+                s.id, 
+                s.group_name, 
+                s.event_name, 
+                s.gender, 
+                s.heat, 
+                s.lane, 
+                s.bib, 
+                s.name, 
+                s.team_name,
+                s.time_index, 
+                s.est_time, 
+                s.is_field, 
+                s.checked_in, 
+                s.score AS start_score,
+                COALESCE(s.points, r.points, 0) AS points,
+                r.id AS reg_id, 
+                r.score AS reg_score, 
+                COALESCE(NULLIF(r.rank, ''), '') AS rank,
+                COALESCE(r.record_bonus, 0) AS record_bonus,
+                COALESCE(r.attempts_json, s.attempts_json, '') AS attempts_json
             FROM start_list s
             LEFT JOIN registrations r 
-                ON s.team_name = r.team_name 
-                AND s.group_name = r.group_name
+                ON TRIM(IFNULL(s.team_name, '')) = TRIM(IFNULL(r.team_name, ''))
+                AND TRIM(IFNULL(s.group_name, '')) = TRIM(IFNULL(r.group_name, ''))
                 AND s.gender = r.gender
-                AND {join_event_condition}
                 AND (
-                    (s.event_name LIKE '%4x%' OR s.event_name LIKE '%4×%' OR s.event_name LIKE '%接力%')
+                    r.event_name = s.event_name 
+                    OR r.event_name = REPLACE(s.event_name, ' (决赛)', '')
+                    OR r.event_name = REPLACE(s.event_name, ' (预赛)', '')
+                )
+                AND (
+                    s.event_name LIKE '%4x%' 
+                    OR s.event_name LIKE '%4×%' 
+                    OR s.event_name LIKE '%接力%'
                     OR s.name = r.name
                 )
-            WHERE (s.group_name = ? OR ? = '')
-              AND (s.gender = ? OR ? = '')
+            WHERE (? = '' OR s.group_name = ?)
+              AND (? = '' OR s.gender = ?)
               AND (
                   s.event_name = ? 
                   OR s.event_name LIKE ? || ' (场地%)'
                   OR s.event_name LIKE ? || '（场地%）'
               )
+            GROUP BY s.id
             ORDER BY s.group_name ASC, s.gender ASC, CAST(s.heat AS INTEGER) ASC, CAST(s.lane AS INTEGER) ASC
         """
-
-        # 🌟 必须先执行主查询，获取 rows 数据！
-        rows = c.execute(sql, (group_name, group_name, gender, gender, event_name, event_name, event_name)).fetchall()
-
-        # 🌟 查询该项目对应的决赛是否已经排定真实名单
-        final_names = []
-        clean_core = re.sub(r"\(.*?\)|（.*?）|预赛|决赛|男子|女子|混合", "", event_name).strip()
-        final_rows = c.execute("""
-            SELECT name FROM start_list 
-            WHERE (event_name LIKE ? || '%决赛%' OR event_name = ?) 
-              AND name NOT LIKE '%待定%' AND team_name != '预赛出线'
-        """, (f"%{clean_core}%", f"{clean_core} (决赛)")).fetchall()
-        if final_rows:
-            final_names = [fr['name'].strip() for fr in final_rows if fr['name']]
+        params = (group_name, group_name, gender, gender, event_name, event_name, event_name)
+        rows = c.execute(sql, params).fetchall()
 
         result = []
         for r in rows:
             item = dict(r)
-            item['has_prelim'] = has_prelim
-            item['qualify_count'] = qualify_count  
-            item['final_ready'] = (len(final_names) > 0)  
-            item['final_names'] = final_names 
+            it_g = item.get('group_name', '')
             
-            if is_finals:
-                item['score'] = (item.get('start_score') if item.get('start_score') is not None and str(item.get('start_score')).strip() != '' 
-                                 else (item.get('reg_score') or ''))
+            row_qualify_count = default_qualify_count
+            for test_k in [f"{it_g}_{norm_core}", f"{it_g}_{clean_core}", f"{it_g}_{event_name}"]:
+                if test_k in gq_map:
+                    row_qualify_count = int(gq_map[test_k])
+                    break
+
+            item['has_prelim'] = has_prelim
+            item['qualify_count'] = row_qualify_count
+            
+            raw_start = str(item.get('start_score') or '').strip()
+            raw_reg = str(item.get('reg_score') or '').strip()
+
+            if raw_start and raw_start != '-' and not any(k in raw_start for k in ['弃权', 'DNS', 'DQ']):
+                item['score'] = raw_start
+            elif raw_reg and raw_reg != '-' and not any(k in raw_reg for k in ['弃权', 'DNS', 'DQ']):
+                item['score'] = raw_reg
             else:
-                raw_start = str(item.get('start_score') or '').strip()
-                raw_reg = str(item.get('reg_score') or '').strip()
                 item['score'] = raw_start if raw_start else raw_reg
 
             if not item.get('reg_id'):
@@ -3003,10 +2998,10 @@ def get_event_start_list():
 
             result.append(item)
 
-        set_cached_data(cache_key, result, ttl_seconds=20)
         return jsonify(result)
     except Exception as e:
-        return jsonify({"status": "error", "msg": str(e)})
+        print(f"❌ 获取道次列表异常: {e}")
+        return jsonify({"status": "error", "msg": str(e)}), 500
     finally:
         conn.close()
 def check_and_auto_promote_finals(group_name, raw_event_name, gender, c_cursor):
@@ -3198,7 +3193,10 @@ def batch_submit_field_scores():
             score_str = str(ath.get('score', '')).strip()
             attempts_json = ath.get('attempts_json', '[]')
 
-            is_abandoned = ('弃权' in score_str or 'DNS' in score_str.upper())
+            score_upper = score_str.upper()
+            is_dq = any(k in score_upper for k in ['犯规', 'DQ', 'DISQ'])
+            is_dns = any(k in score_upper for k in ['弃权', 'DNS', 'DNF'])
+            is_abandoned = is_dq or is_dns
             chk_val = 2 if is_abandoned else 1
 
             # 1. 更新 start_list
@@ -3241,16 +3239,10 @@ def batch_submit_field_scores():
 @app.route('/api/submit_score', methods=['POST'])
 @login_required('referee')
 def submit_score():
-    """
-    裁判端极简录入接口：
-    仅做成绩落盘，毫秒级返回，不执行任何重算；
-    若当组全部录完，异步交给后台静默处理，绝不阻塞当前录入请求。
-    """
     data = request.json or {}
     incoming_id = data.get('id') or data.get('reg_id') or data.get('start_id')
     raw_val = str(data.get('score', '')).strip()
     
-    # 🌟 1. 规范识别无成绩状态（犯规、弃权等）
     is_dq = any(k in raw_val.upper() for k in ['犯规', 'DQ', 'DISQ'])
     is_dns = any(k in raw_val.upper() for k in ['弃权', 'DNS', 'DNF'])
     
@@ -3259,7 +3251,6 @@ def submit_score():
     elif is_dns:
         formatted_score = '弃权'
     else:
-        # 常规时间格式化
         clean_s = raw_val.replace('：', ':').replace('。', '.')
         if clean_s.count('.') >= 2:
             pts = clean_s.split('.')
@@ -3278,69 +3269,127 @@ def submit_score():
     try:
         c.execute("BEGIN IMMEDIATE")
         
-        # 1. 更新 start_list 道次表
-        chk_clause = "checked_in = 2" if is_abandoned else "checked_in = checked_in"
-        c.execute(f"UPDATE start_list SET score = ?, {chk_clause} WHERE id = ?", (formatted_score, incoming_id))
+        # 强制恢复检录状态：如果输入有效成绩，说明恢复比赛；输入弃权，设为2
+        chk_val = 2 if is_abandoned else 1
         
-        # 2. 查出所属组次基本信息（用于判断是否全组完赛）
+        # 只更新数据，绝不调用 do_recalculate()
+        c.execute("UPDATE start_list SET score = ?, checked_in = ? WHERE id = ?", (formatted_score, chk_val, incoming_id))
+        
         st_row = c.execute("SELECT group_name, event_name, gender, heat, team_name, name FROM start_list WHERE id = ?", (incoming_id,)).fetchone()
-        
-        group_name = data.get('group_name') or (st_row['group_name'] if st_row else '')
-        event_name = data.get('event_name') or (st_row['event_name'] if st_row else '')
-        gender = data.get('gender') or (st_row['gender'] if st_row else '')
-        heat = str(data.get('heat') or (st_row['heat'] if st_row else '1'))
-        name = data.get('name') or (st_row['name'] if st_row else '')
-        team_name = data.get('team_name') or (st_row['team_name'] if st_row else '')
+        if st_row:
+            group_name = st_row['group_name']
+            event_name = st_row['event_name']
+            gender = st_row['gender']
+            heat = str(st_row['heat'])
+            name = st_row['name']
+            team_name = st_row['team_name']
 
-        # 3. 同步镜像更新 registrations 原始成绩（仅存 score，不算 points 和 rank）
-        if name and team_name:
-            c.execute("""
-                UPDATE registrations 
-                SET score = ? 
-                WHERE name = ? AND team_name = ? AND group_name = ? AND gender = ?
-                  AND (event_name = ? OR event_name = ? || ' (预赛)' OR event_name = REPLACE(?, ' (预赛)', ''))
-            """, (formatted_score, name, team_name, group_name, gender, event_name, event_name, event_name))
+            # 同步更新报名表
+            if team_name:
+                is_relay = any(k in event_name for k in ['接力', '4x', '4×', '4*'])
+                if is_relay:
+                    c.execute("""
+                        UPDATE registrations 
+                        SET score = ? 
+                        WHERE team_name = ? AND group_name = ? AND gender = ?
+                          AND (event_name = ? OR event_name LIKE ? || '%')
+                    """, (formatted_score, team_name, group_name, gender, event_name, event_name.split(' ')[0]))
+                elif name:
+                    c.execute("""
+                        UPDATE registrations 
+                        SET score = ? 
+                        WHERE name = ? AND team_name = ? AND group_name = ? AND gender = ?
+                          AND (event_name = ? OR event_name = ? || ' (预赛)' OR event_name = REPLACE(?, ' (预赛)', ''))
+                    """, (formatted_score, name, team_name, group_name, gender, event_name, event_name, event_name))
 
-        # 4. 🌟【关键修复】：轻量统计当前组别是否全部录完
-        unscored_in_heat = c.execute("""
-            SELECT COUNT(*) FROM start_list 
-            WHERE group_name = ? AND event_name = ? AND gender = ? AND heat = ?
-              AND (score IS NULL OR TRIM(score) = '' OR score = '-')
-              AND checked_in != 2
-              AND name != '' AND name IS NOT NULL
-              AND name NOT LIKE '%待定%'
-        """, (group_name, event_name, gender, heat)).fetchone()[0]
-        
-        is_heat_fully_completed = (unscored_in_heat == 0)
+            # 统计该组是否已经录完（仅用于前端 UI 提示，不影响后台逻辑）
+            unscored_in_heat = c.execute("""
+                SELECT COUNT(*) FROM start_list 
+                WHERE group_name = ? AND event_name = ? AND gender = ? AND heat = ?
+                  AND (score IS NULL OR TRIM(score) = '' OR score = '-')
+                  AND checked_in != 2
+                  AND name != '' AND name IS NOT NULL
+                  AND name NOT LIKE '%待定%'
+            """, (group_name, event_name, gender, heat)).fetchone()[0]
+            
+            is_heat_fully_completed = (unscored_in_heat == 0)
 
-        # 5. 如果当组全部录完，清理发令跑道占用
-        if is_heat_fully_completed:
-            try:
-                c.execute("DELETE FROM system_settings WHERE key = 'active_track_heat'")
-            except Exception:
-                pass
+            # 如果全组跑完，释放跑道占用（不重算）
+            if is_heat_fully_completed:
+                try: c.execute("DELETE FROM system_settings WHERE key = 'active_track_heat'")
+                except Exception: pass
 
-        conn.commit()
-        invalidate_event_cache(event_name, group_name)
-
-        # 6. 当组全部录完且是预赛时，后台静默异步处理决赛晋级，当前请求直接返回毫秒响应
-        if is_heat_fully_completed and '预赛' in event_name:
-            if 'background_silent_process_finals' in globals():
-                gevent.spawn(background_silent_process_finals, group_name, event_name, gender)
-
-        return jsonify({
-            "status": "success", 
-            "msg": "成绩已保存", 
-            "new_score": formatted_score,
-            "heat_completed": is_heat_fully_completed
-        })
-    except Exception as e:
-        if 'conn' in locals() and conn:
+            conn.commit()
+            # 只清除单项成绩的缓存，保证重新拉取时能看到最新数据
+            invalidate_event_cache(event_name, group_name)
+            
+            return jsonify({
+                "status": "success", 
+                "msg": "成绩已保存", 
+                "new_score": formatted_score,
+                "heat_completed": is_heat_fully_completed
+            })
+        else:
             conn.rollback()
+            return jsonify({"status": "error", "msg": "未找到对应的道次记录"})
+            
+    except Exception as e:
+        if 'conn' in locals() and conn: conn.rollback()
         return jsonify({"status": "error", "msg": f"保存失败: {str(e)}"}), 500
     finally:
-        if 'conn' in locals() and conn:
-            conn.close()
+        if 'conn' in locals() and conn: conn.close()
+
+@app.route('/api/settle_field_top8', methods=['POST'])
+@login_required('referee')
+def settle_field_top8():
+    """后端统一按田径规则（含次优成绩决胜）计算前3轮前8名并按倒序返回"""
+    data = request.json or {}
+    event_name = data.get('event_name', '')
+    group_name = data.get('group_name', '')
+    gender = data.get('gender', '')
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        rows = c.execute("""
+            SELECT id, group_name, event_name, gender, heat, lane, bib, name, team_name, score, attempts_json
+            FROM start_list
+            WHERE group_name = ? AND gender = ? AND (event_name = ? OR event_name LIKE ? || '%')
+        """, (group_name, gender, event_name, event_name.split(' ')[0])).fetchall()
+
+        valid_list = []
+        for r in rows:
+            item = dict(r)
+            atts = []
+            try:
+                atts = json.loads(item['attempts_json']) if item['attempts_json'] else []
+            except Exception:
+                atts = []
+            while len(atts) < 6:
+                atts.append('')
+            # 仅取前 3 轮有效成绩参与前 8 强选拔
+            first_3_key = parse_field_attempts_tie_breaker('', json.dumps(atts[:3]))
+            if first_3_key[0] > 0:
+                item['_key'] = first_3_key
+                item['prelimBest'] = first_3_key[0]
+                item['attempts'] = atts
+                valid_list.append(item)
+
+        if not valid_list:
+            return jsonify({"status": "error", "msg": "前3轮尚未录入任何有效成绩，无法截取！"})
+
+        # 按田径规则降序排列，取前8名，再倒序出场
+        valid_list.sort(key=lambda x: x['_key'], reverse=True)
+        top8 = valid_list[:8]
+        top8.reverse()
+        for idx, item in enumerate(top8):
+            item.pop('_key', None)
+            item['isFinalist'] = True
+            item['orderIndex'] = idx + 1
+
+        return jsonify({"status": "success", "top8": top8})
+    finally:
+        conn.close()
 @app.route('/api/publish_finals', methods=['POST'])
 @login_required('admin')
 def publish_finals():
@@ -4080,6 +4129,10 @@ def force_sync_and_upgrade_db():
         except Exception: pass
         try: c.execute("ALTER TABLE start_list ADD COLUMN points INTEGER DEFAULT 0")
         except Exception: pass
+        try: c.execute("ALTER TABLE start_list ADD COLUMN rank TEXT DEFAULT ''")
+        except Exception: pass
+        try: c.execute("ALTER TABLE start_list ADD COLUMN record_bonus INTEGER DEFAULT 0")
+        except Exception: pass
         try:
             c.execute("CREATE INDEX IF NOT EXISTS idx_reg_lookup ON registrations (group_name, gender, event_name);")
             c.execute("CREATE INDEX IF NOT EXISTS idx_reg_team ON registrations (team_id, name);")
@@ -4797,13 +4850,14 @@ def export_handbook_word():
 @app.route('/api/save_group_qualify_count', methods=['POST'])
 @login_required('admin')
 def save_group_qualify_count():
-    """按【组别 + 项目】独立保存录取名次"""
+    """按【组别 + 项目】独立保存录取名次（全符号与全赛次兼容）"""
     data = request.json or {}
     g_name = data.get('group_name', '').strip()
     e_name = data.get('event_name', '').strip()
     q_count = int(data.get('qualify_count') or 8)
 
     clean_core = re.sub(r"\(.*?\)|（.*?）|预赛|决赛|男子|女子|混合", "", e_name).strip()
+    norm_core = clean_core.replace('*', '×').replace('x', '×').replace('X', '×')
 
     conn = get_db_connection()
     c = conn.cursor()
@@ -4815,9 +4869,10 @@ def save_group_qualify_count():
             try: q_map = json.loads(row['value'])
             except Exception: q_map = {}
 
-        # 按 "组别_项目核心名" 存储独立录取名次（例如 "A组 (初一)_4×100米接力": 3）
-        if g_name and clean_core:
+        # 🌟 多键冗余写入，保证不管从哪个入口查都能百分之百命中
+        if g_name:
             q_map[f"{g_name}_{clean_core}"] = q_count
+            q_map[f"{g_name}_{norm_core}"] = q_count
             q_map[f"{g_name}_{e_name}"] = q_count
 
         c.execute("INSERT OR REPLACE INTO sys_config (key, value) VALUES ('group_qualify_map', ?)",
@@ -4826,11 +4881,12 @@ def save_group_qualify_count():
     finally:
         conn.close()
 
-    # 立即重算积分并清理缓存
+    # 立即触发后台数据库重新洗牌与算分
     msg = do_recalculate()
     if '_cache_store' in globals():
         _cache_store.clear()
     return jsonify({"status": "success", "msg": msg, "qualify_count": q_count})
+
 @app.route('/api/batch_save_events', methods=['POST'])
 @login_required('admin')
 def batch_save_events():

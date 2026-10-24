@@ -327,14 +327,14 @@ socket.on('score_updated', function(payload) {
         if (payload && (payload.heat_completed === true || payload.auto_finals_promoted === true)) {
             window.isTrackBusy = false;
         }
-        // 增加 1.5 秒防抖合并，避免终点连续输入造成发令端频繁拉取全库
         clearTimeout(scoreUpdatedTimer);
         scoreUpdatedTimer = setTimeout(() => {
             loadCheckinSchedule();
         }, 1500);
     } else if (currentRole === 'timing') {
         const curEvt = document.getElementById('selEvent')?.value || '';
-        if (payload && payload.auto_finals_promoted === true && curEvt.includes('决赛')) {
+        // 🌟 只要收到成绩变动，且是当前正在看的项目，立刻重新拉取渲染
+        if (payload && (payload.force_sync || payload.auto_finals_promoted || curEvt.includes(payload.event_name))) {
             loadAthletes();
         }
     }
@@ -1098,35 +1098,27 @@ window.switchFieldRound = function(roundNum) {
     }, 150);
 };
 window.settleTop8ForFinals = function() {
-    fieldAthletesData.forEach(p => {
-        let s1 = parseFloat(p.attempts[0]) || 0;
-        let s2 = parseFloat(p.attempts[1]) || 0;
-        let s3 = parseFloat(p.attempts[2]) || 0;
-        p.prelimBest = Math.max(s1, s2, s3);
+    const gName = document.getElementById('selGroup')?.value || '';
+    const gender = document.getElementById('selGender')?.value || '';
+    const eName = document.getElementById('selEvent')?.value || '';
+    fetch('/api/settle_field_top8', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ group_name: gName, gender: gender, event_name: eName })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status !== 'success') return alert(res.msg);
+        [4, 5, 6].forEach(r => {
+            let btn = document.getElementById(`btnRound${r}`);
+            btn.disabled = false;
+            btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200";
+        });
+        fieldAthletesData = res.top8;
+        switchFieldRound(4);
+        alert(`🎉 后端已按田径规程（含次优成绩决胜）锁定前 ${fieldAthletesData.length} 名晋级决赛，并按倒序排定出场顺序！`);
     });
-    let ranked = [...fieldAthletesData].filter(p => p.prelimBest > 0);
-    ranked.sort((a, b) => b.prelimBest - a.prelimBest);
-
-    if (ranked.length === 0) {
-        alert("前3次尚未录入任何有效成绩，无法截取！");
-        return;
-    }
-
-    let top8 = ranked.slice(0, 8);
-    top8.reverse(); 
-    top8.forEach((p, idx) => { p.isFinalist = true; p.orderIndex = idx + 1; });
-
-    [4, 5, 6].forEach(r => {
-        let btn = document.getElementById(`btnRound${r}`);
-        btn.disabled = false;
-        btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200";
-    });
-
-    fieldAthletesData = top8;
-    switchFieldRound(4);
-    alert(`🎉 阶段结算完成！\n已成功锁定前 ${top8.length} 名选手晋级决赛。\n出场次序已自动按规程【倒序】重排，现已进入第4次试跳！`);
 };
-
 function updateFieldRowDOM(athlete, roundIndex) {
     const athId = athlete.reg_id || athlete.id;
     const pillsContainer = document.getElementById(`field_pills_${athId}`);
@@ -1337,8 +1329,6 @@ function renderCurrentFieldList() {
 function renderFieldAthleteRow(p, roundIndex) {
     const athId = p.reg_id || p.id;
     const attempts = p.attempts || ['', '', '', '', '', ''];
-    const validScores = attempts.map(v => parseFloat(v) || 0);
-    const bestScore = Math.max(0, ...validScores);
 
     return `
     <tr class="border-b border-gray-100 bg-white hover:bg-orange-50/30 transition" id="field_row_${athId}">
@@ -1565,7 +1555,7 @@ function renderNormalTrackList(filteredData) {
     sortedHeats.forEach(heatNum => {
         let heatItems = heatsMap[heatNum];
 
-        // 🌟 核心修复：接力项目按 代表队(team_name) 或 道次(lane) 去重，一个班级队伍只展示一行！
+        // 接力项目按 代表队 去重，一个班级队伍只展示一行
         if (isRelayEvent) {
             const teamMap = {};
             heatItems.forEach(p => {
@@ -1573,26 +1563,16 @@ function renderNormalTrackList(filteredData) {
                 if (!teamMap[tKey]) {
                     teamMap[tKey] = { ...p };
                 } else {
-                    // 优先保留非空成绩与检录状态
-                    if ((!teamMap[tKey].score || teamMap[tKey].score === '-') && p.score) {
-                        teamMap[tKey].score = p.score;
-                    }
-                    if ((!teamMap[tKey].checked_in || teamMap[tKey].checked_in === 0) && p.checked_in) {
-                        teamMap[tKey].checked_in = p.checked_in;
-                    }
-                    // 优先保留包含棒次全称的名字
-                    if (p.name && p.name.length > (teamMap[tKey].name || '').length) {
-                        teamMap[tKey].name = p.name;
-                    }
+                    if ((!teamMap[tKey].score || teamMap[tKey].score === '-') && p.score) teamMap[tKey].score = p.score;
+                    if ((!teamMap[tKey].checked_in || teamMap[tKey].checked_in === 0) && p.checked_in) teamMap[tKey].checked_in = p.checked_in;
+                    if (p.name && p.name.length > (teamMap[tKey].name || '').length) teamMap[tKey].name = p.name;
                 }
             });
             heatItems = Object.values(teamMap);
         }
 
-        // 重新按道次升序排序
-        heatItems.sort((a, b) => (parseInt(a.lane) || 0) - (parseInt(b.lane) || 0));
-
         const totalCount = heatItems.length;
+        // 统计已出成绩（无论有效成绩还是弃权/犯规）
         const scoredCount = heatItems.filter(p => {
             const s = String(p.score !== undefined && p.score !== null ? p.score : '').trim();
             const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn || 0));
@@ -1619,45 +1599,60 @@ function renderNormalTrackList(filteredData) {
         </tr>`;
 
         heatItems.forEach(p => {
+            const val = String(p.score || '').trim();
             const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn || 0));
-            const isAbsent = (checkState === 2) || (p.score && (String(p.score).includes('弃权') || String(p.score).includes('DNS')));
+            
+            // 🌟 严格判定是否弃权/犯规
+            const isAbandoned = (checkState === 2) || val.includes('弃权') || val.includes('DNS') || val.includes('DNF');
+            const isDQ = val.includes('犯规') || val.includes('DQ');
+            const isAbsent = isAbandoned || isDQ;
+
             const inputId = `score_input_${p.reg_id || p.id}`;
 
-            if (!isHeatFinished && !isAbsent && !p.score && !firstUnscoredInputId) {
+            if (!isHeatFinished && !isAbsent && !val && !firstUnscoredInputId) {
                 firstUnscoredInputId = inputId;
             }
 
+            // 构建姓名部分的 DOM
+            let nameHtml = `<span class="name-text transition-all ${isAbsent ? 'line-through text-gray-400 opacity-60' : 'text-gray-800'}">${p.name}</span>`;
+            let tagHtml = '';
+            
+            if (isAbandoned) {
+                tagHtml = `<span class="tag-status text-[9px] bg-red-100 text-red-600 px-1 rounded font-bold ml-1">弃权</span>`;
+            } else if (isDQ) {
+                tagHtml = `<span class="tag-status text-[9px] bg-amber-100 text-amber-700 px-1 rounded font-bold ml-1">犯规</span>`;
+            }
+
             html += `
-            <tr data-heat-row="${heatNum}" class="border-b border-gray-100 ${isHeatFinished ? 'hidden' : ''} ${isAbsent ? 'bg-red-50/40' : 'bg-white'} hover:bg-gray-50 transition">
+            <tr data-heat-row="${heatNum}" id="row_${inputId}" class="border-b border-gray-100 ${isHeatFinished ? 'hidden' : ''} ${isAbsent ? 'bg-red-50/40' : 'bg-white'} hover:bg-gray-50 transition">
                 <td class="p-2 text-center font-bold text-gray-400 border-r w-12 text-sm">${p.lane || '-'}</td>
                 <td class="p-2 text-center font-mono font-bold ${isAbsent ? 'text-gray-400' : 'text-blue-600'} text-xs border-r w-14">${isRelayEvent ? '---' : (p.bib || '---')}</td>
                 <td class="p-2">
-                    <div class="font-black text-gray-800 text-xs flex items-center gap-1">
-                        <span class="${isAbsent ? 'line-through text-gray-400' : ''}">${p.name}</span>
-                        ${isAbsent ? '<span class="text-[9px] bg-red-100 text-red-600 px-1 rounded font-bold">弃权</span>' : ''}
+                    <div class="font-black text-xs flex items-center">
+                        ${nameHtml}${tagHtml}
                     </div>
                     <div class="text-[10px] text-gray-500 font-bold truncate max-w-[140px]">${p.team_name}</div>
                 </td>
                 <td class="p-2 text-right w-40">
                     <div class="flex items-center justify-end gap-1">
-                        <input type="text" inputmode="decimal" value="${p.score || ''}" 
+                        <input type="text" inputmode="decimal" value="${val}" 
        id="${inputId}"
        placeholder=""
        data-heat="${heatNum}"
-       data-last-val="${p.score || ''}"
+       data-last-val="${val}"
        class="input-score w-24 border border-blue-200 bg-blue-50/50 rounded-lg p-1.5 text-center shadow-inner text-blue-950 font-bold text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-400"
        onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault(); this.blur();}"
        onblur="handleTrackScoreBlur(this, ${p.id}, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})">
                         <div class="flex items-center gap-1 shrink-0">
-    <button type="button" onclick="quickMarkDQ(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})" 
-            class="px-1.5 py-1 text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-md active:scale-95 transition">
-        犯规
-    </button>
-    <button type="button" onclick="quickMarkAbsent(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})" 
-            class="px-1.5 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md active:scale-95 transition">
-        弃权
-    </button>
-</div>
+                            <button type="button" onclick="quickMarkDQ(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})" 
+                                    class="px-1.5 py-1 text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-md active:scale-95 transition">
+                                犯规
+                            </button>
+                            <button type="button" onclick="quickMarkAbsent(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})" 
+                                    class="px-1.5 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md active:scale-95 transition">
+                                弃权
+                            </button>
+                        </div>
                     </div>
                 </td>
             </tr>`;
@@ -1677,7 +1672,6 @@ function renderNormalTrackList(filteredData) {
         }, 150);
     }
 }
-
 window.toggleTimingHeat = function(heatNum, arrowId) {
     const rows = document.querySelectorAll(`#athleteList tr[data-heat-row="${heatNum}"]`);
     const arr = document.getElementById(arrowId);
@@ -1740,20 +1734,55 @@ window.handleTrackScoreBlur = function(input, regId, pData) {
 
 function saveScore(regId, input, pData) {
     const val = input.value.trim();
-    // 🌟 核心修复：允许提交空值（清空成绩）
-    // 删掉原本的 if (!val) return;
-
+    
+    // 🌟 核心修复：为了允许清空，这里不能直接 return，即使是空串也要发给后端
+    
     input.classList.remove('saving', 'error');
     input.classList.add('saved');
     if (typeof triggerVibrate === 'function') triggerVibrate(30);
     setTimeout(() => input.classList.remove('saved'), 400);
+
+    // 🌟 强制清除/更新视觉状态
+    const row = input.closest('tr');
+    if (row) {
+        const isAbandoned = val.includes('弃权') || val.includes('DNS') || val.includes('DNF');
+        const isDQ = val.includes('犯规') || val.includes('DQ');
+        const isAbsent = isAbandoned || isDQ;
+        
+        const nameSpan = row.querySelector('.name-text');
+        const tagSpan = row.querySelector('.tag-status');
+        
+        row.classList.remove('bg-red-50/40');
+        if (nameSpan) nameSpan.classList.remove('line-through', 'text-gray-400', 'opacity-60');
+        if (tagSpan) tagSpan.remove();
+
+        // 如果输入了弃权/犯规，重新加上样式
+        if (isAbsent) {
+            row.classList.add('bg-red-50/40');
+            if (nameSpan) nameSpan.classList.add('line-through', 'text-gray-400', 'opacity-60');
+            
+            const nameContainer = row.querySelector('td:nth-child(3) div:first-child');
+            if (nameContainer) {
+                const newTag = document.createElement('span');
+                newTag.className = 'tag-status text-[9px] px-1 rounded font-bold ml-1';
+                if (isAbandoned) {
+                    newTag.classList.add('bg-red-100', 'text-red-600');
+                    newTag.innerText = '弃权';
+                } else {
+                    newTag.classList.add('bg-amber-100', 'text-amber-700');
+                    newTag.innerText = '犯规';
+                }
+                nameContainer.appendChild(newTag);
+            }
+        }
+    }
 
     fetch('/api/submit_score', {
         method: 'POST', 
         headers: {'Content-Type': 'application/json'}, 
         body: JSON.stringify({ 
             id: regId, 
-            score: val, // 允许为空串 ""
+            score: val, // 发送空串或者新成绩
             name: pData?.name,
             team_name: pData?.team_name,
             group_name: pData?.group_name,
@@ -2044,57 +2073,23 @@ function switchToActiveHeat() {
 }
 
 // 🌟 修复后的终点弃权处理函数
+// 终点弃权处理
 window.quickMarkAbsent = function(regId, btn, pData) {
-    // 优先通过 ID 精确查找输入框，找不到再通过层级兜底查找
-    const input = document.getElementById(`score_input_${regId}`) 
-               || btn.closest('td')?.querySelector('.input-score');
+    const input = document.getElementById(`score_input_${regId}`) || btn.closest('td')?.querySelector('.input-score');
     if (!input) return;
+    if (!confirm(`确定标记【${pData?.name || '该选手'}】在本场【${pData?.event_name || '当前项目'}】中弃权吗？`)) return;
 
-    if (!confirm(`确定标记【${pData?.name || '该选手'}】在本场【${pData?.event_name || '当前项目'}】中弃权吗？\n（仅本场比赛弃权，不影响该生其他参赛项目）`)) return;
-
-    // 1. 立即更新输入框内容
     input.value = "弃权";
-
-    // 2. 实时更新当前行的视觉效果（姓名加删除线、显示弃权红标、整行变淡红背景）
-    const row = input.closest('tr');
-    if (row) {
-        row.classList.add('bg-red-50/40');
-        const nameSpan = row.querySelector('td:nth-child(3) span:first-child');
-        if (nameSpan) {
-            nameSpan.classList.add('line-through', 'text-gray-400');
-        }
-        // 如果原本没有弃权标签，则动态追加一个
-        let tagAbsent = row.querySelector('.tag-absent-flag');
-        if (!tagAbsent) {
-            const nameBox = row.querySelector('td:nth-child(3) div:first-child');
-            if (nameBox) {
-                tagAbsent = document.createElement('span');
-                tagAbsent.className = 'tag-absent-flag text-[9px] bg-red-100 text-red-600 px-1 rounded font-bold';
-                tagAbsent.innerText = '弃权';
-                nameBox.appendChild(tagAbsent);
-            }
-        }
-    }
-
-    // 3. 上报保存并更新组次进度
-    saveScore(regId, input, pData);
+    saveScore(regId, input, pData); // 直接调用统一的保存逻辑，让 saveScore 去处理视觉
 };
 
-// 🌟 顺便修复犯规按钮的节点获取
+// 终点犯规处理
 window.quickMarkDQ = function(regId, btn, pData) {
-    const input = document.getElementById(`score_input_${regId}`) 
-               || btn.closest('td')?.querySelector('.input-score');
+    const input = document.getElementById(`score_input_${regId}`) || btn.closest('td')?.querySelector('.input-score');
     if (!input) return;
-
-    if (!confirm(`确定判罚【${pData?.name || '该选手'}】在【${pData?.event_name || '本项比赛'}】中【犯规 (DQ)】吗？\n（将无成绩、不计名次与积分）`)) return;
+    if (!confirm(`确定判罚【${pData?.name || '该选手'}】在【${pData?.event_name || '本项比赛'}】中【犯规】吗？`)) return;
 
     input.value = "犯规";
-
-    const row = input.closest('tr');
-    if (row) {
-        row.classList.add('bg-amber-50/40');
-    }
-
     saveScore(regId, input, pData);
 };
 // 监听发车广播
