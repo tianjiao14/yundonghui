@@ -3207,7 +3207,9 @@ window.promptRenameAthlete = function(oldName, teamId) {
         });
     }
     
-    function exportSystem() { window.location.href='/api/export_system'; }
+    function exportSystem() { 
+    window.location.href = '/api/export_system?_t=' + Date.now(); 
+}
     function triggerImport() { if(confirm("覆盖当前数据？")) document.getElementById('importFile').click(); }
     function importSystem(input) {
     if(!input.files[0]) return;
@@ -4464,14 +4466,20 @@ function exportWord() {
                         
                         // 全局推算积分兜底
                         if (pts === 0 && rankDisplay !== '--' && !isAbsent) {
-                            const rnk = parseInt(rankDisplay);
-                            const qLimit = parseInt(document.getElementById('finalsTopN')?.value) || parseInt(qualifyLimit) || 8;
-                            const rules = [9, 7, 6, 5, 4, 3, 2, 1];
-                            if (rnk > 0 && rnk <= qLimit && rnk <= rules.length) {
-                                pts = rules[rnk - 1];
-                                if (isRelayEvent || roundStatus === '决赛') pts *= 2;
-                            }
-                        }
+    const rnk = parseInt(rankDisplay);
+    const qLimit = parseInt(document.getElementById('finalsTopN')?.value) || parseInt(qualifyLimit) || 8;
+    const rules = [9, 7, 6, 5, 4, 3, 2, 1];
+    if (rnk > 0 && rnk <= qLimit && rnk <= rules.length) {
+        pts = rules[rnk - 1];
+        const activeClean = (eventName || '').replace(' (预赛)', '').replace(' (决赛)', '').trim();
+        const curEvtCfg = db.events.find(e => e.name === activeClean || e.name === eventName);
+        const isTeamDouble = (isRelayEvent || (curEvtCfg && (curEvtCfg.isTeam || curEvtCfg.is_team || curEvtCfg.isDoubleScore)));
+        // 🌟 只有真正的接力或团体项目才双倍，立定跳远等个人项目绝对不翻倍！
+        if (isTeamDouble) {
+            pts *= 2;
+        }
+    }
+}
                         
                         let scoreContent = isEditMode 
                             ? `<input type="text" value="${val}" class="text-center font-bold bg-yellow-50 border border-yellow-300 rounded px-2 py-1 w-24" style="font-family:Times New Roman; font-size:12pt;" onblur="updateAdminScore(${p.id}, this)">`
@@ -4567,12 +4575,12 @@ function exportWord() {
                                         const rules = ruleStr.replace(/，/g, ',').split(',').map(Number);
                                         
                                         if (realRank <= qLimit && realRank <= rules.length) {
-                                            let calcPts = rules[realRank - 1];
-                                            if (isRelayEvent || curEvtCfg?.isTeam || curEvtCfg?.is_team || curEvtCfg?.isDoubleScore) {
-                                                calcPts *= 2; 
-                                            }
-                                            val = calcPts;
-                                        }
+    let calcPts = rules[realRank - 1];
+    if (isRelayEvent || curEvtCfg?.isTeam || curEvtCfg?.is_team || curEvtCfg?.isDoubleScore) {
+        calcPts *= 2; 
+    }
+    val = calcPts;
+}
                                     }
 
                                     if (isEditMode) { 

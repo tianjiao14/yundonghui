@@ -3788,13 +3788,15 @@ def export_system():
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        # 读取起止日期
+        # 获取当前精确时间
+        now_time = datetime.now()
+
         s_row = c.execute("SELECT value FROM system_settings WHERE key='start_date'").fetchone()
         e_row = c.execute("SELECT value FROM system_settings WHERE key='end_date'").fetchone()
 
         data = {
             "version": "2026_full",
-            "export_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "export_time": now_time.strftime("%Y-%m-%d %H:%M:%S"),
             "start_date": s_row[0] if s_row else "",
             "end_date": e_row[0] if e_row else "",
             "groups": [dict(r) for r in c.execute("SELECT * FROM cfg_groups").fetchall()],
@@ -3807,15 +3809,22 @@ def export_system():
             "registrations": [dict(r) for r in c.execute("SELECT * FROM registrations").fetchall()],
             "start_list": [dict(r) for r in c.execute("SELECT * FROM start_list").fetchall()]
         }
+        
         mem = BytesIO()
         mem.write(json.dumps(data, ensure_ascii=False, indent=2).encode('utf-8'))
         mem.seek(0)
-        return send_file(
+        
+        filename_time = now_time.strftime("%Y%m%d_%H%M%S")
+        response = send_file(
             mem, 
             mimetype='application/json', 
             as_attachment=True, 
-            download_name=f'田径运动会全量数据备份_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+            download_name=f'田径运动会全量数据备份_{filename_time}.json'
         )
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     finally:
         conn.close()
 @app.route('/api/import_system', methods=['POST'])

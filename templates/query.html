@@ -221,7 +221,26 @@
 
            <script>
         let db = { groups: [], events: [], teams: [] };
+        window.convertCustomRankToScore = function(inputStr) {
+    if (!inputStr && inputStr !== 0) return { rank: '', score: 0 };
+    let s = String(inputStr).trim().replace('+', '');
+    if (!s || s === '-' || s === '0') return { rank: '', score: 0 };
 
+    let num = parseFloat(s);
+    if (isNaN(num)) return { rank: '', score: 0 };
+    const rules = [18, 14, 12, 10, 8, 6, 4, 2];
+    if (Number.isInteger(num) && num >= 1 && num <= rules.length) {
+        return {
+            rank: num,
+            score: rules[num - 1]
+        };
+    }
+
+    return {
+        rank: '',
+        score: num
+    };
+};
         window.onload = () => {
             const d = new Date();
             document.getElementById('sysDate').innerText = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
@@ -777,9 +796,23 @@ if (!isPrelim && rnk && rnk !== '--') {
 
             // 渲染附加集体列单元格
             let customTds = customCols.map(col => {
-                const val = sMap[col] !== undefined ? sMap[col] : 0;
-                return `<td class="font-mono font-bold whitespace-nowrap px-2 ${val > 0 ? 'text-indigo-600' : 'text-slate-300'}">
-                    ${val > 0 ? '+' + val : (val < 0 ? val : '-')}
+                const rawVal = sMap[col] !== undefined ? sMap[col] : 0;
+                const parsed = window.convertCustomRankToScore(rawVal);
+                const scoreVal = parsed.score;
+
+                let displayTxt = '-';
+                let styleClass = 'text-slate-300';
+
+                if (scoreVal > 0) {
+                    displayTxt = `+${scoreVal}`;
+                    styleClass = 'text-indigo-600';
+                } else if (scoreVal < 0) {
+                    displayTxt = `${scoreVal}`;
+                    styleClass = 'text-rose-500';
+                }
+
+                return `<td class="font-mono font-bold whitespace-nowrap px-2 ${styleClass}">
+                    ${displayTxt}
                 </td>`;
             }).join('');
 
