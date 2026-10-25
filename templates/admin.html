@@ -3885,20 +3885,22 @@ window.promptRenameAthlete = function(oldName, teamId) {
 
         const isField = rawEventName.includes('跳') || rawEventName.includes('投') || rawEventName.includes('球') || rawEventName.includes('掷');
 
-        div.innerHTML = '<div class="text-center text-blue-500 mt-10">正在后台核算全赛程数据与破纪状态...</div>';
+        div.innerHTML = '<div class="text-center text-blue-500 mt-10 font-bold text-xs animate-pulse">正在生成成绩公告...</div>';
 
-        fetch('/api/recalculate_all_points', { method: 'POST' })
-        .then(() => {
-            return fetch('/api/get_group_records', { 
-                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ group_name: groupName })
-            });
-        })
-        .then(r => r.json()).then(groupRecordsData => {
-            fetch('/api/get_event_start_list', { 
-                method: 'POST', headers: {'Content-Type': 'application/json'}, 
-                body: JSON.stringify({ event_name: rawEventName, group_name: groupName, gender: gender }) 
-            })
-            .then(r => r.json()).then(data => {
+        // 🌟 优化：取消全站重算，直接并发拉取该项目的成绩与纪录，毫秒级秒出公告！
+        Promise.all([
+            fetch('/api/get_group_records', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ group_name: groupName })
+            }).then(r => r.json()),
+            fetch('/api/get_event_start_list', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ event_name: rawEventName, group_name: groupName, gender: gender })
+            }).then(r => r.json())
+        ])
+        .then(([groupRecordsData, data]) => {
                 const isRealScore = (scoreStr) => {
                 if (!scoreStr) return false;
                 const s = String(scoreStr).trim();
