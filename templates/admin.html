@@ -4284,272 +4284,337 @@ function exportWord() {
     };
 
     window.renderResultSheet = function() {
-    const eventName = window.curResEvent;
-    const groupName = window.curResGroup;
-    const gender = window.curResGender;
-    
-    const isEditMode = document.getElementById('enableEditScore')?.checked || false;
-    const div = document.getElementById('resultOutput');
-    
-    if (!eventName || !groupName || !gender) {
-        if (div) div.innerHTML = '<div class="text-center text-gray-400 mt-20 font-bold text-xs">请在上方选择 <b>组别、性别、项目</b> 查看成绩</div>';
-        return;
-    }
-
-    let displayEventName = eventName.replace('决赛', '').replace('预赛', '').replace('()', '').replace('（）', '').trim();
-    let roundStatus = "决赛";
-    if (eventName.includes('预赛')) roundStatus = "预赛";
-    else if (eventName.includes('决赛')) roundStatus = "决赛";
-    else {
-        const evtCfg = db.events.find(e => e.name === eventName);
-        roundStatus = (evtCfg && (String(evtCfg.hasPrelim) === 'true' || String(evtCfg.has_prelim) === '1')) ? "预赛" : "决赛";
-    }
-
-    if (div) div.innerHTML = '<div class="text-center text-blue-500 py-16 font-bold text-xs animate-pulse">正在同步核算最新名次与积分...</div>';
-
-    // 先触发后台重算，保证拉取的是最新数据
-    fetch('/api/recalculate_all_points', { method: 'POST' })
-    .then(() => {
-        return fetch('/api/get_event_start_list?_t=' + Date.now(), {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({ event_name: eventName, group_name: groupName, gender: gender })
-        });
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data && data.status === 'error') {
-            if (div) div.innerHTML = `<div class="text-center text-red-500 py-10 font-bold text-xs">获取成绩失败：${data.msg || '后端接口返回异常'}</div>`;
+        const eventName = window.curResEvent;
+        const groupName = window.curResGroup;
+        const gender = window.curResGender;
+        
+        const isEditMode = document.getElementById('enableEditScore')?.checked || false;
+        const div = document.getElementById('resultOutput');
+        
+        if (!eventName || !groupName || !gender) {
+            if (div) div.innerHTML = '<div class="text-center text-gray-400 mt-20 font-bold text-xs">请在上方选择 <b>组别、性别、项目</b> 查看成绩</div>';
             return;
         }
-        if (!Array.isArray(data) || data.length === 0) { 
-            if (div) div.innerHTML = `<div class="text-center text-gray-400 mt-20 font-bold text-xs">未找到对应编排道次</div>`; 
-            return; 
+
+        let displayEventName = eventName.replace('决赛', '').replace('预赛', '').replace('()', '').replace('（）', '').trim();
+        let roundStatus = "决赛";
+        if (eventName.includes('预赛')) roundStatus = "预赛";
+        else if (eventName.includes('决赛')) roundStatus = "决赛";
+        else {
+            const evtCfg = db.events.find(e => e.name === eventName);
+            roundStatus = (evtCfg && (String(evtCfg.hasPrelim) === 'true' || String(evtCfg.has_prelim) === '1')) ? "预赛" : "决赛";
         }
 
-        const qualifyLimit = parseInt(data[0].qualify_count) || 8;
+        if (div) div.innerHTML = '<div class="text-center text-blue-500 py-16 font-bold text-xs animate-pulse">正在同步核算最新名次与积分...</div>';
 
-        const heats = {};
-        data.forEach(item => { 
-            const h = String(item.heat || '1'); 
-            if (!heats[h]) heats[h] = []; 
-            heats[h].push(item); 
-        });
+        fetch('/api/recalculate_all_points', { method: 'POST' })
+        .then(() => {
+            return fetch('/api/get_event_start_list?_t=' + Date.now(), {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({ event_name: eventName, group_name: groupName, gender: gender })
+            });
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.status === 'error') {
+                if (div) div.innerHTML = `<div class="text-center text-red-500 py-10 font-bold text-xs">获取成绩失败：${data.msg || '后端接口返回异常'}</div>`;
+                return;
+            }
+            if (!Array.isArray(data) || data.length === 0) { 
+                if (div) div.innerHTML = `<div class="text-center text-gray-400 mt-20 font-bold text-xs">未找到对应编排道次</div>`; 
+                return; 
+            }
 
-        let finalHTML = '';
-        const isRelayEvent = eventName.includes('接力') || eventName.includes('4×') || eventName.includes('4*') || eventName.includes('4x');
+            const qualifyLimit = parseInt(data[0].qualify_count) || 8;
+            const isRelayEvent = eventName.includes('接力') || eventName.includes('4×') || eventName.includes('4*') || eventName.includes('4x');
 
-        Object.keys(heats).sort((a,b) => parseInt(a) - parseInt(b)).forEach(heatNum => {
-            let items = heats[heatNum];
+            // =========================================================
+            // 🌟 核心：前端全局推算兜底（跨越所有小组，统一计算全场全局排名！）
+            // =========================================================
+            const isTimingEventGlobal = ['跑', '绕杆', '计时', '接力', '冲刺', '米', '栏'].some(k => eventName.includes(k)) && !['跳绳', '投篮'].some(k => eventName.includes(k));
+            const isCountingOrFieldGlobal = !isTimingEventGlobal && ['跳', '投', '掷', '起坐', '引体', '垫球', '踢毽', '跳绳', '篮', '立定跳远'].some(k => eventName.includes(k));
+            
+            let sortAscGlobal = true;
+            if (isTimingEventGlobal) sortAscGlobal = true;
+            else if (isCountingOrFieldGlobal) sortAscGlobal = false;
+            else sortAscGlobal = data.some(i => String(i.score).includes(':') || String(i.score).includes('：'));
 
-            // 接力去重
+            let globalValidAthletes = [];
             if (isRelayEvent) {
-                const teamMap = {};
-                items.forEach(it => {
-                    const tKey = String(it.team_name || it.teamName).trim();
-                    if (!teamMap[tKey]) {
-                        teamMap[tKey] = { ...it };
-                    } else {
-                        if (!teamMap[tKey].score && it.score) teamMap[tKey].score = it.score;
-                        if ((!teamMap[tKey].rank || teamMap[tKey].rank === '--') && it.rank) teamMap[tKey].rank = it.rank;
-                        // 🌟 关键：如果之前没取到 points，用当前有分值的项补全
-                        if ((!teamMap[tKey].points || teamMap[tKey].points === 0) && it.points) {
-                            teamMap[tKey].points = it.points;
+                const teamScoreMap = {};
+                data.forEach(it => {
+                    const tKey = String(it.team_name || it.teamName || it.lane).trim();
+                    const scoreVal = parseTimeVal(it.score);
+                    if (scoreVal > 0 && !String(it.score).includes('弃权')) {
+                        if (!teamScoreMap[tKey] || (sortAscGlobal ? scoreVal < parseTimeVal(teamScoreMap[tKey].score) : scoreVal > parseTimeVal(teamScoreMap[tKey].score))) {
+                            teamScoreMap[tKey] = it;
                         }
                     }
                 });
-                items = Object.values(teamMap);
+                globalValidAthletes = Object.values(teamScoreMap);
+            } else {
+                globalValidAthletes = data.filter(it => parseTimeVal(it.score) > 0 && !String(it.score).includes('弃权'));
             }
 
-            // 强制按后端名次排序（名次越靠前排在数组前面）
-            items.sort((a, b) => {
-                const rA = (a.rank && a.rank !== '--') ? parseInt(a.rank) : 999;
-                const rB = (b.rank && b.rank !== '--') ? parseInt(b.rank) : 999;
-                return rA - rB;
+            // 执行全场所有小组的全局大排名
+            globalValidAthletes.sort((a, b) => {
+                const valA = parseTimeVal(a.score);
+                const valB = parseTimeVal(b.score);
+                return sortAscGlobal ? (valA - valB) : (valB - valA);
             });
 
-            const isFieldEvent = eventName.includes('跳') || eventName.includes('投') || 
-                     eventName.includes('铅球') || eventName.includes('实心球') || 
-                     eventName.includes('绕杆') || eventName.includes('垫球') || 
-                     eventName.includes('跳绳') || eventName.includes('仰卧') || 
-                     eventName.includes('引体') || eventName.includes('体前屈') || 
-                     eventName.includes('肺活量');
+            // 赋予全局推算名次
+            let currentGlobalRank = 1;
+            globalValidAthletes.forEach((item, idx) => {
+                if (idx > 0 && Math.abs(parseTimeVal(item.score) - parseTimeVal(globalValidAthletes[idx-1].score)) > 0.0001) {
+                    currentGlobalRank = idx + 1;
+                }
+                item._global_computed_rank = currentGlobalRank;
+            });
 
-const useVerticalTable = isFieldEvent;
+            // 将全局名次回填给原数据
+            data.forEach(it => {
+                if (isRelayEvent) {
+                    const tKey = String(it.team_name || it.teamName || it.lane).trim();
+                    const match = globalValidAthletes.find(g => String(g.team_name || g.teamName || g.lane).trim() === tKey);
+                    if (match) it._global_computed_rank = match._global_computed_rank;
+                } else {
+                    const match = globalValidAthletes.find(g => g.id === it.id);
+                    if (match) it._global_computed_rank = match._global_computed_rank;
+                }
+            });
+            // =========================================================
 
-            let desktopTableHtml = '';
+            const heats = {};
+            data.forEach(item => { 
+                const h = String(item.heat || '1'); 
+                if (!heats[h]) heats[h] = []; 
+                heats[h].push(item); 
+            });
 
-            if (useVerticalTable) {
-                // 竖排列表式（田赛用）
-                desktopTableHtml = `
-                <table class="w-full text-center border-collapse" style="border: 2px solid #000; margin-top: 8px;">
-                    <thead>
-                        <tr style="background-color: #f1f5f9; height: 36px; border-bottom: 2px solid #000; font-weight: bold; font-size: 11pt;">
-                            <th style="border: 1px solid #000; width: 60px;">名次</th>
-                            <th style="border: 1px solid #000; width: 80px;">号码</th>
-                            <th style="border: 1px solid #000; text-align: left; padding-left: 15px;">姓名</th>
-                            <th style="border: 1px solid #000; width: 140px;">单位</th>
-                            <th style="border: 1px solid #000; width: 140px;">成绩</th>
-                            <th style="border: 1px solid #000; width: 70px;">${roundStatus === '预赛' ? '录取' : '积分'}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                `;
+            let finalHTML = '';
+            
+            Object.keys(heats).sort((a,b) => parseInt(a) - parseInt(b)).forEach(heatNum => {
+                let items = heats[heatNum];
 
-                items.forEach((p) => {
-                    const val = p.score || '';
-                    const isAbsent = (val === '弃权' || String(p.checked_in) === '2');
-                    let rankDisplay = (p.rank && p.rank !== '') ? p.rank : '--';
-                    let pts = p.points || 0;
-                    
-                    let scoreContent = isEditMode 
-                        ? `<input type="text" value="${val}" class="text-center font-bold bg-yellow-50 border border-yellow-300 rounded px-2 py-1 w-24" style="font-family:Times New Roman; font-size:12pt;" onblur="updateAdminScore(${p.id}, this)">`
-                        : `<span style="font-family:Times New Roman; font-weight:bold; font-size:13pt; ${isAbsent ? 'color:red;' : ''}">${formatTrackTime(val)}</span>`;
-
-                    let extraColContent = '';
-                    if (roundStatus === '预赛') {
-                        if (rankDisplay !== '--' && parseInt(rankDisplay) <= qualifyLimit && !isAbsent) {
-                            extraColContent = `<span style="color:#000; font-weight:bold; font-size:16pt; font-family:Times New Roman;">q</span>`;
+                if (isRelayEvent) {
+                    const teamMap = {};
+                    items.forEach(it => {
+                        const tKey = String(it.team_name || it.teamName || it.lane).trim();
+                        if (!teamMap[tKey]) {
+                            teamMap[tKey] = { ...it };
                         } else {
-                            extraColContent = `<span style="color:#cbd5e1; font-weight:bold; font-size:11pt;">--</span>`;
-                        }
-                    } else {
-                        if (isEditMode) {
-                            extraColContent = `<input type="number" value="${pts}" class="text-center font-bold bg-gray-50 border border-gray-300 rounded w-16 text-gray-500 py-1" onblur="updateAdminPoint(${p.id}, this)">`;
-                        } else {
-                            extraColContent = `<span style="color:#b45309; font-weight:bold; font-size:14pt;">${pts > 0 ? pts : ''}</span>`;
-                        }
-                    }
-
-                    desktopTableHtml += `
-                        <tr style="height: 38px; border-bottom: 1px solid #000;">
-                            <td style="border: 1px solid #000; font-weight:bold; font-size: 13pt;">${rankDisplay}</td>
-                            <td style="border: 1px solid #000; font-family:Times New Roman; font-weight:bold;">${p.bib || '--'}</td>
-                            <td style="border: 1px solid #000; text-align: left; padding-left: 15px; font-weight:bold; font-size: 13pt;">${p.name}</td>
-                            <td style="border: 1px solid #000; font-size: 11pt;">${p.team_name}</td>
-                            <td style="border: 1px solid #000;">${scoreContent}</td>
-                            <td style="border: 1px solid #000;">${extraColContent}</td>
-                        </tr>
-                    `;
-                });
-                desktopTableHtml += `</tbody></table>`;
-            } else {
-                // 横向道次表（径赛与接力专用）
-                const laneMap = {}; 
-                items.forEach(p => { 
-                    const laneNum = parseInt(p.lane);
-                    if (laneNum > 0) laneMap[laneNum] = p; 
-                });
-                
-                const maxLane = Math.max(...items.map(i => parseInt(i.lane) || 0), 8);
-                const cols = maxLane;
-                
-                desktopTableHtml = `<table class="res-table"><tbody>`;
-                const rowsConfig = [
-                    { label: '道次', key: 'lane', type: 'index' }, 
-                    { label: '号码', key: 'bib', style: 'font-family:Times New Roman; font-weight:bold;' }, 
-                    { label: isRelayEvent ? '接力队伍' : '姓名', key: 'name', style: 'font-weight:bold; font-size:14pt;' }, 
-                    { label: '单位', key: 'team_name', style: 'font-size:14pt;' }, 
-                    { label: '成绩', key: 'score', type: 'score_cell' }, 
-                    { label: '名次', key: 'rank', type: 'rank_cell', style: 'font-weight:bold; font-size:14pt;' } // 👈 统一指定 type: 'rank_cell'
-                ];
-
-                if (roundStatus === '预赛') rowsConfig.push({ label: '录取', key: 'qualify', type: 'qualify_cell' });
-                else rowsConfig.push({ label: '积分', key: 'points', type: 'point_cell' });
-
-                rowsConfig.forEach(cfg => {
-                    desktopTableHtml += `<tr><td class="res-label-col">${cfg.label}</td>`;
-                    for (let i = 1; i <= cols; i++) {
-                        const p = laneMap[i]; 
-                        let content = '';
-                        if (cfg.type === 'index') {
-                            content = i;
-                        } else if (p) {
-                            if (cfg.type === 'score_cell') {
-                                const val = p.score || '';
-                                if (isEditMode) { 
-                                    content = `<input type="text" value="${val}" class="text-center font-bold bg-yellow-50 border-b-2 border-yellow-300 w-24" style="font-family:Times New Roman; font-size:12pt;" onblur="updateAdminScore(${p.id}, this)">`; 
-                                } else { 
-                                    content = `<span style="font-family:Times New Roman; font-weight:bold; font-size:13pt; ${val === '弃权' ? 'color:red;' : ''}">${formatTrackTime(val)}</span>`; 
-                                }
-                            } else if (cfg.type === 'point_cell') {
-                                let val = parseInt(p.points) || 0;
-
-                                // 🌟 强力保障：名次已排出（1, 2, 3, 4），若 val 为 0，依据名次直接计算输出积分！
-                                const rnk = parseInt(p.rank);
-                                if (!isNaN(rnk) && rnk > 0 && p.score && !p.score.includes('弃权')) {
-                                    // 录取名次输入框值
-                                    const qLimit = parseInt(document.getElementById('finalsTopN')?.value) || 8;
-                                    const rules = [9, 7, 6, 5, 4, 3, 2, 1];
-
-                                    if (rnk <= qLimit && rnk <= rules.length) {
-                                        let calcPts = rules[rnk - 1];
-                                        // 凡是接力或团体，强制双倍积分 (9->18, 7->14, 6->12, 5->10...)
-                                        if (isRelayEvent || eventName.includes('接力') || eventName.includes('4×') || eventName.includes('4*')) {
-                                            calcPts *= 2;
-                                        }
-                                        val = calcPts;
-                                    } else {
-                                        val = 0; // 超出录取名次不计分
-                                    }
-                                }
-
-                                if (isEditMode) { 
-                                    content = `<input type="number" value="${val}" class="text-center font-bold bg-gray-50 border-b-2 border-gray-300 w-16 text-gray-500" onblur="updateAdminPoint(${p.id}, this)">`; 
-                                } else { 
-                                    content = `<span style="color:#b45309; font-weight:bold; font-size:14pt;">${val > 0 ? val : ''}</span>`; 
-                                } 
-                            }else if (cfg.type === 'qualify_cell') {
-                                if (p.rank && parseInt(p.rank) <= qualifyLimit && p.score && !p.score.includes('弃权')) {
-                                    content = `<span style="color:#000; font-weight:bold; font-size:16pt; font-family:Times New Roman;">q</span>`;
-                                } else {
-                                    content = `<span style="color:#cbd5e1; font-weight:bold; font-size:11pt;">--</span>`;
-                                }
-                            } else if (cfg.type === 'rank_cell') {
-                                // 🌟 强力健壮性修复：优先取 p.rank，若为空则自动通过成绩在当前组别中即时排位
-                                if (p.rank && p.rank !== '' && p.rank !== '--') {
-                                    content = p.rank;
-                                } else if (p.score && parseTimeVal(p.score) > 0 && !p.score.includes('弃权')) {
-                                    // 实时推算当前组内的名次
-                                    const validItemsWithScore = items.filter(x => x.score && parseTimeVal(x.score) > 0 && !x.score.includes('弃权'));
-                                    validItemsWithScore.sort((a, b) => parseTimeVal(a.score) - parseTimeVal(b.score)); // 径赛升序
-                                    const computedIdx = validItemsWithScore.findIndex(x => x.id === p.id);
-                                    content = computedIdx !== -1 ? (computedIdx + 1) : '--';
-                                } else {
-                                    content = '--';
-                                }
-                            } else {
-                                content = p[cfg.key] || '';
+                            if (!teamMap[tKey].score && it.score) teamMap[tKey].score = it.score;
+                            if ((!teamMap[tKey].rank || teamMap[tKey].rank === '--') && it.rank) teamMap[tKey].rank = it.rank;
+                            if (it.points && (!teamMap[tKey].points || teamMap[tKey].points === 0)) {
+                                teamMap[tKey].points = it.points;
                             }
                         }
-                        desktopTableHtml += `<td>${content}</td>`;
-                    }
-                    desktopTableHtml += `</tr>`;
-                });
-                desktopTableHtml += `</tbody></table>`;
-            }
+                    });
+                    items = Object.values(teamMap);
+                }
 
-            finalHTML += `
-            <div class="res-card res-card-desktop">
-                <h2 class="res-title">竞赛成绩表</h2>
-                <div class="res-info-row"> 
-                    <span>组别：${groupName || '--'}</span> 
-                    <span>项目：${displayEventName}</span> 
-                    <span>( ${roundStatus} )</span> 
-                    <span>第 ${heatNum} 组</span> 
-                </div>
-                ${desktopTableHtml}
-                <div class="res-footer"><span>主裁判：___________</span><span>裁判：___________</span></div>
-            </div>`;
+                // 强制按后端绝对名次或前端全局大排名的名次排序
+                items.sort((a, b) => {
+                    const rA = (a.rank && a.rank !== '--') ? parseInt(a.rank) : (a._global_computed_rank || 999);
+                    const rB = (b.rank && b.rank !== '--') ? parseInt(b.rank) : (b._global_computed_rank || 999);
+                    return rA - rB;
+                });
+
+                const isFieldEvent = eventName.includes('跳') || eventName.includes('投') || 
+                                     eventName.includes('铅球') || eventName.includes('实心球') || 
+                                     eventName.includes('绕杆') || eventName.includes('垫球') || 
+                                     eventName.includes('跳绳') || eventName.includes('仰卧') || 
+                                     eventName.includes('引体') || eventName.includes('体前屈') || 
+                                     eventName.includes('肺活量');
+
+                const useVerticalTable = isFieldEvent;
+                let desktopTableHtml = '';
+
+                if (useVerticalTable) {
+                    // 田赛竖排
+                    desktopTableHtml = `
+                    <table class="w-full text-center border-collapse" style="border: 2px solid #000; margin-top: 8px;">
+                        <thead>
+                            <tr style="background-color: #f1f5f9; height: 36px; border-bottom: 2px solid #000; font-weight: bold; font-size: 11pt;">
+                                <th style="border: 1px solid #000; width: 60px;">名次</th>
+                                <th style="border: 1px solid #000; width: 80px;">号码</th>
+                                <th style="border: 1px solid #000; text-align: left; padding-left: 15px;">姓名</th>
+                                <th style="border: 1px solid #000; width: 140px;">单位</th>
+                                <th style="border: 1px solid #000; width: 140px;">成绩</th>
+                                <th style="border: 1px solid #000; width: 70px;">${roundStatus === '预赛' ? '录取' : '积分'}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                    `;
+
+                    items.forEach((p) => {
+                        const val = p.score || '';
+                        const isAbsent = (val === '弃权' || String(p.checked_in) === '2');
+                        
+                        let rankDisplay = (p.rank && p.rank !== '') ? p.rank : (p._global_computed_rank ? String(p._global_computed_rank) : '--');
+                        let pts = parseInt(p.points) || 0;
+                        
+                        // 全局推算积分兜底
+                        if (pts === 0 && rankDisplay !== '--' && !isAbsent) {
+                            const rnk = parseInt(rankDisplay);
+                            const qLimit = parseInt(document.getElementById('finalsTopN')?.value) || parseInt(qualifyLimit) || 8;
+                            const rules = [9, 7, 6, 5, 4, 3, 2, 1];
+                            if (rnk > 0 && rnk <= qLimit && rnk <= rules.length) {
+                                pts = rules[rnk - 1];
+                                if (isRelayEvent || roundStatus === '决赛') pts *= 2;
+                            }
+                        }
+                        
+                        let scoreContent = isEditMode 
+                            ? `<input type="text" value="${val}" class="text-center font-bold bg-yellow-50 border border-yellow-300 rounded px-2 py-1 w-24" style="font-family:Times New Roman; font-size:12pt;" onblur="updateAdminScore(${p.id}, this)">`
+                            : `<span style="font-family:Times New Roman; font-weight:bold; font-size:13pt; ${isAbsent ? 'color:red;' : ''}">${formatTrackTime(val)}</span>`;
+
+                        let extraColContent = '';
+                        if (roundStatus === '预赛') {
+                            if (rankDisplay !== '--' && parseInt(rankDisplay) <= qualifyLimit && !isAbsent) {
+                                extraColContent = `<span style="color:#000; font-weight:bold; font-size:16pt; font-family:Times New Roman;">q</span>`;
+                            } else {
+                                extraColContent = `<span style="color:#cbd5e1; font-weight:bold; font-size:11pt;">--</span>`;
+                            }
+                        } else {
+                            if (isEditMode) {
+                                extraColContent = `<input type="number" value="${pts}" class="text-center font-bold bg-gray-50 border border-gray-300 rounded w-16 text-gray-500 py-1" onblur="updateAdminPoint(${p.id}, this)">`;
+                            } else {
+                                extraColContent = `<span style="color:#b45309; font-weight:bold; font-size:14pt;">${pts > 0 ? pts : ''}</span>`;
+                            }
+                        }
+
+                        desktopTableHtml += `
+                            <tr style="height: 38px; border-bottom: 1px solid #000;">
+                                <td style="border: 1px solid #000; font-weight:bold; font-size: 13pt;">${rankDisplay}</td>
+                                <td style="border: 1px solid #000; font-family:Times New Roman; font-weight:bold;">${p.bib || '--'}</td>
+                                <td style="border: 1px solid #000; text-align: left; padding-left: 15px; font-weight:bold; font-size: 13pt;">${p.name}</td>
+                                <td style="border: 1px solid #000; font-size: 11pt;">${p.team_name}</td>
+                                <td style="border: 1px solid #000;">${scoreContent}</td>
+                                <td style="border: 1px solid #000;">${extraColContent}</td>
+                            </tr>
+                        `;
+                    });
+                    desktopTableHtml += `</tbody></table>`;
+                } else {
+                    // 径赛/接力横排
+                    const laneMap = {}; 
+                    items.forEach(p => { 
+                        const laneNum = parseInt(p.lane);
+                        if (laneNum > 0) laneMap[laneNum] = p; 
+                    });
+                    
+                    const maxLane = Math.max(...items.map(i => parseInt(i.lane) || 0), 8);
+                    const cols = maxLane;
+                    
+                    desktopTableHtml = `<table class="res-table"><tbody>`;
+                    const rowsConfig = [
+                        { label: '道次', key: 'lane', type: 'index' }, 
+                        { label: '号码', key: 'bib', style: 'font-family:Times New Roman; font-weight:bold;' }, 
+                        { label: isRelayEvent ? '接力队伍' : '姓名', key: 'name', style: 'font-weight:bold; font-size:14pt;' }, 
+                        { label: '单位', key: 'team_name', style: 'font-size:14pt;' }, 
+                        { label: '成绩', key: 'score', type: 'score_cell' }, 
+                        { label: '名次', key: 'rank', type: 'rank_cell', style: 'font-weight:bold; font-size:14pt;' }
+                    ];
+
+                    if (roundStatus === '预赛') rowsConfig.push({ label: '录取', key: 'qualify', type: 'qualify_cell' });
+                    else rowsConfig.push({ label: '积分', key: 'points', type: 'point_cell' });
+
+                    rowsConfig.forEach(cfg => {
+                        desktopTableHtml += `<tr><td class="res-label-col">${cfg.label}</td>`;
+                        for (let i = 1; i <= cols; i++) {
+                            const p = laneMap[i]; 
+                            let content = '';
+                            if (cfg.type === 'index') {
+                                content = i;
+                            } else if (p) {
+                                if (cfg.type === 'score_cell') {
+                                    const val = p.score || '';
+                                    if (isEditMode) { 
+                                        content = `<input type="text" value="${val}" class="text-center font-bold bg-yellow-50 border-b-2 border-yellow-300 w-24" style="font-family:Times New Roman; font-size:12pt;" onblur="updateAdminScore(${p.id}, this)">`; 
+                                    } else { 
+                                        content = `<span style="font-family:Times New Roman; font-weight:bold; font-size:13pt; ${val === '弃权' ? 'color:red;' : ''}">${formatTrackTime(val)}</span>`; 
+                                    }
+                                } else if (cfg.type === 'rank_cell') {
+                                    // 🌟 优先后端绝对名次，其次使用全局推算的大名次
+                                    if (p.rank && p.rank !== '' && p.rank !== '--') {
+                                        content = p.rank;
+                                    } else if (p._global_computed_rank) {
+                                        content = p._global_computed_rank;
+                                    } else {
+                                        content = '--';
+                                    }
+                                } else if (cfg.type === 'point_cell') {
+                                    let val = (p.points !== undefined && p.points !== null) ? parseInt(p.points) : 0;
+                                    let realRank = (p.rank && !isNaN(parseInt(p.rank))) ? parseInt(p.rank) : (p._global_computed_rank || 0);
+
+                                    // 🌟 全局推算计算积分
+                                    if ((val === 0 || isNaN(val)) && realRank > 0 && p.score && !String(p.score).includes('弃权')) {
+                                        const qLimit = parseInt(document.getElementById('finalsTopN')?.value) || parseInt(qualifyLimit) || 8;
+                                        const activeClean = (eventName || '').replace(' (预赛)', '').replace(' (决赛)', '').trim();
+                                        const activeNorm = activeClean.replace(/[*xX]/g, '×');
+                                        const curEvtCfg = db.events.find(e => e.name === activeClean || e.name === activeNorm || e.name === eventName);
+                                        
+                                        const ruleStr = curEvtCfg?.scoreRule || curEvtCfg?.score_rule || "9,7,6,5,4,3,2,1";
+                                        const rules = ruleStr.replace(/，/g, ',').split(',').map(Number);
+                                        
+                                        if (realRank <= qLimit && realRank <= rules.length) {
+                                            let calcPts = rules[realRank - 1];
+                                            if (isRelayEvent || curEvtCfg?.isTeam || curEvtCfg?.is_team || curEvtCfg?.isDoubleScore) {
+                                                calcPts *= 2; 
+                                            }
+                                            val = calcPts;
+                                        }
+                                    }
+
+                                    if (isEditMode) { 
+                                        content = `<input type="number" value="${val}" class="text-center font-bold bg-gray-50 border-b-2 border-gray-300 w-16 text-gray-500" onblur="updateAdminPoint(${p.id}, this)">`; 
+                                    } else { 
+                                        content = val > 0 
+                                            ? `<span style="color:#b45309; font-weight:bold; font-size:16pt; font-family:'Times New Roman'; display:inline-block;">${val}</span>` 
+                                            : ''; 
+                                    } 
+                                } else if (cfg.type === 'qualify_cell') {
+                                    let realRank = (p.rank && !isNaN(parseInt(p.rank))) ? parseInt(p.rank) : (p._global_computed_rank || 999);
+                                    if (realRank <= qualifyLimit && p.score && !String(p.score).includes('弃权')) {
+                                        content = `<span style="color:#000; font-weight:bold; font-size:16pt; font-family:Times New Roman;">q</span>`;
+                                    } else {
+                                        content = `<span style="color:#cbd5e1; font-weight:bold; font-size:11pt;">--</span>`;
+                                    }
+                                } else {
+                                    content = p[cfg.key] || '';
+                                }
+                            }
+                            desktopTableHtml += `<td>${content}</td>`;
+                        }
+                        desktopTableHtml += `</tr>`;
+                    });
+                    desktopTableHtml += `</tbody></table>`;
+                }
+
+                finalHTML += `
+                <div class="res-card res-card-desktop">
+                    <h2 class="res-title">竞赛成绩表</h2>
+                    <div class="res-info-row"> 
+                        <span>组别：${groupName || '--'}</span> 
+                        <span>项目：${displayEventName}</span> 
+                        <span>( ${roundStatus} )</span> 
+                        <span>第 ${heatNum} 组</span> 
+                    </div>
+                    ${desktopTableHtml}
+                    <div class="res-footer"><span>主裁判：___________</span><span>裁判：___________</span></div>
+                </div>`;
+            });
+            
+            if (div) div.innerHTML = finalHTML;
+        })
+        .catch(err => {
+            console.error("renderResultSheet 异常:", err);
+            if (div) div.innerHTML = `<div class="text-center text-red-500 py-10 font-bold text-xs">获取成绩失败: ${err.message}</div>`;
         });
-        
-        if (div) div.innerHTML = finalHTML;
-    })
-    .catch(err => {
-        console.error("renderResultSheet 异常:", err);
-        if (div) div.innerHTML = `<div class="text-center text-red-500 py-10 font-bold text-xs">获取成绩失败: ${err.message}</div>`;
-    });
-};
+    };
 
     // --- Step 7 团体总分逻辑 ---
     window.currentRankGroupName = '';
@@ -4678,7 +4743,31 @@ window.closeTeamScoreDetailModal = function() {
     document.getElementById('teamScoreDetailModal').classList.add('hidden');
 };
     window.customScoreColumns = ["跑操比赛"]; // 默认
+    window.convertCustomRankToScore = function(inputStr) {
+        if (!inputStr && inputStr !== 0) return { rank: '', score: 0 };
+        let s = String(inputStr).trim().replace('+', '');
+        if (!s || s === '-' || s === '0') return { rank: '', score: 0 };
 
+        let num = parseFloat(s);
+        if (isNaN(num)) return { rank: '', score: 0 };
+
+        // 默认双倍名次积分规则 (9->18, 7->14, 6->12, 5->10, 4->8, 3->6, 2->4, 1->2)
+        const rules = [18, 14, 12, 10, 8, 6, 4, 2];
+
+        // 如果输入的整数在 1~8 范围内，判定为录入名次，自动套用规则双倍分！
+        if (Number.isInteger(num) && num >= 1 && num <= rules.length) {
+            return {
+                rank: num,
+                score: rules[num - 1]
+            };
+        }
+
+        // 否则直接作为自定义加分项
+        return {
+            rank: '',
+            score: num
+        };
+    };
     window.calculateTeamRanking = function(gName, forceNoCache = false) {
         const targetGroup = gName || window.currentRankGroupName;
         const div = document.getElementById('rankOutput');
@@ -4733,20 +4822,45 @@ window.closeTeamScoreDetailModal = function() {
                 const baseAthScore = Math.round((totalScoreVal - extraSumVal) * 100) / 100;
 
                 // 动态构建各附加分输入框
+                // 动态构建各附加分输入框 / 显示单元格
                 let customCells = cols.map(col => {
-                    const val = (sMap[col] !== undefined && sMap[col] !== null) ? sMap[col] : 0;
+                    const rawVal = (sMap[col] !== undefined && sMap[col] !== null) ? sMap[col] : '';
+                    // 解析出当前保存的真实名次和折算分
+                    const parsed = window.convertCustomRankToScore(rawVal);
+                    const currentScore = parsed.score;
+
                     if (isEditMode) {
-                        return `<td class="text-center">
-                            <input type="number" step="0.5" value="${val}" 
-                                class="team-custom-input w-16 text-center font-bold font-mono border border-indigo-300 rounded py-1 bg-white text-indigo-800 outline-none focus:ring-2 focus:ring-indigo-400 shadow-inner"
-                                data-col="${col}"
-                                oninput="recalcRowTotalScore(this)"
-                                onblur="saveTeamCustomScore('${t.name}', '${targetGroup}', '${col}', this)">
+                        return `
+                        <td class="text-center p-1">
+                            <div class="flex flex-col items-center">
+                                <input type="text" 
+                                    value="${rawVal !== '' ? rawVal : ''}" 
+                                    placeholder="名次(1-8)"
+                                    class="team-custom-input w-20 text-center font-black font-mono border border-indigo-300 rounded py-1 bg-white text-indigo-900 outline-none focus:ring-2 focus:ring-indigo-400 shadow-inner text-xs"
+                                    data-col="${col}"
+                                    title="录入名次(如 1、2、3)，系统自动折算双倍积分；也可直接录入带加号的分值(如 +15)"
+                                    oninput="onCustomRankInput(this)"
+                                    onblur="saveTeamCustomScore('${t.name}', '${targetGroup}', '${col}', this)">
+                                <span class="calc-score-tip text-[10px] font-bold font-mono text-emerald-600 mt-0.5">
+                                    ${currentScore > 0 ? `+${currentScore}分` : ''}
+                                </span>
+                            </div>
                         </td>`;
                     } else {
-                        return `<td class="text-center font-bold font-mono ${val > 0 ? 'text-indigo-600' : 'text-gray-300'}">
-                            ${val > 0 ? '+' + val : (val < 0 ? val : '-')}
-                        </td>`;
+                        // 🌟 查看/打印模式：如果录入的是名次，展示“第X名 (+XX分)”；直接录入分值的展示“+XX分”
+                        let displayTxt = '-';
+                        let badgeColor = 'text-gray-300';
+
+                        if (parsed.rank) {
+                            badgeColor = 'text-indigo-700 font-bold';
+                            let medal = parsed.rank === 1 ? '🥇' : (parsed.rank === 2 ? '🥈' : (parsed.rank === 3 ? '🥉' : ''));
+                            displayTxt = `<span class="bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded text-[11px]">${medal}第${parsed.rank}名 <b class="font-mono text-emerald-700">(+${currentScore})</b></span>`;
+                        } else if (currentScore > 0) {
+                            badgeColor = 'text-emerald-700 font-bold font-mono';
+                            displayTxt = `+${currentScore}`;
+                        }
+
+                        return `<td class="text-center text-xs ${badgeColor}">${displayTxt}</td>`;
                     }
                 }).join('');
 
@@ -4810,7 +4924,71 @@ window.onToggleEditRankScore = function(checkboxEl) {
         calculateTeamRanking(window.currentRankGroupName);
     }
 };
+// 🌟 录入名次时即时计算提示与联动整行总分
+window.onCustomRankInput = function(inputEl) {
+    const rawVal = inputEl.value.trim();
+    const parsed = window.convertCustomRankToScore(rawVal);
+    
+    // 动态更新输入框下方的绿色折算提示标签
+    const tipSpan = inputEl.nextElementSibling;
+    if (tipSpan) {
+        tipSpan.innerText = parsed.score > 0 ? `+${parsed.score}分` : '';
+    }
 
+    // 联动重新计算当前行的总分
+    const tr = inputEl.closest('tr');
+    if (!tr) return;
+
+    const baseScore = parseFloat(tr.dataset.baseScore || 0);
+    let customSum = 0;
+    tr.querySelectorAll('.team-custom-input').forEach(inp => {
+        const p = window.convertCustomRankToScore(inp.value.trim());
+        customSum += p.score;
+    });
+
+    const totalCell = tr.querySelector('.team-row-total');
+    if (totalCell) {
+        totalCell.innerText = Math.round((baseScore + customSum) * 100) / 100;
+    }
+};
+
+// 🌟 保存单个附加项：把原始输入与换算后的分值一并传给后端持久化
+window.saveTeamCustomScore = function(teamName, groupName, itemKey, inputEl) {
+    const rawVal = inputEl.value.trim();
+    const parsed = window.convertCustomRankToScore(rawVal);
+    
+    // 如果录入为空，存为 0
+    const finalStoredVal = rawVal === '' ? 0 : rawVal;
+    
+    inputEl.style.backgroundColor = '#fef3c7'; // 保存中变黄
+
+    fetch('/api/update_team_custom_score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            team_name: teamName,
+            group_name: groupName,
+            item_key: itemKey,
+            score: finalStoredVal, // 存入原始值（如 "1" 或 "18"）
+            calc_points: parsed.score // 传递换算后的实际得分
+        })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') {
+            inputEl.style.backgroundColor = '#dcfce7'; // 保存成功变绿
+            setTimeout(() => {
+                inputEl.style.backgroundColor = '';
+            }, 600);
+        } else {
+            inputEl.style.backgroundColor = '#fee2e2';
+            alert('保存失败：' + (res.msg || ''));
+        }
+    })
+    .catch(() => {
+        inputEl.style.backgroundColor = '#fee2e2';
+    });
+};
 // 🌟 保存单个附加分：只静默更新后台和输入框样式，不刷新重绘 DOM
 window.saveTeamCustomScore = function(teamName, groupName, itemKey, inputEl) {
     const rawVal = inputEl.value.trim();

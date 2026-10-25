@@ -364,11 +364,10 @@ function goToEventDetail(eventName, isFinalsList, isSilent = false, forceReload 
     document.getElementById('detEventName').innerText = eventName;
     document.getElementById('detHeatLabel').innerHTML = isFinalsList ? '✨ 晋级决赛检录名单' : '🏅 综合成绩公告';
     
-    // 🌟 中断上一次尚未返回的 HTTP 连接，防止慢请求覆盖新视图
-    if (currentEventAbortController) {
-        currentEventAbortController.abort();
+    const btnRefresh = document.getElementById('btnRefreshEventDet');
+    if (btnRefresh) {
+        btnRefresh.onclick = () => goToEventDetail(eventName, isFinalsList, true, true);
     }
-    currentEventAbortController = new AbortController();
 
     const contentArea = document.getElementById('detContentArea');
     const cacheKey = `${eventName}_${isFinalsList}`;
@@ -379,11 +378,20 @@ function goToEventDetail(eventName, isFinalsList, isSilent = false, forceReload 
         return;
     }
 
+    // 🌟 中断上一个未完成的请求，防止连续快速点击导致的数据串位
+    if (currentEventAbortController) {
+        currentEventAbortController.abort();
+    }
+    currentEventAbortController = new AbortController();
+
     if (!isSilent) {
+        // 🌟 核心优化：使用流畅的骨架屏代替生硬的提示文字
         contentArea.innerHTML = `
-            <div class="flex flex-col items-center justify-center py-20 text-slate-400">
-                <svg class="animate-spin h-8 w-8 text-blue-500 mb-4" ...></svg>
-                <span class="font-bold">正在提取官方核定成绩...</span>
+            <div class="animate-pulse space-y-4 pt-2">
+                <div class="h-12 bg-slate-200/60 rounded-xl w-full"></div>
+                <div class="h-12 bg-slate-200/60 rounded-xl w-full"></div>
+                <div class="h-12 bg-slate-200/60 rounded-xl w-full"></div>
+                <div class="h-12 bg-slate-200/60 rounded-xl w-full"></div>
             </div>`;
         switchView('view-event-detail');
     }
@@ -392,7 +400,7 @@ function goToEventDetail(eventName, isFinalsList, isSilent = false, forceReload 
         method: 'POST', 
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ event_name: eventName, group_name: '', gender: '' }),
-        signal: currentEventAbortController.signal // 挂载中断信号
+        signal: currentEventAbortController.signal
     })
     .then(r => r.json())
     .then(data => {

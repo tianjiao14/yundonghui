@@ -851,7 +851,7 @@ def do_recalculate():
 
                 is_high_jump = any(k in norm_core for k in ['跳高', '撑竿跳'])
 
-                # 🌟 关键：严格划分出【计名次分的目标赛次】和【禁止计名次分的预赛赛次】
+                # 确定需要计分的最终目标赛次
                 target_events = []
                 prelim_only_events = []
                 if has_prelim:
@@ -867,6 +867,26 @@ def do_recalculate():
                 if not target_events: 
                     target_events = sub_events
 
+                # 🌟 关键：先在此处生成占位符，确保后续查询可安全引用！
+                target_placeholders = ','.join(['?'] * len(target_events))
+
+                # 有预决赛的项目，预赛记录的名次分必须清零（保留已算出的 record_bonus）
+                if prelim_only_events:
+                    pre_holders = ','.join(['?'] * len(prelim_only_events))
+                    c.execute(f"""
+                        UPDATE registrations 
+                        SET points = 0 
+                        WHERE group_name = ? AND gender = ? AND event_name IN ({pre_holders})
+                    """, [g_name, gender] + prelim_only_events)
+                    c.execute(f"""
+                        UPDATE start_list 
+                        SET points = 0 
+                        WHERE group_name = ? AND gender = ? AND event_name IN ({pre_holders})
+                    """, [g_name, gender] + prelim_only_events)
+
+                # =============================================================
+                # 🌟 校验是否全员完赛（此时 target_placeholders 已成功定义）
+                # =============================================================
                 if is_team_event:
                     # 接力/团体项目：只检查实际有队伍参赛的道次（排除空道、弃权）
                     uncompleted_start = c.execute(f"""
@@ -880,7 +900,6 @@ def do_recalculate():
                           AND team_name != '预赛出线'
                           AND name NOT LIKE '%待定%'
                     """, [g_name, gender] + target_events).fetchone()[0]
-                    # 接力项目 registrations 表队员不单独录成绩，不查 uncompleted_reg
                     uncompleted_reg = 0
                 else:
                     # 常规个人单项
@@ -919,6 +938,7 @@ def do_recalculate():
                     """, [g_name, gender] + target_events)
                     continue
 
+                # 接下来正常执行查询有效成绩代码：
                 all_start_rows = c.execute(f"""
                     SELECT id, name, team_name, event_name, score, attempts_json, 'start' as source
                     FROM start_list 
@@ -1008,33 +1028,35 @@ def do_recalculate():
                             p *= 2  # 🌟 接力/团体默认双倍分 (9->18, 7->14, 6->12, 5->10...)
 
                     cur_evt_name = item['event_name']
+                    # 剥离预赛/决赛后缀，提取核心项目名，并把所有的乘号统一为 ×
+                    clean_core_target = re.sub(r"\(.*?\)|（.*?）|预赛|决赛|场地\d+", "", cur_evt_name).strip()
+                    clean_core_target = clean_core_target.replace('*', '×').replace('x', '×').replace('X', '×')
 
                     if is_team_event:
-                        # 🌟 无论库里带不带 (决赛)、(预赛)、*、x，一律匹配该代表队在当前组别该接力项目的道次！
-                        clean_core_target = re.sub(r"\(.*?\)|（.*?）|预赛|决赛", "", cur_evt_name).strip()
-                        clean_core_target = clean_core_target.replace('*', '×').replace('x', '×').replace('X', '×')
-
-                        # 1. 回写道次表 start_list（只要队伍名、组别符合，且项目名包含核心接力名，立即赋分）
+                        # 使用 LIKE 加上核心项目名，兼容带有 (决赛) 后缀的道次
                         c.execute("""
                             UPDATE start_list SET points = ?, rank = ? 
-                            WHERE team_name = ? AND group_name = ? 
-                              AND (
-                                  REPLACE(REPLACE(REPLACE(event_name, '*', '×'), 'x', '×'), 'X', '×') LIKE '%' || ? || '%'
-                                  OR event_name LIKE '%接力%'
-                              )
-                              AND (gender = ? OR ? = '' OR gender = '混合')
-                        """, (p, str(rnk), item['team_name'], g_name, clean_core_target, gender, gender))
+                            WHERE team_name = ? AND group_name = ? AND (gender = ? OR gender = '混合')
+                              AND REPLACE(REPLACE(REPLACE(event_name, '*', '×'), 'x', '×'), 'X', '×') LIKE '%' || ? || '%'
+                        """, (p, str(rnk), item['team_name'], g_name, gender, clean_core_target))
 
-                        # 2. 回写报名表 registrations
                         c.execute("""
                             UPDATE registrations SET points = ?, rank = ? 
-                            WHERE team_name = ? AND group_name = ? 
-                              AND (
-                                  REPLACE(REPLACE(REPLACE(event_name, '*', '×'), 'x', '×'), 'X', '×') LIKE '%' || ? || '%'
-                                  OR event_name LIKE '%接力%'
-                              )
-                              AND (gender = ? OR ? = '' OR gender = '混合')
-                        """, (p, str(rnk), item['team_name'], g_name, clean_core_target, gender, gender))
+                            WHERE team_name = ? AND group_name = ? AND (gender = ? OR gender = '混合')
+                              AND REPLACE(REPLACE(REPLACE(event_name, '*', '×'), 'x', '×'), 'X', '×') LIKE '%' || ? || '%'
+                        """, (p, str(rnk), item['team_name'], g_name, gender, clean_core_target))
+                    else:
+                        c.execute("""
+                            UPDATE registrations SET points = ?, rank = ? 
+                            WHERE name = ? AND team_name = ? AND group_name = ? AND gender = ? 
+                              AND REPLACE(REPLACE(REPLACE(event_name, '*', '×'), 'x', '×'), 'X', '×') LIKE '%' || ? || '%'
+                        """, (p, str(rnk), item['name'], item['team_name'], g_name, gender, clean_core_target))
+                        
+                        c.execute("""
+                            UPDATE start_list SET points = ?, rank = ? 
+                            WHERE name = ? AND team_name = ? AND group_name = ? AND gender = ? 
+                              AND REPLACE(REPLACE(REPLACE(event_name, '*', '×'), 'x', '×'), 'X', '×') LIKE '%' || ? || '%'
+                        """, (p, str(rnk), item['name'], item['team_name'], g_name, gender, clean_core_target))
 
                 count += 1
 
@@ -1270,10 +1292,15 @@ def calculate_team_ranking():
                 team_dict[t_name]['silver'] = int(r['silver'] or 0)
                 team_dict[t_name]['bronze'] = int(r['bronze'] or 0)
 
-        # 3. 计入班级自定义附加分（如跑操），并排序
+       # 3. 计入班级自定义附加分（如跑操、拔河、运转乾坤），并排序
         final_list = []
         for t_name, item in team_dict.items():
-            extra_sum = sum(float(item['custom_scores'].get(col, 0) or 0) for col in custom_cols)
+            extra_sum = 0.0
+            for col in custom_cols:
+                raw_v = item['custom_scores'].get(col, 0)
+                _, score_v = resolve_custom_score_and_rank(raw_v)
+                extra_sum += score_v
+
             item['score'] = round(item['score'] + extra_sum, 2)
             final_list.append(item)
 
@@ -1706,16 +1733,18 @@ def get_team_score_details():
             try:
                 score_dict = json.loads(team_row['custom_scores'])
                 for col in custom_cols:
-                    val = float(score_dict.get(col, 0) or 0)
-                    if val > 0:
-                        disp_val = int(val) if val == int(val) else val
+                    raw_v = score_dict.get(col, 0)
+                    rank_v, pts_v = resolve_custom_score_and_rank(raw_v)
+                    if pts_v > 0:
+                        disp_pts = int(pts_v) if pts_v == int(pts_v) else pts_v
+                        rank_display = f"第{rank_v}名" if rank_v != '--' else '--'
                         team_details.append({
                             'event_name': col,
                             'gender': '集体',
                             'name': '全班集体',
-                            'score': f"{disp_val}分",
-                            'rank': '--',
-                            'points': disp_val,
+                            'score': f"{disp_pts}分",
+                            'rank': rank_display,
+                            'points': disp_pts,
                             'is_custom': True
                         })
             except Exception:
@@ -4217,7 +4246,8 @@ def update_team_custom_score():
     team_name = str(data.get('team_name') or '').strip()
     group_name = str(data.get('group_name') or '').strip()
     item_key = str(data.get('item_key') or '').strip()
-    val = float(data.get('score', 0) or 0)
+    # 🌟 支持传入字符串名次（如 "1"）或浮点分值
+    raw_val = data.get('score', 0)
 
     conn = get_db_connection()
     c = conn.cursor()
@@ -4228,23 +4258,44 @@ def update_team_custom_score():
             try: scores = json.loads(row['custom_scores'])
             except Exception: scores = {}
 
-        scores[item_key] = val
+        scores[item_key] = raw_val
 
         c.execute("UPDATE cfg_teams SET custom_scores = ? WHERE TRIM(name) = ? OR REPLACE(name, ' ', '') = REPLACE(?, ' ', '')", 
                   (json.dumps(scores, ensure_ascii=False), team_name, team_name))
         conn.commit()
 
-        # 🌟 必须彻底清理服务端该组别的所有榜单缓存！
+        # 精准清理排行榜与班级明细缓存
         if '_cache_store' in globals():
             for k in list(_cache_store.keys()):
                 if k.startswith("rank_") or k.startswith("team_detail_"):
                     _cache_store.pop(k, None)
 
-        return jsonify({"status": "success", "msg": "已更新", "score": val, "team_name": team_name, "item_key": item_key})
+        return jsonify({"status": "success", "msg": "已更新", "score": raw_val, "team_name": team_name, "item_key": item_key})
     except Exception as e:
         return jsonify({"status": "error", "msg": str(e)})
     finally:
         conn.close()
+def resolve_custom_score_and_rank(raw_val):
+    """
+    解析集体项目录入值：
+    若为 1~8 整数，视为名次，返回 (名次文本, 双倍积分)
+    若为其他数值，视为直接附加分，返回 ('--', 分值)
+    """
+    if raw_val is None or str(raw_val).strip() in ['', '-', '0']:
+        return ('--', 0.0)
+    
+    val_str = str(raw_val).strip().replace('+', '')
+    rules = [18, 14, 12, 10, 8, 6, 4, 2] # 双倍分规则
+    
+    try:
+        if '.' not in val_str:
+            num = int(val_str)
+            if 1 <= num <= len(rules):
+                return (str(num), float(rules[num - 1]))
+        f_val = float(val_str)
+        return ('--', f_val)
+    except Exception:
+        return ('--', 0.0)
 # 2. 增加/删除系统附加项目标签列（如新增一个“入场式”列）
 @app.route('/api/manage_custom_score_columns', methods=['POST'])
 @login_required('admin')
