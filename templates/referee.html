@@ -130,24 +130,28 @@
                 </div>
 
                 <div id="fieldControlBar" class="hidden bg-orange-50 border-b border-orange-200 p-3 flex flex-wrap items-center justify-between gap-2">
-                    <div class="flex items-center gap-1 overflow-x-auto no-scrollbar" id="roundPills">
-                        <button onclick="switchFieldRound(1)" class="round-pill px-3 py-1 rounded-lg text-xs font-black bg-orange-600 text-white shadow-xs" data-round="1">第1次</button>
-                        <button onclick="switchFieldRound(2)" class="round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200" data-round="2">第2次</button>
-                        <button onclick="switchFieldRound(3)" class="round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200" data-round="3">第3次</button>
-                        <span class="text-gray-300 text-xs">|</span>
-                        <button onclick="switchFieldRound(4)" id="btnRound4" disabled class="round-pill px-3 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-400 cursor-not-allowed" data-round="4">第4次</button>
-                        <button onclick="switchFieldRound(5)" id="btnRound5" disabled class="round-pill px-3 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-400 cursor-not-allowed" data-round="5">第5次</button>
-                        <button onclick="switchFieldRound(6)" id="btnRound6" disabled class="round-pill px-3 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-400 cursor-not-allowed" data-round="6">第6次</button>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <button onclick="settleTop8ForFinals()" id="btnSettleTop8" class="bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-black shadow transition active:scale-95">
-                            ⚡ 截取前8决赛
-                        </button>
-                        <button onclick="finalizeFieldCompetition()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-black shadow transition active:scale-95">
-                            提交最终名次
-                        </button>
-                    </div>
-                </div>
+    <div class="flex items-center gap-1 overflow-x-auto no-scrollbar" id="roundPills">
+        <button onclick="switchFieldRound(1)" class="round-pill px-3 py-1 rounded-lg text-xs font-black bg-orange-600 text-white shadow-xs" data-round="1">第1次</button>
+        <button onclick="switchFieldRound(2)" class="round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200" data-round="2">第2次</button>
+        <button onclick="switchFieldRound(3)" class="round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200" data-round="3">第3次</button>
+        <span class="text-gray-300 text-xs">|</span>
+        <button onclick="switchFieldRound(4)" id="btnRound4" disabled class="round-pill px-3 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-400 cursor-not-allowed" data-round="4">第4次</button>
+        <button onclick="switchFieldRound(5)" id="btnRound5" disabled class="round-pill px-3 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-400 cursor-not-allowed" data-round="5">第5次</button>
+        <button onclick="switchFieldRound(6)" id="btnRound6" disabled class="round-pill px-3 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-400 cursor-not-allowed" data-round="6">第6次</button>
+    </div>
+    <div class="flex items-center gap-1.5">
+        <!-- 🌟 新增：针对趣味/游园项目的一键未参赛弃权按钮 -->
+        <button type="button" onclick="batchMarkUnfinishedAsAbsent()" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-2.5 py-1.5 rounded-lg text-xs font-black shadow-xs transition active:scale-95 flex items-center gap-1">
+            <span>🚫</span> 一键未测弃权
+        </button>
+        <button onclick="settleTop8ForFinals()" id="btnSettleTop8" class="bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-black shadow transition active:scale-95">
+            ⚡ 截取前8决赛
+        </button>
+        <button onclick="finalizeFieldCompetition()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-black shadow transition active:scale-95">
+            提交最终名次
+        </button>
+    </div>
+</div>
 
                 <div id="highJumpSection" class="hidden flex-1 flex flex-col bg-gray-50 overflow-y-auto relative">
                     <div class="bg-white p-2.5 rounded-xl shadow-sm border-b border-gray-200 sticky top-0 z-20 shrink-0">
@@ -180,20 +184,27 @@
                 </div>
 
                 <div id="normalTableSection" class="overflow-x-auto flex-1">
-                    <table class="w-full text-left border-collapse">
-                        <thead class="bg-gray-100 text-gray-600 uppercase text-xs sticky top-0 shadow-sm z-10">
-                            <tr>
-                                <th class="p-3 border-b text-center w-14">序号/道次</th>
-                                <th class="p-3 border-b text-center w-16">号码</th>
-                                <th class="p-3 border-b">姓名与单位</th>
-                                <th class="p-3 border-b text-right w-36">录入成绩</th>
-                            </tr>
-                        </thead>
-                        <tbody id="athleteList" class="divide-y divide-gray-100">
-                            <tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">请选择组别和项目开始录入</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+    <table class="w-full text-left border-collapse">
+        <thead class="bg-gray-100 text-gray-600 uppercase text-xs sticky top-0 shadow-sm z-10">
+            <tr>
+                <th class="p-3 border-b text-center w-14">序号/道次</th>
+                <th class="p-3 border-b text-center w-16">号码</th>
+                <th class="p-3 border-b">姓名与单位</th>
+                <th class="p-3 border-b text-right w-48">
+                    <div class="flex items-center justify-end gap-1.5">
+                        <span>录入成绩</span>
+                        <button type="button" onclick="batchMarkUnfinishedAsAbsent()" class="text-[10px] bg-red-100 hover:bg-red-200 text-red-700 font-bold px-1.5 py-0.5 rounded border border-red-200 transition" title="将当前项目所有尚未录入成绩的学生一键判定弃权">
+                            🚫一键无成绩弃权
+                        </button>
+                    </div>
+                </th>
+            </tr>
+        </thead>
+        <tbody id="athleteList" class="divide-y divide-gray-100">
+            <tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">请选择组别和项目开始录入</td></tr>
+        </tbody>
+    </table>
+</div>
 
                 <div class="p-2.5 bg-yellow-50 text-yellow-800 text-xs text-center border-t border-yellow-200 font-bold shrink-0">
                     💡 提示：输入成绩后 <b>点击空白处</b> 或回车即可保存。
@@ -2169,7 +2180,88 @@ function switchToActiveHeat() {
     });
 }
 
-// 🌟 修复后的终点弃权处理函数
+// 🌟 趣味/游园项目专属：将所有无成绩选手一键标记弃权
+window.batchMarkUnfinishedAsAbsent = function() {
+    const gName = document.getElementById('selGroup')?.value || '';
+    const gender = document.getElementById('selGender')?.value || '';
+    const eName = document.getElementById('selEvent')?.value || '';
+
+    if (!gName || !gender || !eName) {
+        return alert("请先选择具体的组别、性别和项目！");
+    }
+
+    // 1. 针对田赛/多次试跳模式 (fieldAthletesData)
+    if (fieldAthletesData && fieldAthletesData.length > 0 && !document.getElementById('fieldControlBar').classList.contains('hidden')) {
+        let unscoredAthletes = fieldAthletesData.filter(a => {
+            const atts = a.attempts || [];
+            const hasAnyScore = atts.some(v => v && String(v).trim() !== '' && !String(v).includes('弃权'));
+            const isAlreadyAbsent = atts.some(v => String(v).includes('弃权'));
+            return !hasAnyScore && !isAlreadyAbsent;
+        });
+
+        if (unscoredAthletes.length === 0) {
+            return alert("当前项目所有选手均已录入有效成绩或已标记弃权，无需批量处理！");
+        }
+
+        if (!confirm(`⚠️ 游园会批量判定提示：\n\n当前检测到【${unscoredAthletes.length} 名】选手没有任何测试成绩。\n是否将这 ${unscoredAthletes.length} 名未参赛选手一键判定为【弃权】？\n\n（已录入成绩的选手不受任何影响）`)) {
+            return;
+        }
+
+        unscoredAthletes.forEach(a => {
+            if (!a.attempts) a.attempts = ['', '', '', '', '', ''];
+            a.attempts[0] = '弃权';
+            a.score = '弃权';
+        });
+
+        // 刷新当前轮次显示
+        renderCurrentFieldList();
+
+        // 统一提交后台
+        finalizeFieldCompetition();
+        return;
+    }
+
+    // 2. 针对普通列表展示模式 (表格列表)
+    const inputs = Array.from(document.querySelectorAll('#athleteList .input-score'));
+    let blankInputs = inputs.filter(inp => {
+        const val = String(inp.value || '').trim();
+        return val === '' || val === '-';
+    });
+
+    if (blankInputs.length === 0) {
+        return alert("当前项目所有选手均已录入成绩或已判定弃权！");
+    }
+
+    if (!confirm(`⚠️ 游园会批量判定提示：\n\n当前检测到【${blankInputs.length} 名】选手未录入成绩。\n确定将这些未到场选手一键全部标记为【弃权】吗？\n\n（已有有效成绩的选手不会被修改）`)) {
+        return;
+    }
+
+    showTip("⏳ 正在批量提交弃权名单...", "text-blue-600");
+
+    fetch('/api/batch_mark_absent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            group_name: gName,
+            gender: gender,
+            event_name: eName
+        })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') {
+            if (typeof triggerVibrate === 'function') triggerVibrate([50, 50, 50]);
+            alert(`🎉 ${res.msg}`);
+            // 重新刷新当前界面列表
+            loadAthletes();
+        } else {
+            alert("❌ 操作失败: " + res.msg);
+        }
+    })
+    .catch(() => {
+        alert("网络通信异常，请重试！");
+    });
+};
 // 终点弃权处理
 window.quickMarkAbsent = function(regId, btn, pData) {
     const input = document.getElementById(`score_input_${regId}`) || btn.closest('td')?.querySelector('.input-score');

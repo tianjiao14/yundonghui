@@ -1103,6 +1103,67 @@ def _async_recalculate_worker():
             socketio.emit('rank_updated', {})
         except Exception as e:
             print(f"后台批量计算异常: {e}")
+@app.route('/api/batch_mark_absent', methods=['POST'])
+@login_required('referee')
+def batch_mark_absent():
+    """趣味/游园会项目专属：将指定项目下所有未出成绩的选手批量判定为弃权"""
+    data = request.json or {}
+    g_name = str(data.get('group_name') or '').strip()
+    gender = str(data.get('gender') or '').strip()
+    e_name = str(data.get('event_name') or '').strip()
+
+    if not g_name or not e_name:
+        return jsonify({"status": "error", "msg": "缺少组别或项目参数"}), 400
+
+    clean_core = re.sub(r"\(.*?\)|（.*?）|预赛|决赛|男子|女子|混合", "", e_name).strip()
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute("BEGIN IMMEDIATE")
+
+        # 1. 更新 start_list 表中所有未录入成绩的记录为弃权
+        c.execute("""
+            UPDATE start_list 
+            SET score = '弃权', checked_in = 2 
+            WHERE group_name = ? 
+              AND (gender = ? OR ? = '' OR gender = '混合')
+              AND (event_name = ? OR event_name LIKE ? || '%')
+              AND (score IS NULL OR TRIM(score) = '' OR score = '-')
+        """, (g_name, gender, gender, e_name, clean_core))
+        start_count = c.rowcount
+
+        # 2. 同步更新 registrations 报名总表中该项目无成绩的选手为弃权
+        c.execute("""
+            UPDATE registrations 
+            SET score = '弃权' 
+            WHERE group_name = ? 
+              AND (gender = ? OR ? = '' OR gender = '混合')
+              AND (event_name = ? OR event_name LIKE ? || '%')
+              AND (score IS NULL OR TRIM(score) = '' OR score = '-')
+        """, (g_name, gender, gender, e_name, clean_core))
+        reg_count = c.rowcount
+
+        conn.commit()
+
+        # 3. 自动触发一次后台全场重算并清理缓存
+        trigger_debounced_recalculate(delay=0.5)
+        invalidate_event_cache(e_name, g_name)
+
+        # 广播全网刷新
+        if 'socketio' in globals() and socketio:
+            socketio.emit('score_updated', {'event_name': e_name, 'group_name': g_name})
+            socketio.emit('checkin_updated', {})
+
+        return jsonify({
+            "status": "success",
+            "msg": f"批量判定完成！共将 {max(start_count, reg_count)} 名未到场选手标记为弃权，已出成绩的选手保持不变并已自动核算最新名次！"
+        })
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "msg": str(e)}), 500
+    finally:
+        conn.close()
 @app.route('/api/recalculate_all_points', methods=['POST'])
 @login_required('admin')
 def api_recalculate_all_points():

@@ -770,9 +770,9 @@
     </div>
     <div class="border-t border-gray-100 pt-3 flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-2 flex-wrap">
-            <button onclick="renderResultSheet()" class="bg-blue-100 text-blue-700 px-3.5 py-1.5 rounded-lg hover:bg-blue-200 font-bold text-xs transition active:scale-95 flex items-center gap-1">
-                🔄 刷新成绩
-            </button>
+            <button onclick="manualRefreshScore(this)" class="bg-blue-100 text-blue-700 px-3.5 py-1.5 rounded-lg hover:bg-blue-200 font-bold text-xs transition active:scale-95 flex items-center gap-1">
+    🔄 刷新成绩
+</button>
             
             <label class="flex items-center space-x-1.5 cursor-pointer select-none bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-200 text-yellow-700 font-bold text-xs hover:bg-yellow-100 transition">
                 <input type="checkbox" id="enableEditScore" onchange="renderResultSheet()" class="w-3.5 h-3.5 text-yellow-600 rounded focus:ring-yellow-500 cursor-pointer">
@@ -4305,15 +4305,16 @@ function exportWord() {
             roundStatus = (evtCfg && (String(evtCfg.hasPrelim) === 'true' || String(evtCfg.has_prelim) === '1')) ? "预赛" : "决赛";
         }
 
-        if (div) div.innerHTML = '<div class="text-center text-blue-500 py-16 font-bold text-xs animate-pulse">正在同步核算最新名次与积分...</div>';
+        // 🌟 优化1：采用轻量轻柔提示，不再展示厚重阻塞动画
+        if (div && (!div.children || div.children.length === 0)) {
+            div.innerHTML = '<div class="text-center text-blue-500 py-10 font-bold text-xs animate-pulse">正在载入成绩表...</div>';
+        }
 
-        fetch('/api/recalculate_all_points', { method: 'POST' })
-        .then(() => {
-            return fetch('/api/get_event_start_list?_t=' + Date.now(), {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'}, 
-                body: JSON.stringify({ event_name: eventName, group_name: groupName, gender: gender })
-            });
+        // 🌟 优化2：直接拉取该项目的成绩道次，毫秒级即时响应！
+        fetch('/api/get_event_start_list?_t=' + Date.now(), {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({ event_name: eventName, group_name: groupName, gender: gender })
         })
         .then(r => r.json())
         .then(data => {
@@ -7667,6 +7668,18 @@ window.refreshAthleteView = function(btnEl) {
                     btnEl.disabled = false;
                 }, 1500);
             }
+        });
+};
+window.manualRefreshScore = function(btn) {
+    const oldText = btn.innerHTML;
+    btn.innerHTML = '<span>⏳ 核算中...</span>';
+    btn.disabled = true;
+
+    fetch('/api/recalculate_all_points', { method: 'POST' })
+        .finally(() => {
+            btn.innerHTML = oldText;
+            btn.disabled = false;
+            renderResultSheet();
         });
 };
 window.recalculateAllPointsGlobal = function() {
