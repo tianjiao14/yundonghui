@@ -5021,6 +5021,419 @@ def export_handbook_word():
         return jsonify({"status": "error", "msg": str(e)})
     finally:
         conn.close()
+# =========================================================================
+# 🌟 1. 成绩公告数据提取内核：彻底剔除预赛，优化接力显示
+# =========================================================================
+def build_all_announcements_data(conn):
+    c = conn.cursor()
+    title_row = c.execute("SELECT value FROM sys_config WHERE key='title'").fetchone()
+    comp_title = title_row[0] if title_row else "田径运动会"
+
+    # 🌟 核心过滤：只提取【决赛】或【直决（无预赛后缀）】的项目，彻底排除所有预赛！
+    events_list = c.execute("""
+        SELECT DISTINCT group_name, gender, event_name 
+        FROM start_list 
+        WHERE event_name != '' 
+          AND event_name NOT LIKE '%预赛%'
+          AND event_name NOT LIKE '%及格赛%'
+          AND (score IS NOT NULL AND TRIM(score) != '' AND score != '-')
+        ORDER BY group_name ASC, gender ASC, time_index ASC, event_name ASC
+    """).fetchall()
+
+    if not events_list:
+        events_list = c.execute("""
+            SELECT DISTINCT group_name, gender, event_name 
+            FROM registrations 
+            WHERE event_name != '' 
+              AND event_name NOT LIKE '%预赛%'
+              AND event_name NOT LIKE '%及格赛%'
+              AND (score IS NOT NULL AND TRIM(score) != '' AND score != '-')
+            ORDER BY group_name ASC, gender ASC, event_name ASC
+        """).fetchall()
+
+    pages = []
+    today_str = datetime.now().strftime("%Y年%m月%d日")
+
+    for ev in events_list:
+        g_name = ev['group_name']
+        gender = ev['gender']
+        e_name = ev['event_name']
+        clean_core = re.sub(r"\(.*?\)|（.*?）|预赛|决赛|男子|女子|混合", "", e_name).strip()
+
+        # 纯净标题展示
+        display_title = f"{g_name} {gender}子 · {clean_core} [ 决赛 ]"
+        is_relay = any(k in e_name for k in ['接力', '4x', '4×', '4*'])
+
+        rows = c.execute("""
+            SELECT s.lane, s.bib, s.name, s.team_name, s.score,
+                   COALESCE(s.points, r.points, 0) as points,
+                   COALESCE(s.rank, r.rank, '') as rank,
+                   COALESCE(r.record_bonus, 0) as record_bonus,
+                   s.checked_in
+            FROM start_list s
+            LEFT JOIN registrations r 
+                ON s.name = r.name AND s.team_name = r.team_name AND s.group_name = r.group_name 
+                AND (r.event_name = s.event_name OR r.event_name = REPLACE(s.event_name, ' (决赛)', ''))
+            WHERE s.group_name = ? AND s.gender = ? AND s.event_name = ?
+            GROUP BY s.id
+            ORDER BY 
+                CASE 
+                    WHEN s.score LIKE '%弃权%' OR s.score LIKE '%DNS%' OR s.checked_in = 2 THEN 999
+                    WHEN s.score LIKE '%犯规%' OR s.score LIKE '%DQ%' THEN 998
+                    WHEN s.rank != '' AND s.rank != '--' THEN CAST(s.rank AS INTEGER)
+                    ELSE 900
+                END ASC,
+                CAST(s.lane AS INTEGER) ASC
+        """, (g_name, gender, e_name)).fetchall()
+
+        # 接力队伍合并去重
+        if is_relay:
+            team_seen = {}
+            for r in rows:
+                t_key = r['team_name']
+                if t_key not in team_seen or (r['score'] and not team_seen[t_key]['score']):
+                    team_seen[t_key] = r
+            rows = list(team_seen.values())
+
+        if not rows:
+            continue
+
+        item_rows = []
+        for r in rows:
+            sc = str(r['score'] or '').strip()
+            pts = int(r['points'] or 0)
+            bonus = int(r['record_bonus'] or 0)
+            rnk = str(r['rank'] or '').strip()
+
+            raw_name = str(r['name'] or '').strip()
+            if is_relay:
+                clean_n = re.sub(r'未排棒|\d+棒[:：]|\(|\)|（|）', '', raw_name).strip()
+                names_list = [x.strip() for x in re.split(r'[,，、\s]+', clean_n) if x.strip()]
+                if len(names_list) >= 4:
+                    row1 = "、".join(names_list[:2])
+                    row2 = "、".join(names_list[2:4])
+                    display_name = f"{row1}<br>{row2}"
+                elif len(names_list) > 0:
+                    display_name = "、".join(names_list)
+                else:
+                    display_name = raw_name
+            else:
+                display_name = raw_name
+
+            if sc.upper() in ['弃权', 'DNS', 'DNF'] or r['checked_in'] == 2:
+                rnk_disp, sc_disp = "--", "弃权"
+                pts_disp, remark_disp = "--", "未参赛"
+                is_err = True
+            elif '犯规' in sc.upper() or 'DQ' in sc.upper():
+                rnk_disp, sc_disp = "--", "犯规"
+                pts_disp, remark_disp = "--", "犯规无成绩"
+                is_err = True
+            else:
+                rnk_disp = rnk if rnk and rnk != '0' else "--"
+                sc_disp = sc
+                pts_disp = str(pts) if pts > 0 else ""
+                remark_disp = f"破纪录 +{bonus}" if bonus > 0 else ""
+                is_err = False
+
+            item_rows.append({
+                "rank": rnk_disp,
+                "bib": ('' if is_relay else (r['bib'] or '')),
+                "name": display_name,
+                "team": r['team_name'],
+                "score": sc_disp,
+                "points": pts_disp,
+                "remark": remark_disp,
+                "is_err": is_err
+            })
+
+        pages.append({
+            "title": comp_title,
+            "display_title": display_title,
+            "date": today_str,
+            "rows": item_rows
+        })
+
+    return comp_title, pages
+
+
+# =========================================================================
+# 🌟 2. 导出 Word 成绩公告册（原生强力分页、名字横排、表头签字同页）
+# =========================================================================
+@app.route('/api/export_all_announcements_word')
+@login_required('admin')
+def export_all_announcements_word():
+    conn = get_db_connection()
+    try:
+        comp_title, pages = build_all_announcements_data(conn)
+        if not pages:
+            return "当前尚无任何已完赛项目的决赛成绩数据！", 400
+
+        all_pages_html = []
+        for p_idx, p in enumerate(pages):
+            is_relay = ('接力' in p['display_title'] or '4×' in p['display_title'] or '4x' in p['display_title'])
+            
+            tbody_tr = ""
+            for r in p["rows"]:
+                color_style = "color: red;" if r["is_err"] and "弃权" in r["score"] else ("color: #d97706;" if r["is_err"] else "")
+                
+                if is_relay:
+                    name_td_html = f"<td style='border: 1px solid #000; text-align: left; padding: 3px 6px; font-weight: bold; font-size: 9.5pt; line-height: 1.3;'>{r['name']}</td>"
+                else:
+                    name_td_html = f"<td style='border: 1px solid #000; text-align: left; padding-left: 10px; font-weight: bold; white-space: nowrap;'>{r['name']}</td>"
+
+                tr_height = "38px" if is_relay else "28px"
+
+                tbody_tr += f"""
+                <tr style='height: {tr_height}; text-align: center; vertical-align: middle;'>
+                    <td style='border: 1px solid #000; font-weight: bold;'>{r['rank']}</td>
+                    <td style='border: 1px solid #000; font-family: "Times New Roman";'>{r['bib']}</td>
+                    {name_td_html}
+                    <td style='border: 1px solid #000; font-weight: bold;'>{r['team']}</td>
+                    <td style='border: 1px solid #000; font-family: "Times New Roman"; font-weight: bold; {color_style}'>{r['score']}</td>
+                    <td style='border: 1px solid #000; font-weight: bold; color: #b45309;'>{r['points']}</td>
+                    <td style='border: 1px solid #000; font-size: 9.5pt;'>{r['remark']}</td>
+                </tr>
+                """
+
+            page_break_tag = "<br clear=all style='page-break-before:always; mso-break-type:section-break'>" if p_idx > 0 else ""
+
+            page_html = f"""
+            {page_break_tag}
+            <div class='page-container' style='margin-bottom: 20px;'>
+                <h1 style='text-align: center; font-size: 24pt; font-weight: bold; letter-spacing: 3px; margin: 0 0 10px 0;'>{p['title']} 成绩公告</h1>
+                <div style='display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 8px; font-size: 11pt; font-weight: bold;'>
+                    <span>项目：{p['display_title']}</span>
+                    <span style='letter-spacing: 4px;'>综合成绩</span>
+                    <span>{p['date']}</span>
+                </div>
+                <table style='width: 100%; border-collapse: collapse; font-size: 10.5pt; table-layout: fixed;'>
+                    <thead>
+                        <tr style='height: 32px; background-color: #eee; font-weight: bold;'>
+                            <th style='border: 1px solid #000; width: 45px;'>名次</th>
+                            <th style='border: 1px solid #000; width: 65px;'>号码</th>
+                            <th style='border: 1px solid #000; text-align: left; padding-left: 8px; width: 175px;'>姓名</th>
+                            <th style='border: 1px solid #000; width: 95px;'>单位</th>
+                            <th style='border: 1px solid #000; width: 105px;'>成绩</th>
+                            <th style='border: 1px solid #000; width: 50px;'>积分</th>
+                            <th style='border: 1px solid #000; width: 85px;'>备注</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {tbody_tr}
+                    </tbody>
+                </table>
+                <div style='display: flex; justify-content: space-between; font-size: 11pt; font-weight: bold; margin-top: 35px;'>
+                    <span>总裁判长签字：_______________</span>
+                    <span>记录长签字：_______________</span>
+                </div>
+            </div>
+            """
+            all_pages_html.append(page_html)
+
+        full_doc_html = f"""<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+            <meta charset='utf-8'>
+            <title>{comp_title} 全场成绩公告册</title>
+            <!--[if gte mso 9]>
+            <xml>
+                <w:WordDocument>
+                    <w:View>Print</w:View>
+                </w:WordDocument>
+            </xml>
+            <![endif]-->
+            <style>
+                @page {{ 
+                    size: A4 portrait; 
+                    margin: 2.0cm 1.8cm 1.8cm 1.8cm; 
+                    mso-header-margin: 36pt; 
+                    mso-footer-margin: 36pt; 
+                }}
+                body {{ 
+                    font-family: 'SimSun', 'Songti SC', serif; 
+                    color: #000; 
+                }}
+                td, th {{ 
+                    padding: 3px 4px; 
+                }}
+            </style>
+        </head>
+        <body>
+            {''.join(all_pages_html)}
+        </body>
+        </html>"""
+
+        mem = BytesIO()
+        mem.write(full_doc_html.encode('utf-8'))
+        mem.seek(0)
+        return send_file(
+            mem,
+            mimetype='application/msword',
+            as_attachment=True,
+            download_name=f'{comp_title}_全场成绩公告册_{datetime.now().strftime("%Y%m%d_%H%M%S")}.doc'
+        )
+    finally:
+        conn.close()
+
+
+# =========================================================================
+# 🌟 2. 导出/直接打印为高保真 PDF 页面
+# =========================================================================
+@app.route('/admin/print_all_announcements')
+@login_required('admin')
+def print_all_announcements():
+    conn = get_db_connection()
+    try:
+        comp_title, pages = build_all_announcements_data(conn)
+        if not pages:
+            return "当前尚无任何已完赛项目的成绩数据！", 400
+
+        pages_divs = []
+        for p in pages:
+            tbody = ""
+            for r in p["rows"]:
+                color = "color: #dc2626;" if r["is_err"] and "弃权" in r["score"] else ("color: #d97706;" if r["is_err"] else "")
+                tbody += f"""
+                <tr style='height: 27px; text-align: center;'>
+                    <td style='border: 1px solid #000; font-weight: bold;'>{r['rank']}</td>
+                    <td style='border: 1px solid #000; font-family: "Times New Roman";'>{r['bib']}</td>
+                    <td style='border: 1px solid #000; text-align: left; padding-left: 8px; font-weight: bold; white-space: nowrap;'>{r['name']}</td>
+                    <td style='border: 1px solid #000; white-space: nowrap;'>{r['team']}</td>
+                    <td style='border: 1px solid #000; font-family: "Times New Roman"; font-weight: bold; {color}'>{r['score']}</td>
+                    <td style='border: 1px solid #000; font-weight: bold; color: #b45309;'>{r['points']}</td>
+                    <td style='border: 1px solid #000; font-size: 9pt;'>{r['remark']}</td>
+                </tr>
+                """
+
+            p_div = f"""
+            <div class="print-page">
+                <h1 class="page-title">{p['title']} 成绩公告</h1>
+                <div class="page-subtitle">
+                    <span>项目：{p['display_title']}</span>
+                    <span style="letter-spacing: 4px;">综合成绩</span>
+                    <span>{p['date']}</span>
+                </div>
+                <table class="ann-table">
+                    <thead>
+                        <tr style="height: 30px; background-color: #f1f5f9; font-weight: bold;">
+                            <th style="width: 45px;">名次</th>
+                            <th style="width: 65px;">号码</th>
+                            <th style="text-align: left; padding-left: 8px; width: 140px; white-space: nowrap;">姓名</th>
+                            <th style="width: 110px;">单位</th>
+                            <th style="width: 100px;">成绩</th>
+                            <th style="width: 45px;">积分</th>
+                            <th style="width: 85px;">备注</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {tbody}
+                    </tbody>
+                </table>
+                <div class="page-footer">
+                    <span>总裁判长签字：_______________</span>
+                    <span>记录长签字：_______________</span>
+                </div>
+            </div>
+            """
+            pages_divs.append(p_div)
+
+        html_content = f"""<!DOCTYPE html>
+        <html lang="zh-CN">
+        <head>
+            <meta charset="UTF-8">
+            <title>{comp_title} - 全场成绩公告册 (PDF打印预览)</title>
+            <style>
+                @page {{
+                    size: A4 portrait;
+                    margin: 1.2cm 1.5cm;
+                }}
+                body {{
+                    font-family: 'SimSun', 'Songti SC', serif;
+                    background-color: #525659;
+                    margin: 0;
+                    padding: 20px 0;
+                    color: #000;
+                }}
+                .print-page {{
+                    background: #fff;
+                    width: 210mm;
+                    min-height: 297mm;
+                    padding: 15mm 20mm;
+                    margin: 0 auto 15px auto;
+                    box-sizing: border-box;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+                    page-break-after: always;
+                    page-break-inside: avoid;
+                    display: flex;
+                    flex-direction: column;
+                }}
+                .page-title {{
+                    text-align: center;
+                    font-size: 22pt;
+                    font-weight: bold;
+                    letter-spacing: 2px;
+                    margin: 0 0 10px 0;
+                }}
+                .page-subtitle {{
+                    display: flex;
+                    justify-content: space-between;
+                    border-bottom: 2px solid #000;
+                    padding-bottom: 4px;
+                    margin-bottom: 8px;
+                    font-size: 11pt;
+                    font-weight: bold;
+                }}
+                .ann-table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 10pt;
+                    table-layout: fixed;
+                }}
+                .ann-table th, .ann-table td {{
+                    border: 1px solid #000;
+                    padding: 3px 4px;
+                }}
+                .page-footer {{
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 11pt;
+                    font-weight: bold;
+                    margin-top: auto;
+                    padding-top: 30px;
+                }}
+                @media print {{
+                    body {{ background: transparent; padding: 0; }}
+                    .print-page {{
+                        margin: 0;
+                        box-shadow: none;
+                        width: 100%;
+                        min-height: auto;
+                        height: 100%;
+                        padding: 0;
+                    }}
+                    .no-print {{ display: none !important; }}
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="no-print" style="position: fixed; top: 15px; right: 20px; z-index: 999; background: #fff; padding: 10px 18px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); display: flex; gap: 10px; align-items: center;">
+                <span style="font-size: 13px; font-weight: bold; color: #333;">💡 提示：在打印预览窗口中，目标打印机选择“另存为 PDF”即可！</span>
+                <button onclick="window.print()" style="background: #2563eb; color: #fff; border: none; padding: 8px 18px; border-radius: 6px; font-weight: bold; cursor: pointer;">🖨️ 立即打印 / 保存 PDF</button>
+            </div>
+            {''.join(pages_divs)}
+            <script>
+                // 页面打开 0.5 秒后自动调起系统打印（另存为 PDF）对话框
+                window.onload = function() {{
+                    setTimeout(function() {{
+                        window.print();
+                    }}, 600);
+                }};
+            </script>
+        </body>
+        </html>"""
+
+        return html_content
+    finally:
+        conn.close()
 @app.route('/api/save_group_qualify_count', methods=['POST'])
 @login_required('admin')
 def save_group_qualify_count():

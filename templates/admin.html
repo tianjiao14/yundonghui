@@ -794,8 +794,25 @@
             <button onclick="generateResultAnnouncement()" class="bg-indigo-600 text-white px-3.5 py-1.5 rounded-lg shadow hover:bg-indigo-700 font-bold text-xs transition active:scale-95">
                 📄 生成成绩公告
             </button>
+
+            <!-- 🌟 一键导出全部成绩公告（Word / PDF） -->
+            <div class="relative inline-block text-left group">
+                <button type="button" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg shadow font-bold text-xs transition active:scale-95 flex items-center gap-1">
+                    <span>📥 导出全部公告</span>
+                    <span class="text-[10px]">▼</span>
+                </button>
+                <div class="hidden group-hover:block absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
+                    <a href="javascript:void(0)" onclick="exportAllAnnouncementsWord()" class="flex items-center gap-2 px-3.5 py-2 text-xs text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 font-bold">
+                        <span>📘</span> 导出 Word 册 (.doc)
+                    </a>
+                    <a href="javascript:void(0)" onclick="exportAllAnnouncementsPDF()" class="flex items-center gap-2 px-3.5 py-2 text-xs text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 font-bold border-t border-gray-100">
+                        <span>📄</span> 批量打印 / 存为 PDF
+                    </a>
+                </div>
+            </div>
+
             <button onclick="window.print()" class="bg-gray-700 text-white px-3.5 py-1.5 rounded-lg hover:bg-gray-800 font-bold text-xs transition active:scale-95">
-                🖨️ 打印
+                🖨️ 打印单项
             </button>
         </div>
     </div>
@@ -7730,6 +7747,17 @@ window.recalculateAllPointsGlobal = function() {
         }
         alert("核算请求失败: " + err.message);
     });
+};
+// 🌟 1. 一键导出全场成绩公告 Word 册（支持二次编辑、一页一个项目、签字同页）
+window.exportAllAnnouncementsWord = function() {
+    const title = document.getElementById('cfgTitle')?.value || '田径运动会';
+    window.location.href = '/api/export_all_announcements_word?_t=' + Date.now();
+};
+
+// 🌟 2. 一键批量生成/另存为高清矢量 PDF
+window.exportAllAnnouncementsPDF = function() {
+    // 在新窗口打开专用打印预览排版页，自动调起浏览器的“另存为 PDF”
+    window.open('/admin/print_all_announcements', '_blank');
 };
 // =======================================================
 // 🌟 管理端 Socket.IO 全局长连接与事件驱动中心
