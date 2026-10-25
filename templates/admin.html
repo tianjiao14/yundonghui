@@ -815,12 +815,15 @@
     </div>
 
     <div class="flex items-center gap-2">
+    <button onclick="recalculateAllPointsGlobal()" class="bg-red-600 text-white px-3 py-2 rounded-lg shadow hover:bg-red-700 font-bold text-xs flex items-center gap-1.5 transition active:scale-95">
+        ⚡ 一键重算全场积分
+    </button>
+
     <label class="flex items-center space-x-1.5 cursor-pointer select-none bg-yellow-50 px-3 py-2 rounded-lg border border-yellow-200 text-yellow-800 font-bold text-xs hover:bg-yellow-100 transition">
         <input type="checkbox" id="enableEditRankScore" onchange="onToggleEditRankScore(this)" class="w-3.5 h-3.5 text-yellow-600 rounded focus:ring-yellow-500 cursor-pointer">
         <span>🔓 开启附加分编辑</span>
     </label>
 
-    <!-- 🌟 新增：动态管理附加项目列按钮 -->
     <button onclick="manageCustomColsPrompt()" class="bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg font-bold text-xs hover:bg-indigo-100 transition active:scale-95">
         ➕ 增减集体附加项
     </button>
@@ -1598,19 +1601,26 @@ if (typeof io !== 'undefined') {
             };
             container.appendChild(btn);
         });
-         const activeClean = (window.curResEvent || '').replace(' (预赛)', '').replace(' (决赛)', '').trim();
-const activeCfg = db.events.find(e => e.name === activeClean || e.name === window.curResEvent);
+        // 🌟 精准匹配该组别、该项目独立设置的录取名次
+    const activeClean = (window.curResEvent || '').replace(' (预赛)', '').replace(' (决赛)', '').trim();
+    const activeNorm = activeClean.replace(/[*xX]/g, '×');
+    const activeCfg = db.events.find(e => e.name === activeClean || e.name === activeNorm || e.name === window.curResEvent);
 
-// 🌟 优先读取本组别该项目单独设定的录取名次
-const cachedKey = `${window.curResGroup}_${activeClean}`;
-const cachedKeyRaw = `${window.curResGroup}_${window.curResEvent}`;
-const savedCustomQualify = window.groupQualifyCache?.[cachedKey] || window.groupQualifyCache?.[cachedKeyRaw];
+    const key1 = `${window.curResGroup}_${activeClean}`;
+    const key2 = `${window.curResGroup}_${activeNorm}`;
+    const key3 = `${window.curResGroup}_${window.curResEvent}`;
 
-const autoQualify = savedCustomQualify || activeCfg?.qualifyCount || activeCfg?.qualify_count || 8;
-const topNInput = document.getElementById('finalsTopN');
-if (topNInput) {
-    topNInput.value = autoQualify;
-}
+    let finalQualify = 8;
+    if (window.groupQualifyCache && (window.groupQualifyCache[key1] || window.groupQualifyCache[key2] || window.groupQualifyCache[key3])) {
+        finalQualify = window.groupQualifyCache[key1] || window.groupQualifyCache[key2] || window.groupQualifyCache[key3];
+    } else if (activeCfg) {
+        finalQualify = activeCfg.qualifyCount || activeCfg.qualify_count || 8;
+    }
+
+    const topNInput = document.getElementById('finalsTopN');
+    if (topNInput) {
+        topNInput.value = finalQualify; // 正确回显（如 3），绝不再被写死默认的 8 冲掉！
+    }
 
         if (typeof checkFinalsBtnVisibility === 'function') {
             checkFinalsBtnVisibility();
@@ -1622,15 +1632,27 @@ if (topNInput) {
 window.groupQualifyCache = window.groupQualifyCache || {};
 
 window.updateEventQualifyCount = function(val) {
-    const qCount = parseInt(val) || 3;
+    const qCount = parseInt(val) || 8;
     const gName = window.curResGroup || '';
     const eName = window.curResEvent || '';
     const cleanCore = eName.replace(' (预赛)', '').replace(' (决赛)', '').trim();
+    const normCore = cleanCore.replace(/[*xX]/g, '×');
 
-    if (gName && cleanCore) {
+    // 1. 立即锁定本地缓存
+    if (gName) {
         window.groupQualifyCache[`${gName}_${cleanCore}`] = qCount;
+        window.groupQualifyCache[`${gName}_${normCore}`] = qCount;
+        window.groupQualifyCache[`${gName}_${eName}`] = qCount;
     }
 
+    // 视觉反馈：闪烁绿框提示已持久化
+    const inputEl = document.getElementById('finalsTopN');
+    if (inputEl) {
+        inputEl.style.borderColor = '#10b981';
+        inputEl.style.backgroundColor = '#ecfdf5';
+    }
+
+    // 2. 发送请求落盘存库
     fetch('/api/save_group_qualify_count', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1641,8 +1663,21 @@ window.updateEventQualifyCount = function(val) {
         })
     })
     .then(r => r.json())
-    .then(() => {
+    .then(res => {
+        if (res.group_qualify_map) {
+            window.groupQualifyCache = res.group_qualify_map;
+        }
+        setTimeout(() => {
+            if (inputEl) {
+                inputEl.style.borderColor = '';
+                inputEl.style.backgroundColor = '';
+            }
+        }, 800);
+        // 重新渲染当前项目成绩表
         renderResultSheet();
+    })
+    .catch(() => {
+        if (inputEl) inputEl.style.backgroundColor = '#fee2e2';
     });
 };
 // 🌟 专门处理报名截止时间的一键自动持久化保存
@@ -3925,19 +3960,30 @@ window.promptRenameAthlete = function(oldName, teamId) {
                 return;
             }
                  
-            const isTimingEvent = ['跑', '绕杆', '计时', '接力', '障碍', '运球', '冲刺', '米'].some(k => rawEventName.includes(k));
-const isCountingOrField = !isTimingEvent && ['仰卧', '起坐', '引体', '向上', '跳绳', '垫球', '踢毽', '跳远', '跳高', '实心球', '铅球', '标枪', '铁饼', '投', '掷'].some(k => rawEventName.includes(k));
+            const isTimingEvent = ['跑', '绕杆', '计时', '接力', '冲刺', '米', '栏'].some(k => rawEventName.includes(k)) 
+                      && !['跳绳', '投篮'].some(k => rawEventName.includes(k));
+
+// 2. 远度、高度、次数类（数值越大越优：跳绳、实心球、垫球、引体、跳远等）
+const isCountingOrField = !isTimingEvent && (
+    isField || 
+    ['仰卧', '起坐', '引体', '向上', '跳绳', '垫球', '踢毽', '跳远', '跳高', '实心球', '铅球', '标枪', '铁饼', '投', '掷', '篮', '立定跳远'].some(k => rawEventName.includes(k))
+);
 
 let sortAsc = true;
 if (isTimingEvent) {
-    sortAsc = true;
+    sortAsc = true;  // 计时赛：升序（如 12.5秒 比 15.2秒 好）
 } else if (isCountingOrField) {
-    sortAsc = false;
+    sortAsc = false; // 计数/田赛：降序（如 180次 比 150次 好，实心球 9.5米 比 8米 好）
 } else {
     sortAsc = validAthletes.some(i => String(i.score).includes(':') || String(i.score).includes('：'));
 }
 
-            validAthletes.sort((a, b) => parseTimeVal(a.score) - parseTimeVal(b.score));
+// 执行排序
+validAthletes.sort((a, b) => {
+    const valA = parseTimeVal(a.score);
+    const valB = parseTimeVal(b.score);
+    return sortAsc ? (valA - valB) : (valB - valA);
+});
         
 
             const myRecords = (groupRecordsData[`${coreMatchName}_${gender}`] || []).filter(r => r.en && parseTimeVal(r.val) > 0);
@@ -4037,29 +4083,7 @@ validAthletes.forEach((p, idx) => {
                     <td style="font-size:10pt; border:1px solid #000;">${remarkText}</td>
                 </tr>`;
             });
-// 🌟 核心：把成绩公告里算出的绝对正确名次与积分，立刻回写持久化到数据库！
-            if (actualRound === '决赛' && isAllHeatsFinished) {
-                const savePayload = validAthletes.map((p, idx) => {
-                    const rnk = (idx + 1);
-                    const pts = (rnk <= 8) ? rules[rnk - 1] : 0;
-                    return {
-                        id: p.reg_id || p.id,
-                        name: p.name,
-                        team_name: p.team_name,
-                        group_name: groupName,
-                        gender: gender,
-                        event_name: rawEventName,
-                        rank: String(rnk),
-                        points: pts
-                    };
-                });
 
-                fetch('/api/force_save_announcement_points', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ athletes: savePayload })
-                }).catch(() => {});
-            }
                 const today = new Date(); const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
                 const finalHtml = `
                 <div class="rc-card break-inside-avoid" style="background:#fff; padding:30px;">
@@ -4146,6 +4170,14 @@ function exportWord() {
     }
 
    window.fetchLatestData = function() {
+        fetch('/api/get_group_qualify_map?_t=' + Date.now())
+            .then(r => r.json())
+            .then(res => {
+                if (res.data) {
+                    window.groupQualifyCache = res.data;
+                }
+            })
+            .catch(() => {});
         fetch('/api/get_data?_t=' + Date.now())
         .then(r => r.json())
         .then(data => {
@@ -4314,14 +4346,16 @@ function exportWord() {
             if (isRelayEvent) {
                 const teamMap = {};
                 items.forEach(it => {
-                    const tKey = it.team_name || it.teamName;
+                    const tKey = String(it.team_name || it.teamName).trim();
                     if (!teamMap[tKey]) {
                         teamMap[tKey] = { ...it };
                     } else {
                         if (!teamMap[tKey].score && it.score) teamMap[tKey].score = it.score;
                         if ((!teamMap[tKey].rank || teamMap[tKey].rank === '--') && it.rank) teamMap[tKey].rank = it.rank;
-                        if (!teamMap[tKey].points && it.points) teamMap[tKey].points = it.points;
-                        if (!teamMap[tKey].lane && it.lane) teamMap[tKey].lane = it.lane;
+                        // 🌟 关键：如果之前没取到 points，用当前有分值的项补全
+                        if ((!teamMap[tKey].points || teamMap[tKey].points === 0) && it.points) {
+                            teamMap[tKey].points = it.points;
+                        }
                     }
                 });
                 items = Object.values(teamMap);
@@ -4439,13 +4473,33 @@ const useVerticalTable = isFieldEvent;
                                     content = `<span style="font-family:Times New Roman; font-weight:bold; font-size:13pt; ${val === '弃权' ? 'color:red;' : ''}">${formatTrackTime(val)}</span>`; 
                                 }
                             } else if (cfg.type === 'point_cell') {
-                                let val = p.points || 0;
+                                let val = parseInt(p.points) || 0;
+
+                                // 🌟 强力保障：名次已排出（1, 2, 3, 4），若 val 为 0，依据名次直接计算输出积分！
+                                const rnk = parseInt(p.rank);
+                                if (!isNaN(rnk) && rnk > 0 && p.score && !p.score.includes('弃权')) {
+                                    // 录取名次输入框值
+                                    const qLimit = parseInt(document.getElementById('finalsTopN')?.value) || 8;
+                                    const rules = [9, 7, 6, 5, 4, 3, 2, 1];
+
+                                    if (rnk <= qLimit && rnk <= rules.length) {
+                                        let calcPts = rules[rnk - 1];
+                                        // 凡是接力或团体，强制双倍积分 (9->18, 7->14, 6->12, 5->10...)
+                                        if (isRelayEvent || eventName.includes('接力') || eventName.includes('4×') || eventName.includes('4*')) {
+                                            calcPts *= 2;
+                                        }
+                                        val = calcPts;
+                                    } else {
+                                        val = 0; // 超出录取名次不计分
+                                    }
+                                }
+
                                 if (isEditMode) { 
                                     content = `<input type="number" value="${val}" class="text-center font-bold bg-gray-50 border-b-2 border-gray-300 w-16 text-gray-500" onblur="updateAdminPoint(${p.id}, this)">`; 
                                 } else { 
                                     content = `<span style="color:#b45309; font-weight:bold; font-size:14pt;">${val > 0 ? val : ''}</span>`; 
                                 } 
-                            } else if (cfg.type === 'qualify_cell') {
+                            }else if (cfg.type === 'qualify_cell') {
                                 if (p.rank && parseInt(p.rank) <= qualifyLimit && p.score && !p.score.includes('弃权')) {
                                     content = `<span style="color:#000; font-weight:bold; font-size:16pt; font-family:Times New Roman;">q</span>`;
                                 } else {
@@ -7437,7 +7491,42 @@ window.refreshAthleteView = function(btnEl) {
             }
         });
 };
+window.recalculateAllPointsGlobal = function() {
+    if (!confirm("⚠️ 确定要重新核算全场所有组别、所有项目的名次与团体积分吗？\n\n这会按照最新的排序规则对所有项目重新洗牌、计算名次并落盘写入数据库。")) {
+        return;
+    }
 
+    const btn = event?.currentTarget;
+    const oldText = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳ 正在全量核算中...</span>';
+    }
+
+    fetch('/api/recalculate_all_points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = oldText;
+        }
+        alert(res.msg || "全场积分与名次已重新计算完毕！");
+        // 立即刷新当前选中的组别排行榜与详细表
+        if (typeof calculateTeamRanking === 'function') {
+            calculateTeamRanking(window.currentRankGroupName, true);
+        }
+    })
+    .catch(err => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = oldText;
+        }
+        alert("核算请求失败: " + err.message);
+    });
+};
 // =======================================================
 // 🌟 管理端 Socket.IO 全局长连接与事件驱动中心
 // =======================================================

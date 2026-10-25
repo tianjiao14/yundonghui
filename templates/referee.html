@@ -1097,29 +1097,228 @@ window.switchFieldRound = function(roundNum) {
         }
     }, 150);
 };
+// ========================================================
+// 🌟 田赛纯前端离线规则算法（世界田联 TR 25.6 次优成绩决胜）
+// ========================================================
+
+// 1. 计算选手的排序比对向量：[第1好成绩, 第2好成绩, 第3好成绩, ..., 第6好成绩]
+function getFieldTieBreakerVector(attemptsArr, limitRounds = 3) {
+    let validScores = [];
+    for (let i = 0; i < Math.min(attemptsArr.length, limitRounds); i++) {
+        let valStr = String(attemptsArr[i] || '').trim().replace('：', '.').replace(':', '.');
+        let num = parseFloat(valStr);
+        if (!isNaN(num) && num > 0) {
+            validScores.push(num);
+        }
+    }
+    // 降序排列：由大到小比对
+    validScores.sort((a, b) => b - a);
+    while (validScores.length < 6) {
+        validScores.push(0);
+    }
+    return validScores;
+}
+
+// 2. 比对两名选手的优劣 (Vector A vs Vector B)
+function compareFieldVectors(vecA, vecB) {
+    for (let i = 0; i < 6; i++) {
+        if (Math.abs(vecA[i] - vecB[i]) > 0.0001) {
+            return vecB[i] - vecA[i]; // 大的排前面
+        }
+    }
+    return 0; // 完全相同
+}
+
+// ========================================================
+// 🌟 纯前端离线截取前 8 强并倒序出场
+// ========================================================
 window.settleTop8ForFinals = function() {
-    const gName = document.getElementById('selGroup')?.value || '';
-    const gender = document.getElementById('selGender')?.value || '';
-    const eName = document.getElementById('selEvent')?.value || '';
-    fetch('/api/settle_field_top8', {
+    if (!fieldAthletesData || fieldAthletesData.length === 0) {
+        return alert("暂无参赛选手数据！");
+    }
+
+    // 1. 纯本地提取前3轮成绩并生成决胜向量
+    let qualifiedList = [];
+    fieldAthletesData.forEach(ath => {
+        let atts = ath.attempts || ['', '', '', '', '', ''];
+        let vec = getFieldTieBreakerVector(atts, 3);
+        
+        // 只要前3轮有至少一次有效成绩（大于0米）
+        if (vec[0] > 0) {
+            qualifiedList.push({
+                ...ath,
+                _vec: vec,
+                prelimBest: vec[0].toFixed(2)
+            });
+        }
+    });
+
+    if (qualifiedList.length === 0) {
+        return alert("⚠️ 前3轮尚未录入任何有效成绩（需大于0米），无法截取前8名！\n如均弃权或犯规，请先录入有效成绩。");
+    }
+
+    if (!confirm(`已在本地检测到 ${qualifiedList.length} 名选手具备有效成绩。\n确定根据前3轮成绩截取前8名进入后3轮决赛，并按倒序排定出场次序吗？`)) {
+        return;
+    }
+
+    // 2. 本地执行全排序（世界田联平分决胜：第1好 -> 第2好 -> 第3好）
+    qualifiedList.sort((a, b) => compareFieldVectors(a._vec, b._vec));
+
+    // 3. 截取前 8 名（不足 8 名则全部录取）
+    let top8 = qualifiedList.slice(0, 8);
+
+    // 标记预赛排位名次（1 ~ 8）
+    top8.forEach((ath, idx) => {
+        ath.prelim_rank = idx + 1;
+    });
+
+    // 4. 倒序出场（预赛第8名排在第1位试跳，预赛第1名最后压轴试跳）
+    top8.reverse();
+
+    // 分配后3轮的出场序号（1 ~ N）
+    top8.forEach((ath, idx) => {
+        delete ath._vec;
+        ath.orderIndex = idx + 1; // 决赛实际出场次序
+        ath.isFinalist = true;
+    });
+
+    // 5. 覆盖当前列表并激活第 4、5、6 轮
+    fieldAthletesData = top8;
+
+    [4, 5, 6].forEach(r => {
+        let btn = document.getElementById(`btnRound${r}`);
+        if (btn) {
+            btn.disabled = false;
+            btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200";
+        }
+    });
+
+    // 6. 保存到本地 LocalStorage 防丢
+    const storageKey = `field_draft_${fieldAthletesData[0]?.event_name}_${fieldAthletesData[0]?.group_name}_${fieldAthletesData[0]?.gender}`;
+    try {
+        localStorage.setItem(storageKey, JSON.stringify(fieldAthletesData));
+    } catch(e) {}
+
+    // 7. 切换进入第 4 轮
+    switchFieldRound(4);
+
+    if (typeof triggerVibrate === 'function') triggerVibrate([50, 50, 50]);
+    alert(`🎉 【本地离线决胜完成】\n已成功按田径规则截取前 ${top8.length} 名晋级决赛！\n出场顺序已自动倒序（第8名先出场，第1名最后出场），可直接进行第4轮试跳。`);
+};
+
+// ========================================================
+// 🌟 纯前端单次成绩录入（本地防抖秒存，断网不丢）
+// ========================================================
+window.saveFieldScore = function(regId, roundNum, input, callback) {
+    const key = `${regId}_${roundNum}`;
+    if (typeof fieldDebounceTimers !== 'undefined') clearTimeout(fieldDebounceTimers[key]);
+
+    let val = input.value.trim().replace('：', '.').replace(':', '.');
+    input.value = val;
+    let athlete = fieldAthletesData.find(a => (a.reg_id || a.id) === regId);
+    if (!athlete) return;
+
+    if (!athlete.attempts) athlete.attempts = ['', '', '', '', '', ''];
+    athlete.attempts[roundNum - 1] = val;
+
+    // 本地即时计算当前所有轮次最好成绩
+    let allValid = athlete.attempts.map(v => parseFloat(v) || 0);
+    let overallBest = Math.max(0, ...allValid);
+    athlete.score = overallBest > 0 ? overallBest.toFixed(2) : (athlete.attempts.some(v => String(v).includes('弃权')) ? '弃权' : '');
+
+    // 🌟 1. 核心：优先写入 LocalStorage 离线数据库
+    const storageKey = `field_draft_${athlete.event_name}_${athlete.group_name}_${athlete.gender}`;
+    try {
+        localStorage.setItem(storageKey, JSON.stringify(fieldAthletesData));
+    } catch (e) {}
+
+    // 更新页面展示
+    if (typeof updateFieldRowDOM === 'function') {
+        updateFieldRowDOM(athlete, roundNum);
+    }
+
+    input.classList.remove('saving', 'error');
+    input.classList.add('saved');
+    setTimeout(() => input.classList.remove('saved'), 500);
+
+    // 🌟 2. 弱网尝试异步静默推送给后台草稿，断网失败也完全不弹窗阻断，静默兜底
+    fetch('/api/draft_field_score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ group_name: gName, gender: gender, event_name: eName })
+        body: JSON.stringify({
+            id: athlete.id,
+            reg_id: athlete.reg_id,
+            score: athlete.score,
+            attempts_json: JSON.stringify(athlete.attempts)
+        })
+    }).catch(() => {
+        // 静默捕获网络错误，不影响裁判继续录入！
+    });
+
+    if (typeof triggerVibrate === 'function') triggerVibrate(40);
+    if (typeof callback === 'function') callback({ status: 'success' });
+};
+
+// ========================================================
+// 🌟 比赛全部结束：前端一键汇总打包，统一上传管理端
+// ========================================================
+window.finalizeFieldCompetition = function() {
+    if (!fieldAthletesData || fieldAthletesData.length === 0) {
+        return alert("暂无选手数据！");
+    }
+
+    // 检查是否有未录完的情况并给予友好确认
+    if (!confirm("⚠️ 确定要统一上传本项目的全部成绩并结算名次与总积分吗？\n上传后管理端将立刻生成最终成绩公告与积分排名。")) {
+        return;
+    }
+
+    // 打包 6 轮明细及最高成绩
+    const payloadList = fieldAthletesData.map(p => {
+        let atts = p.attempts || ['', '', '', '', '', ''];
+        let allValid = atts.map(v => parseFloat(v) || 0);
+        let best = Math.max(0, ...allValid);
+        let hasAbandon = atts.some(v => String(v).includes('弃权'));
+        let finalScoreStr = best > 0 ? best.toFixed(2) : (hasAbandon ? '弃权' : '');
+
+        return {
+            id: p.id,
+            reg_id: p.reg_id || p.id,
+            name: p.name,
+            team_name: p.team_name,
+            group_name: p.group_name,
+            gender: p.gender,
+            event_name: p.event_name,
+            score: finalScoreStr,
+            attempts_json: JSON.stringify(atts)
+        };
+    });
+
+    showTip("⏳ 正在批量上传全项目成绩...", "text-blue-600");
+
+    fetch('/api/batch_submit_field_scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ athletes: payloadList })
     })
     .then(r => r.json())
     .then(res => {
-        if (res.status !== 'success') return alert(res.msg);
-        [4, 5, 6].forEach(r => {
-            let btn = document.getElementById(`btnRound${r}`);
-            btn.disabled = false;
-            btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200";
-        });
-        fieldAthletesData = res.top8;
-        switchFieldRound(4);
-        alert(`🎉 后端已按田径规程（含次优成绩决胜）锁定前 ${fieldAthletesData.length} 名晋级决赛，并按倒序排定出场顺序！`);
+        if (res.status === 'success') {
+            // 上传成功，清除本地临时草稿
+            const storageKey = `field_draft_${fieldAthletesData[0]?.event_name}_${fieldAthletesData[0]?.group_name}_${fieldAthletesData[0]?.gender}`;
+            try { localStorage.removeItem(storageKey); } catch (e) {}
+
+            if (typeof triggerVibrate === 'function') triggerVibrate([80, 50, 80]);
+            showTip("✅ 全部成绩已成功上传！", "text-emerald-600");
+            alert(`🎉 恭喜！田赛成绩已全部统一上传至管理端！\n${res.msg || ''}`);
+            loadAthletes(); // 刷新恢复默认状态
+        } else {
+            alert("❌ 上传失败: " + res.msg + "\n请检查网络连接后重试！本地数据已完整保存，不会丢失。");
+        }
+    })
+    .catch(err => {
+        alert("❌ 无法连接到服务器，请检查手机网络或服务器状态！\n不必担心，所有成绩已完整保存在您当前这台手机中，联网后重新点击上传即可。");
     });
-};
-function updateFieldRowDOM(athlete, roundIndex) {
+};function updateFieldRowDOM(athlete, roundIndex) {
     const athId = athlete.reg_id || athlete.id;
     const pillsContainer = document.getElementById(`field_pills_${athId}`);
     if (pillsContainer) {
@@ -1164,57 +1363,6 @@ window.autoSaveFieldScoreDebounced = function(regId, roundNum, input) {
     }, 1000); // 1秒无输入自动触发保存
 };
 
-// 🌟 保存田赛单次成绩
-window.saveFieldScore = function(regId, roundNum, input, callback) {
-    const key = `${regId}_${roundNum}`;
-    if (typeof fieldDebounceTimers !== 'undefined') clearTimeout(fieldDebounceTimers[key]);
-
-    let val = input.value.trim().replace('：', '.').replace(':', '.');
-    input.value = val;
-    let athlete = fieldAthletesData.find(a => (a.reg_id || a.id) === regId);
-    if (!athlete) return;
-
-    // 更新当前轮次（即使是空值也更新进去）
-    athlete.attempts[roundNum - 1] = val;
-    let allValid = athlete.attempts.map(v => parseFloat(v) || 0);
-    let overallBest = Math.max(0, ...allValid);
-    athlete.score = overallBest > 0 ? overallBest.toFixed(2) : (athlete.attempts.some(v => String(v).includes('弃权')) ? '弃权' : '');
-
-    // 1. 同步更新本地 LocalStorage 草稿
-    const storageKey = `field_draft_${athlete.event_name}_${athlete.group_name}_${athlete.gender}`;
-    try {
-        localStorage.setItem(storageKey, JSON.stringify(fieldAthletesData));
-    } catch (e) {}
-
-    if (typeof updateFieldRowDOM === 'function') {
-        updateFieldRowDOM(athlete, roundNum);
-    } else {
-        renderCurrentFieldList();
-    }
-
-    // 2. 无论是有值还是空值，都上报轻量暂存接口清空数据库
-    fetch('/api/draft_field_score', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            id: athlete.id,
-            reg_id: athlete.reg_id,
-            score: athlete.score,
-            attempts_json: JSON.stringify(athlete.attempts)
-        })
-    }).then(r => r.json()).then(res => {
-        if (res.status === 'success') {
-            input.classList.remove('saving', 'error');
-            input.classList.add('saved');
-            setTimeout(() => input.classList.remove('saved'), 600);
-        }
-    }).catch(e => {
-        input.classList.remove('saving');
-    });
-
-    if (typeof triggerVibrate === 'function') triggerVibrate(40);
-    if (typeof callback === 'function') callback({ status: 'success' });
-};
 window.saveAndNextFieldAthlete = function(regId, roundNum) {
     const athId = regId;
     const currentInput = document.getElementById(`field_input_${athId}`);
@@ -1258,57 +1406,6 @@ window.handleFieldInputKeydown = function(event, regId, roundNum) {
         event.preventDefault();
         saveAndNextFieldAthlete(regId, roundNum);
     }
-};
-window.finalizeFieldCompetition = function() {
-    if (!fieldAthletesData || fieldAthletesData.length === 0) {
-        return alert("暂无选手数据！");
-    }
-    if (!confirm("确定要统一提交本田赛项目的全部成绩吗？")) return;
-
-    const payloadList = fieldAthletesData.map(p => {
-        let allValid = (p.attempts || []).map(v => parseFloat(v) || 0);
-        let best = Math.max(0, ...allValid);
-        let hasAbandon = (p.attempts || []).some(v => String(v).includes('弃权'));
-        let finalScoreStr = best > 0 ? best.toFixed(2) : (hasAbandon ? '弃权' : '');
-        p.finalBest = best;
-
-        return {
-            id: p.id,
-            reg_id: p.reg_id || p.id,
-            name: p.name,
-            team_name: p.team_name,
-            group_name: p.group_name,
-            gender: p.gender,
-            event_name: p.event_name,
-            score: finalScoreStr,
-            attempts_json: JSON.stringify(p.attempts || [])
-        };
-    });
-
-    showTip("⏳ 正在统一提交成绩...", "text-blue-600");
-
-    fetch('/api/batch_submit_field_scores', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ athletes: payloadList })
-    })
-    .then(r => r.json())
-    .then(res => {
-        if (res.status === 'success') {
-            const storageKey = `field_draft_${fieldAthletesData[0]?.event_name}_${fieldAthletesData[0]?.group_name}_${fieldAthletesData[0]?.gender}`;
-try {
-    localStorage.removeItem(storageKey);
-} catch (e) {}
-            if (typeof triggerVibrate === 'function') triggerVibrate([80, 50, 80]);
-            showTip("✅ 已统一提交！", "text-emerald-600");
-            loadAthletes();
-        } else {
-            alert("❌ 提交失败: " + res.msg);
-        }
-    })
-    .catch(err => {
-        alert("❌ 网络传输异常，请重试！");
-    });
 };
 function renderCurrentFieldList() {
     const list = document.getElementById('athleteList');

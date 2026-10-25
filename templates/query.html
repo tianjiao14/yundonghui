@@ -356,7 +356,6 @@ window.parseTimeVal = function(val) {
         // 🌟 单项静态缓存字典：避免重复拉取
         window.eventDetailCache = {};
 
-        // 🌟 1. 声明全局请求控制器，点击新项目时立即掐断旧请求
 let currentEventAbortController = null;
 
 function goToEventDetail(eventName, isFinalsList, isSilent = false, forceReload = false) {
@@ -365,10 +364,11 @@ function goToEventDetail(eventName, isFinalsList, isSilent = false, forceReload 
     document.getElementById('detEventName').innerText = eventName;
     document.getElementById('detHeatLabel').innerHTML = isFinalsList ? '✨ 晋级决赛检录名单' : '🏅 综合成绩公告';
     
-    const btnRefresh = document.getElementById('btnRefreshEventDet');
-    if (btnRefresh) {
-        btnRefresh.onclick = () => goToEventDetail(eventName, isFinalsList, true, true);
+    // 🌟 中断上一次尚未返回的 HTTP 连接，防止慢请求覆盖新视图
+    if (currentEventAbortController) {
+        currentEventAbortController.abort();
     }
+    currentEventAbortController = new AbortController();
 
     const contentArea = document.getElementById('detContentArea');
     const cacheKey = `${eventName}_${isFinalsList}`;
@@ -382,28 +382,25 @@ function goToEventDetail(eventName, isFinalsList, isSilent = false, forceReload 
     if (!isSilent) {
         contentArea.innerHTML = `
             <div class="flex flex-col items-center justify-center py-20 text-slate-400">
-                <svg class="animate-spin h-8 w-8 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <svg class="animate-spin h-8 w-8 text-blue-500 mb-4" ...></svg>
                 <span class="font-bold">正在提取官方核定成绩...</span>
             </div>`;
         switchView('view-event-detail');
     }
 
-    // 稳健的无阻塞 Fetch 请求
     fetch('/api/get_event_start_list', {
         method: 'POST', 
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ event_name: eventName, group_name: '', gender: '' })
+        body: JSON.stringify({ event_name: eventName, group_name: '', gender: '' }),
+        signal: currentEventAbortController.signal // 挂载中断信号
     })
-    .then(r => {
-        if (!r.ok) throw new Error("网络响应异常");
-        return r.json();
-    })
+    .then(r => r.json())
     .then(data => {
         window.eventDetailCache[cacheKey] = data;
         renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent);
     })
     .catch(err => {
-        console.error("加载编排数据失败:", err);
+        if (err.name === 'AbortError') return; // 用户主动切走，静默忽略
         contentArea.innerHTML = '<div class="p-10 text-center text-red-500 font-medium">数据加载失败，请点击右上角刷新重试</div>';
     });
 }
@@ -554,13 +551,22 @@ function renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent
                 return s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || s.includes('犯规') || String(i.checked_in) === '2';
             });
 
-            // 排序：优先按管理端回写数据库的 rank 升序排；若 rank 尚未生成，按成绩排序
-            validAthletes.sort((a, b) => {
-                const rA = (a.rank && a.rank !== '--' && !isNaN(parseInt(a.rank))) ? parseInt(a.rank) : 999;
-                const rB = (b.rank && b.rank !== '--' && !isNaN(parseInt(b.rank))) ? parseInt(b.rank) : 999;
-                if (rA !== rB) return rA - rB;
-                return (parseTimeVal ? parseTimeVal(a.score) - parseTimeVal(b.score) : 0);
-            });
+            const isTiming = ['跑', '绕杆', '计时', '接力', '冲刺', '米', '栏'].some(k => eventName.includes(k)) 
+                 && !['跳绳', '投篮'].some(k => eventName.includes(k));
+
+const isDesc = !isTiming && ['跳', '投', '掷', '起坐', '引体', '垫球', '踢毽', '跳绳', '篮', '立定跳远'].some(k => eventName.includes(k));
+const sortAsc = !isDesc;
+
+validAthletes.sort((a, b) => {
+    const rA = (a.rank && a.rank !== '--' && !isNaN(parseInt(a.rank))) ? parseInt(a.rank) : 999;
+    const rB = (b.rank && b.rank !== '--' && !isNaN(parseInt(b.rank))) ? parseInt(b.rank) : 999;
+    if (rA !== rB) return rA - rB; // 优先按后端排好的名次
+    
+    // 若后端尚未出名次，按成绩兜底排序
+    const vA = parseTimeVal(a.score);
+    const vB = parseTimeVal(b.score);
+    return sortAsc ? (vA - vB) : (vB - vA);
+});
 
             let extraColName = isPrelim ? '录取' : '得分';
             html += `
