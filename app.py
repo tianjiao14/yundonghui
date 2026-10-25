@@ -830,7 +830,9 @@ def do_recalculate():
                 has_prelim = False
                 if cfg:
                     has_prelim = (to_bool_str(cfg.get('has_prelim') or cfg.get('hasPrelim')) == '1')
-
+                is_dense_rank = False
+                if cfg:
+                    is_dense_rank = (to_bool_str(cfg.get('dense_rank') or cfg.get('denseRank')) == '1')
                 is_team_event = False
                 if cfg:
                     is_team_event = (to_bool_str(cfg.get('is_team') or cfg.get('isTeam')) == '1') or (to_bool_str(cfg.get('is_relay') or cfg.get('isRelay')) == '1')
@@ -1015,7 +1017,10 @@ def do_recalculate():
                     if i > 0:
                         prev_item = final_list[i - 1]
                         if item['_sort_key'] != prev_item['_sort_key']:
-                            current_rank = i + 1
+                            if is_dense_rank:
+                                current_rank += 1  
+                            else:
+                                current_rank = i + 1  
                     item['computed_rank'] = current_rank
 
                 # 🌟 关键修复：写入时【必须严格匹配 event_name = ?】，绝对禁止用 LIKE 或前缀模糊匹配！
