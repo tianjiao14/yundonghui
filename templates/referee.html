@@ -48,6 +48,7 @@
                     📱 裁判员控制台
                 </h1>
                 <div class="flex items-center gap-2">
+    <button id="btnOfflineQueue" onclick="flushOfflineScoreQueue(true)" class="hidden bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1.5 rounded text-xs font-black shadow-sm transition animate-pulse">⚠️ 待重传(0)</button>
     <button id="btnBack" onclick="resetRoleSelection()" class="hidden bg-blue-500 hover:bg-blue-400 px-3 py-1.5 rounded text-sm font-bold shadow-sm transition active:scale-95">⬅️ 换岗位</button>
     <button onclick="refreshCurrentView()" class="bg-blue-800 hover:bg-blue-900 px-3 py-1.5 rounded text-sm font-bold shadow-sm transition active:scale-95">🔄 刷新</button>
     <button onclick="logoutReferee()" class="bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded text-sm font-bold shadow-sm transition active:scale-95 flex items-center gap-1">🚪 退出</button>
@@ -77,13 +78,11 @@
     <button onclick="selectRole('field')" class="w-full max-w-sm bg-gradient-to-r from-amber-700 to-amber-900 text-white p-4 rounded-xl shadow active:scale-95 transition flex flex-col items-center gap-1">
         <span class="text-2xl">🎯</span>
         <span class="text-base font-black tracking-widest">田赛项目裁判入口</span>
-        <span class="text-[10px] text-amber-200">跳远 / 跳高 / 铅球 / 实心球试跳录入</span>
     </button>
 
     <button onclick="selectRole('fun')" class="w-full max-w-sm bg-gradient-to-r from-purple-600 to-indigo-700 text-white p-4 rounded-xl shadow active:scale-95 transition flex flex-col items-center gap-1">
         <span class="text-2xl">🎈</span>
         <span class="text-base font-black tracking-widest">趣味与健康测试入口</span>
-        <span class="text-[10px] text-purple-200">随到随测打卡 · 一键未测弃权判定</span>
     </button>
 </div>
 
@@ -556,7 +555,7 @@ function resetRoleSelection() {
     filterRoleButtonsByPermission();
 }
 function refreshCurrentView() {
-    if (currentRole === 'timing' || currentRole === 'field') {
+    if (currentRole === 'timing' || currentRole === 'field' || currentRole === 'fun') {
         if (currentRole === 'timing') pollActiveHeat(); // 👈 点击刷新时立即同步最新发令状态！
         const curEvent = document.getElementById('selEvent')?.value;
         const curGroup = document.getElementById('selGroup')?.value;
@@ -1812,12 +1811,13 @@ function renderNormalTrackList(filteredData) {
             const val = String(p.score || '').trim();
             const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn || 0));
             
-            // 🌟 严格判定是否弃权/犯规
-            const isAbandoned = (checkState === 2) || val.includes('弃权') || val.includes('DNS') || val.includes('DNF');
+            // 🌟 修复：只要已有合法成绩（非空且不含弃权/犯规），优先视为正常有效成绩，绝不显示弃权！
             const isDQ = val.includes('犯规') || val.includes('DQ');
+            const hasValidScore = val !== '' && val !== '-' && !isDQ && !val.includes('弃权') && !val.includes('DNS') && !val.includes('DNF');
+            const isAbandoned = !hasValidScore && !isDQ && ((checkState === 2) || val.includes('弃权') || val.includes('DNS') || val.includes('DNF'));
             const isAbsent = isAbandoned || isDQ;
 
-            const inputId = `score_input_${p.reg_id || p.id}`;
+            const inputId = `score_input_${p.id}`;
 
             if (!isHeatFinished && !isAbsent && !val && !firstUnscoredInputId) {
                 firstUnscoredInputId = inputId;
@@ -1836,7 +1836,7 @@ function renderNormalTrackList(filteredData) {
             html += `
             <tr data-heat-row="${heatNum}" id="row_${inputId}" class="border-b border-gray-100 ${isHeatFinished ? 'hidden' : ''} ${isAbsent ? 'bg-red-50/40' : 'bg-white'} hover:bg-gray-50 transition">
                 <td class="p-2 text-center font-bold text-gray-400 border-r w-12 text-sm">${p.lane || '-'}</td>
-                <td class="p-2 text-center font-mono font-bold ${isAbsent ? 'text-gray-400' : 'text-blue-600'} text-xs border-r w-14">${isRelayEvent ? '---' : (p.bib || '---')}</td>
+                <td class="p-2 text-center font-mono font-bold bib-cell ${isAbsent ? 'text-gray-400' : 'text-blue-600'} text-xs border-r w-14">${isRelayEvent ? '---' : (p.bib || '---')}</td>
                 <td class="p-2">
                     <div class="font-black text-xs flex items-center">
                         ${nameHtml}${tagHtml}
@@ -1851,6 +1851,7 @@ function renderNormalTrackList(filteredData) {
        data-heat="${heatNum}"
        data-last-val="${val}"
        class="input-score w-24 border border-blue-200 bg-blue-50/50 rounded-lg p-1.5 text-center shadow-inner text-blue-950 font-bold text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-400"
+       oninput="autoSaveTrackScoreDebounced(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})"
        onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault(); this.blur();}"
        onblur="handleTrackScoreBlur(this, ${p.id}, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})">
                         <div class="flex items-center gap-1 shrink-0">
@@ -1933,19 +1934,22 @@ function updateTimingHeatProgress(heatNum) {
 }
 
 window.handleTrackScoreBlur = function(input, regId, pData) {
+    clearTimeout(trackDebounceTimers[regId]);
     const val = input.value.trim();
     const lastVal = input.dataset.lastVal || '';
+    const row = input.closest('tr');
+    const hasResidualTag = row && row.querySelector('.tag-status') && !val.includes('弃权') && !val.includes('犯规');
     
-    // 内容未变更时不重复发网络包
-    if (val === lastVal) return;
+    // 内容未变更且无残留弃权标签时不重复发网络包
+    if (val === lastVal && !hasResidualTag) return;
     input.dataset.lastVal = val;
     saveScore(regId, input, pData);
 };
 
 function saveScore(regId, input, pData) {
+    clearTimeout(trackDebounceTimers[regId]);
     const val = input.value.trim();
-    
-    // 🌟 核心修复：为了允许清空，这里不能直接 return，即使是空串也要发给后端
+    input.dataset.lastVal = val;
     
     input.classList.remove('saving', 'error');
     input.classList.add('saved');
@@ -1960,16 +1964,32 @@ function saveScore(regId, input, pData) {
         const isAbsent = isAbandoned || isDQ;
         
         const nameSpan = row.querySelector('.name-text');
-        const tagSpan = row.querySelector('.tag-status');
+        const bibCell = row.querySelector('.bib-cell');
+        row.querySelectorAll('.tag-status').forEach(el => el.remove());
         
         row.classList.remove('bg-red-50/40');
-        if (nameSpan) nameSpan.classList.remove('line-through', 'text-gray-400', 'opacity-60');
-        if (tagSpan) tagSpan.remove();
+        row.classList.add('bg-white');
+        if (nameSpan) {
+            nameSpan.classList.remove('line-through', 'text-gray-400', 'opacity-60');
+            nameSpan.classList.add('text-gray-800');
+        }
+        if (bibCell) {
+            bibCell.classList.remove('text-gray-400');
+            bibCell.classList.add('text-blue-600');
+        }
 
         // 如果输入了弃权/犯规，重新加上样式
         if (isAbsent) {
+            row.classList.remove('bg-white');
             row.classList.add('bg-red-50/40');
-            if (nameSpan) nameSpan.classList.add('line-through', 'text-gray-400', 'opacity-60');
+            if (nameSpan) {
+                nameSpan.classList.remove('text-gray-800');
+                nameSpan.classList.add('line-through', 'text-gray-400', 'opacity-60');
+            }
+            if (bibCell) {
+                bibCell.classList.remove('text-blue-600');
+                bibCell.classList.add('text-gray-400');
+            }
             
             const nameContainer = row.querySelector('td:nth-child(3) div:first-child');
             if (nameContainer) {
@@ -1986,37 +2006,138 @@ function saveScore(regId, input, pData) {
             }
         }
     }
+    const payloadObj = { 
+        id: regId, 
+        score: val,
+        name: pData?.name,
+        team_name: pData?.team_name,
+        group_name: pData?.group_name,
+        event_name: pData?.event_name,
+        gender: pData?.gender,
+        heat: input.dataset.heat || pData?.heat || '1'
+    };
 
     fetch('/api/submit_score', {
         method: 'POST', 
         headers: {'Content-Type': 'application/json'}, 
-        body: JSON.stringify({ 
-            id: regId, 
-            score: val, // 发送空串或者新成绩
-            name: pData?.name,
-            team_name: pData?.team_name,
-            group_name: pData?.group_name,
-            event_name: pData?.event_name,
-            gender: pData?.gender
-        }) 
+        body: JSON.stringify(payloadObj) 
     })
     .then(r => r.json())
     .then(res => {
         if (res.status === 'success') {
             input.value = res.new_score || ''; 
             input.dataset.lastVal = res.new_score || '';
-            updateTimingHeatProgress(input.dataset.heat || pData?.heat || '1');
+            removeOfflineScoreById(regId);
+            updateTimingHeatProgress(payloadObj.heat);
         } else {
             input.classList.add('error');
             input.dataset.lastVal = '';
-            alert("保存失败：" + res.msg);
+            enqueueOfflineScore(payloadObj);
         }
     })
     .catch(() => {
         input.classList.add('error');
         input.dataset.lastVal = '';
+        enqueueOfflineScore(payloadObj);
     });
 }
+
+// ==================== 🌟 径赛/趣味项目断网本地缓存队列 ====================
+const OFFLINE_QUEUE_KEY = 'referee_track_offline_queue_v1';
+let isFlushingOffline = false;
+
+function getOfflineScoreQueue() {
+    try {
+        return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+    } catch (e) {
+        return [];
+    }
+}
+
+function updateOfflineBadgeUI() {
+    const q = getOfflineScoreQueue();
+    const btn = document.getElementById('btnOfflineQueue');
+    if (!btn) return;
+    if (q.length > 0) {
+        btn.classList.remove('hidden');
+        btn.innerText = `⚠️ 待重传(${q.length})`;
+    } else {
+        btn.classList.add('hidden');
+    }
+}
+
+function enqueueOfflineScore(item) {
+    if (!item || !item.id) return;
+    const q = getOfflineScoreQueue();
+    const idx = q.findIndex(x => String(x.id) === String(item.id));
+    const entry = { ...item, ts: Date.now() };
+    if (idx >= 0) q[idx] = entry;
+    else q.push(entry);
+    try { localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q)); } catch (e) {}
+    updateOfflineBadgeUI();
+    showTip(`⚠️ 网络波动，【${item.name || '该道次'}】成绩(${item.score})已暂存手机，联网后自动补发`, "text-amber-600");
+}
+
+function removeOfflineScoreById(regId) {
+    const q = getOfflineScoreQueue();
+    const nextQ = q.filter(x => String(x.id) !== String(regId));
+    if (nextQ.length !== q.length) {
+        try { localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(nextQ)); } catch (e) {}
+        updateOfflineBadgeUI();
+    }
+}
+
+async function flushOfflineScoreQueue(manualClick = false) {
+    if (isFlushingOffline) return;
+    const q = getOfflineScoreQueue();
+    if (q.length === 0) {
+        updateOfflineBadgeUI();
+        return;
+    }
+    isFlushingOffline = true;
+    const remaining = [];
+    let successCount = 0;
+
+    for (const item of q) {
+        try {
+            const r = await fetch('/api/submit_score', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(item)
+            });
+            const res = await r.json();
+            if (res && res.status === 'success') {
+                successCount++;
+                const inp = document.getElementById(`score_input_${item.id}`);
+                if (inp) {
+                    inp.classList.remove('error');
+                    inp.classList.add('saved');
+                    inp.value = res.new_score || item.score;
+                    inp.dataset.lastVal = res.new_score || item.score;
+                    setTimeout(() => inp.classList.remove('saved'), 500);
+                }
+            } else {
+                remaining.push(item);
+            }
+        } catch (e) {
+            remaining.push(item);
+        }
+    }
+
+    try { localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining)); } catch (e) {}
+    updateOfflineBadgeUI();
+    isFlushingOffline = false;
+
+    if (successCount > 0) {
+        showTip(`✅ 已自动补发 ${successCount} 条离线缓存成绩！`, "text-emerald-600");
+    } else if (manualClick && remaining.length > 0) {
+        alert(`当前网络仍未恢复，尚有 ${remaining.length} 条成绩保存在手机本地，请检查网络连接！`);
+    }
+}
+
+window.addEventListener('online', () => flushOfflineScoreQueue(false));
+setInterval(() => flushOfflineScoreQueue(false), 8000);
+setTimeout(() => updateOfflineBadgeUI(), 500);
 function showTip(msg, colorClass) {
     const tip = document.getElementById('statusTip');
     tip.innerText = msg; tip.className = "text-xs font-bold py-2 " + colorClass;

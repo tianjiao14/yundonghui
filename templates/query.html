@@ -54,8 +54,12 @@
 <body class="max-w-md mx-auto bg-slate-50 min-h-screen border-x border-gray-100 flex flex-col shadow-2xl relative text-slate-800">
 
     <div id="view-home" class="view-panel flex flex-col flex-1">
-        <header class="gradient-bg text-white p-4 text-center sticky top-0 z-20 shadow-md">
-            <h1 class="text-[17px] font-extrabold tracking-wide drop-shadow-sm" id="sysTitle">{{ title }}</h1>
+        <header class="gradient-bg text-white p-4 text-center sticky top-0 z-20 shadow-md flex items-center justify-between">
+            <div class="w-16"></div>
+            <h1 class="text-[17px] font-extrabold tracking-wide drop-shadow-sm truncate" id="sysTitle">{{ title }}</h1>
+            <button onclick="openTvWall()" class="bg-amber-400/90 hover:bg-amber-400 text-slate-950 font-black text-[11px] px-2.5 py-1 rounded-full shadow flex items-center gap-1 shrink-0 transition active:scale-95">
+                <span>📺</span><span>大屏</span>
+            </button>
         </header>
 
         <main class="flex-1 flex flex-col no-scrollbar overflow-y-auto px-4 py-5">
@@ -1028,9 +1032,247 @@ function refreshCurrentActiveView() {
     } else if (isRankVisible && window.activeRankGroup) {
         loadTeamRank(window.activeRankGroup);
     }
+    if (window.tvWallActive) {
+        fetchTvWallData();
+    }
 }
 
+// ==================== 🌟 操场大屏 / 电视端实时战报轮播系统 ====================
+window.tvWallActive = false;
+window.tvWallSlides = [];
+window.tvWallSlideIdx = 0;
+window.tvWallTimer = null;
+window.tvWallDataPollTimer = null;
 
+window.openTvWall = function() {
+    let wall = document.getElementById('tvWallContainer');
+    if (!wall) {
+        wall = document.createElement('div');
+        wall.id = 'tvWallContainer';
+        wall.className = 'fixed inset-0 z-[300] bg-slate-950 text-white flex flex-col justify-between p-6 md:p-10 select-none overflow-hidden';
+        wall.innerHTML = `
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4 shrink-0">
+                <div class="flex items-center gap-3">
+                    <span class="text-3xl md:text-4xl">🏆</span>
+                    <div>
+                        <h1 class="text-xl md:text-3xl font-black tracking-wider bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent" id="tvWallTitle">赛况实时战报大屏</h1>
+                        <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
+                            <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                            <span id="tvWallSubtitle">实时数据同步中 · 每 10 秒自动轮播切换</span>
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div id="tvSlideIndicators" class="flex items-center gap-1.5 mr-2"></div>
+                    <button onclick="prevTvSlide()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold">◀ 上一页</button>
+                    <button onclick="nextTvSlide()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold">下一页 ▶</button>
+                    <button onclick="toggleTvFullscreen()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-black">⛶ 全屏</button>
+                    <button onclick="closeTvWall()" class="bg-rose-600 hover:bg-rose-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-black">✕ 退出</button>
+                </div>
+            </div>
+            <div id="tvWallSlideBody" class="flex-1 flex flex-col justify-center py-6 overflow-y-auto no-scrollbar">
+                <div class="text-center text-slate-400 text-lg font-bold animate-pulse">正在加载实时战报数据...</div>
+            </div>
+            <div class="border-t border-slate-800/80 pt-3 flex justify-between items-center text-xs text-slate-500 shrink-0">
+                <span id="tvWallFooterLeft">🏅 团结拼搏 · 赛出风格 · 赛出水平</span>
+                <span id="tvWallClock" class="font-mono text-slate-400"></span>
+            </div>
+        `;
+        document.body.appendChild(wall);
+    }
+    wall.classList.remove('hidden');
+    document.getElementById('tvWallTitle').innerText = (document.getElementById('sysTitle')?.innerText || '运动会') + ' · 实时战报大屏';
+    window.tvWallActive = true;
+    fetchTvWallData();
+
+    clearInterval(window.tvWallTimer);
+    window.tvWallTimer = setInterval(() => nextTvSlide(), 10000);
+
+    clearInterval(window.tvWallDataPollTimer);
+    window.tvWallDataPollTimer = setInterval(() => fetchTvWallData(), 15000);
+};
+
+window.closeTvWall = function() {
+    window.tvWallActive = false;
+    clearInterval(window.tvWallTimer);
+    clearInterval(window.tvWallDataPollTimer);
+    const wall = document.getElementById('tvWallContainer');
+    if (wall) wall.classList.add('hidden');
+    if (document.fullscreenElement) {
+        try { document.exitFullscreen(); } catch (e) {}
+    }
+};
+
+window.toggleTvFullscreen = function() {
+    const wall = document.getElementById('tvWallContainer');
+    if (!document.fullscreenElement && wall && wall.requestFullscreen) {
+        wall.requestFullscreen().catch(() => {});
+    } else if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+    }
+};
+
+window.fetchTvWallData = function() {
+    fetch('/api/tv_wall_data?_t=' + Date.now())
+        .then(r => r.json())
+        .then(res => {
+            if (res.status !== 'success') return;
+            const slides = [];
+
+            // 1. 各年级组别团体总分榜轮播页
+            (res.group_rankings || []).forEach(g => {
+                if (g.teams && g.teams.length > 0) {
+                    slides.push({ type: 'ranking', group_name: g.group_name, teams: g.teams });
+                }
+            });
+
+            // 2. 最新完赛项目前三名喜报轮播页（每页展示 4 个最新决赛项目）
+            const podiums = res.recent_podiums || [];
+            for (let i = 0; i < podiums.length; i += 4) {
+                slides.push({ type: 'podium', items: podiums.slice(i, i + 4), page: Math.floor(i / 4) + 1 });
+            }
+
+            // 3. 破纪录荣耀榜轮播页
+            if (res.records && res.records.length > 0) {
+                slides.push({ type: 'records', items: res.records });
+            }
+
+            window.tvWallSlides = slides;
+            if (window.tvWallSlideIdx >= slides.length) window.tvWallSlideIdx = 0;
+            renderCurrentTvSlide();
+            document.getElementById('tvWallClock').innerText = '最后更新：' + new Date().toLocaleTimeString();
+        })
+        .catch(() => {});
+};
+
+window.nextTvSlide = function() {
+    if (!window.tvWallSlides || window.tvWallSlides.length === 0) return;
+    window.tvWallSlideIdx = (window.tvWallSlideIdx + 1) % window.tvWallSlides.length;
+    renderCurrentTvSlide();
+};
+
+window.prevTvSlide = function() {
+    if (!window.tvWallSlides || window.tvWallSlides.length === 0) return;
+    window.tvWallSlideIdx = (window.tvWallSlideIdx - 1 + window.tvWallSlides.length) % window.tvWallSlides.length;
+    renderCurrentTvSlide();
+};
+
+window.renderCurrentTvSlide = function() {
+    const body = document.getElementById('tvWallSlideBody');
+    const ind = document.getElementById('tvSlideIndicators');
+    if (!body) return;
+
+    if (!window.tvWallSlides || window.tvWallSlides.length === 0) {
+        body.innerHTML = '<div class="text-center text-slate-400 text-xl font-bold">比赛正在激烈进行中，敬请期待首项决赛战报！</div>';
+        return;
+    }
+
+    const slide = window.tvWallSlides[window.tvWallSlideIdx];
+    if (ind) {
+        ind.innerHTML = window.tvWallSlides.map((_, i) =>
+            `<span class="inline-block h-2 rounded-full transition-all ${i === window.tvWallSlideIdx ? 'w-6 bg-amber-400' : 'w-2 bg-slate-700'}"></span>`
+        ).join('');
+    }
+
+    if (slide.type === 'ranking') {
+        const maxScore = Math.max(...slide.teams.map(t => t.score || 0), 1);
+        const topTeams = slide.teams.slice(0, 10);
+        body.innerHTML = `
+            <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-2xl md:text-3xl font-black text-amber-300 flex items-center gap-2">
+                    <span>👑</span><span>【${slide.group_name}】团体总分排行榜</span>
+                </h2>
+                <span class="text-xs md:text-sm bg-amber-500/20 text-amber-300 border border-amber-400/30 px-3 py-1 rounded-full font-bold">含田径、趣味及集体项目总积分</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                ${topTeams.map((t, idx) => {
+                    const medal = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : (idx === 2 ? '🥉' : `<span class="text-slate-400 font-mono">${idx + 1}</span>`));
+                    const pct = Math.max(8, Math.round(((t.score || 0) / maxScore) * 100));
+                    const cardCls = idx === 0 ? 'border-amber-400/60 bg-gradient-to-r from-amber-500/20 to-slate-900' :
+                                   (idx === 1 ? 'border-slate-300/50 bg-slate-900/90' :
+                                   (idx === 2 ? 'border-orange-400/50 bg-slate-900/90' : 'border-slate-800 bg-slate-900/60'));
+                    return `
+                    <div class="p-3.5 md:p-4 rounded-2xl border ${cardCls} flex items-center justify-between gap-4">
+                        <div class="flex items-center gap-3 min-w-[140px]">
+                            <div class="text-2xl md:text-3xl font-black w-10 text-center">${medal}</div>
+                            <div>
+                                <div class="text-lg md:text-xl font-black text-white">${t.name}</div>
+                                <div class="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                                    <span>🥇${t.gold || 0}</span>
+                                    <span>🥈${t.silver || 0}</span>
+                                    <span>🥉${t.bronze || 0}</span>
+                                    ${t.total_record_bonus > 0 ? `<span class="text-rose-400 font-bold">🔥破纪录+${t.total_record_bonus}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex-1 hidden sm:block bg-slate-800 h-3 rounded-full overflow-hidden">
+                            <div class="bg-gradient-to-r from-amber-400 to-orange-500 h-full rounded-full" style="width:${pct}%"></div>
+                        </div>
+                        <div class="text-2xl md:text-3xl font-black font-mono text-amber-300 shrink-0">${t.score}<span class="text-xs text-slate-400 ml-1">分</span></div>
+                    </div>`;
+                }).join('')}
+            </div>
+        `;
+    } else if (slide.type === 'podium') {
+        body.innerHTML = `
+            <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-2xl md:text-3xl font-black text-emerald-300 flex items-center gap-2">
+                    <span>⚡</span><span>最新决赛成绩荣耀榜 (${slide.page})</span>
+                </h2>
+                <span class="text-xs md:text-sm bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-3 py-1 rounded-full font-bold">实时播报各单项前三名</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                ${slide.items.map(ev => `
+                    <div class="p-4 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-2.5">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span class="text-base md:text-lg font-black text-amber-300">${ev.title}</span>
+                            <span class="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold">已完赛</span>
+                        </div>
+                        <div class="space-y-2">
+                            ${ev.top3.map((p, i) => `
+                                <div class="flex items-center justify-between text-sm md:text-base bg-slate-950/60 px-3 py-2 rounded-xl">
+                                    <div class="flex items-center gap-2.5">
+                                        <span class="text-xl">${i === 0 ? '🥇' : (i === 1 ? '🥈' : '🥉')}</span>
+                                        <span class="font-black text-white">${p.name}</span>
+                                        <span class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold">${p.team}</span>
+                                    </div>
+                                    <span class="font-mono font-black text-amber-400">${p.score}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } else if (slide.type === 'records') {
+        body.innerHTML = `
+            <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-2xl md:text-3xl font-black text-rose-400 flex items-center gap-2">
+                    <span>🔥</span><span>赛会破纪录英雄榜</span>
+                </h2>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                ${slide.items.map(r => `
+                    <div class="p-4 rounded-2xl border border-rose-500/40 bg-gradient-to-r from-rose-950/50 to-slate-900 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs text-rose-300 font-bold">${r.group_name} · ${r.gender}子 ${r.event_name}</div>
+                            <div class="text-xl md:text-2xl font-black text-white mt-1">${r.name} <span class="text-sm text-amber-300 font-bold">(${r.team_name})</span></div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-2xl font-black font-mono text-rose-400">${r.score}</div>
+                            <div class="text-xs bg-rose-600 text-white px-2 py-0.5 rounded-full font-bold inline-block mt-1">破纪录 +${r.record_bonus}分</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+};
+
+// 支持电视浏览器直接通过 /query?tv=1 自动唤起大屏
+if (window.location.search.includes('tv=1')) {
+    setTimeout(() => openTvWall(), 600);
+}
     </script>
 </body>
 </html>

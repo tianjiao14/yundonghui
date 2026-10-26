@@ -292,6 +292,9 @@
     <button onclick="openSaveTemplateModal()" class="bg-indigo-50 text-indigo-700 border border-indigo-200 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-indigo-100 transition">💾 存为模板</button>
     <button onclick="openLoadTemplateModal()" class="bg-purple-50 text-purple-700 border border-purple-200 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-purple-100 transition">📂 选用模板</button>
 </div>
+<button onclick="openAutoBackupModal()" class="w-full mt-1 bg-emerald-600 text-white py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-emerald-700 transition shadow-sm">
+    🛡️ 自动快照管理与恢复 (每30分钟)
+</button>
         </div>
         <button onclick="saveData()" class="w-full bg-green-600 text-white py-2.5 rounded-lg shadow hover:bg-green-700 font-extrabold text-xs transition flex items-center justify-center gap-2">💾 保存所有配置</button>
     </div>
@@ -810,6 +813,28 @@
                     </a>
                     <a href="javascript:void(0)" onclick="exportAllAnnouncementsPDF()" class="flex items-center gap-2 px-3.5 py-2 text-xs text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 font-bold border-t border-gray-100">
                         <span>📄</span> 批量打印 / 存为 PDF
+                    </a>
+                </div>
+            </div>
+
+            <!-- 🌟 新增：一键批量导出/套打获奖证书 Word (横向 A4) -->
+            <div class="relative inline-block text-left group">
+                <button type="button" class="bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-1.5 rounded-lg shadow font-bold text-xs transition active:scale-95 flex items-center gap-1">
+                    <span>🎓 导出获奖证书</span>
+                    <span class="text-[10px]">▼</span>
+                </button>
+                <div class="hidden group-hover:block absolute right-0 mt-1 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
+                    <a href="javascript:void(0)" onclick="exportCertificatesWord(false, false)" class="flex items-center gap-2 px-3.5 py-2 text-xs text-gray-700 hover:bg-amber-50 hover:text-amber-700 font-bold">
+                        <span>🏅</span> 全部组别 · 标准带框奖状 (.doc)
+                    </a>
+                    <a href="javascript:void(0)" onclick="exportCertificatesWord(true, false)" class="flex items-center gap-2 px-3.5 py-2 text-xs text-gray-700 hover:bg-amber-50 hover:text-amber-700 font-bold border-t border-gray-100" title="隐藏边框与底纹，直接放空白奖状纸进打印机套打">
+                        <span>🖨️</span> 全部组别 · 空白奖状纸套打 (.doc)
+                    </a>
+                    <a href="javascript:void(0)" onclick="exportCertificatesWord(false, true)" class="flex items-center gap-2 px-3.5 py-2 text-xs text-gray-700 hover:bg-amber-50 hover:text-amber-700 font-bold border-t border-gray-100">
+                        <span>📄</span> 当前所选组别 · 标准奖状 (.doc)
+                    </a>
+                    <a href="javascript:void(0)" onclick="exportCertificatesWord(true, true)" class="flex items-center gap-2 px-3.5 py-2 text-xs text-gray-700 hover:bg-amber-50 hover:text-amber-700 font-bold border-t border-gray-100">
+                        <span>🎯</span> 当前所选组别 · 空白纸套打 (.doc)
                     </a>
                 </div>
             </div>
@@ -4625,14 +4650,13 @@ function exportWord() {
                     `;
 
                     items.forEach((p) => {
-                        const val = p.score || '';
-                        const isAbsent = (val === '弃权' || val === '犯规' || String(p.checked_in) === '2');
+                      const val = String(p.score || '').trim();
+                      const hasValidScore = val !== '' && val !== '-' && !val.includes('弃权') && !val.includes('犯规');
+                      const isAbsent = !hasValidScore && (val === '弃权' || val === '犯规' || String(p.checked_in) === '2');
                         
-                        // 优先采用基于最新全员成绩实时算出的 _global_computed_rank，避免后台防抖延迟期间新旧名次冲突
                         let rankDisplay = (!isAbsent && p._global_computed_rank) ? String(p._global_computed_rank) : ((p.rank && p.rank !== '' && !isAbsent) ? p.rank : '--');
                         let pts = 0;
                         
-                        // 实时根据当前准确名次计算积分（严格判断 === true 或 === '1'，杜绝字符串 "0" 导致翻倍）
                         if (rankDisplay !== '--' && !isAbsent) {
                             const rnk = parseInt(rankDisplay);
                             const qLimit = parseInt(document.getElementById('finalsTopN')?.value) || parseInt(qualifyLimit) || 8;
@@ -4717,26 +4741,26 @@ function exportWord() {
                                 content = i;
                             } else if (p) {
                                 if (cfg.type === 'score_cell') {
-                                    const val = p.score || '';
-                                    if (isEditMode) { 
-                                        content = `<input type="text" value="${val}" class="text-center font-bold bg-yellow-50 border-b-2 border-yellow-300 w-24" style="font-family:Times New Roman; font-size:12pt;" onblur="updateAdminScore(${p.id}, this)">`; 
-                                    } else { 
-                                        content = `<span style="font-family:Times New Roman; font-weight:bold; font-size:13pt; ${val === '弃权' ? 'color:red;' : ''}">${formatTrackTime(val)}</span>`; 
-                                    }
-                                } else if (cfg.type === 'rank_cell') {
-                                    // 🌟 优先后端绝对名次，其次使用全局推算的大名次
-                                    if (p.rank && p.rank !== '' && p.rank !== '--') {
-                                        content = p.rank;
-                                    } else if (p._global_computed_rank) {
-                                        content = p._global_computed_rank;
-                                    } else {
-                                        content = '--';
-                                    }
+                                  const val = p.score || '';
+                                  if (isEditMode) { 
+                                      content = `<input type="text" value="${val}" class="text-center font-bold bg-yellow-50 border-b-2 border-yellow-300 w-24" style="font-family:Times New Roman; font-size:12pt;" onblur="updateAdminScore(${p.id}, this)">`; 
+                                  } else { 
+                                      content = `<span style="font-family:Times New Roman; font-weight:bold; font-size:13pt; ${val === '弃权' ? 'color:red;' : (val === '犯规' ? 'color:#f97316;' : '')}">${formatTrackTime(val)}</span>`; 
+                                  }
+                              } else if (cfg.type === 'rank_cell') {
+                                  if (p.score === '弃权' || p.score === '犯规') {
+                                      content = '--';
+                                  } else if (p._global_computed_rank) {
+                                      content = p._global_computed_rank;
+                                  } else if (p.rank && p.rank !== '' && p.rank !== '--') {
+                                      content = p.rank;
+                                  } else {
+                                      content = '--';
+                                  }
                                 } else if (cfg.type === 'point_cell') {
                                     let val = (p.points !== undefined && p.points !== null) ? parseInt(p.points) : 0;
                                     let realRank = (p.rank && !isNaN(parseInt(p.rank))) ? parseInt(p.rank) : (p._global_computed_rank || 0);
 
-                                    // 🌟 全局推算计算积分
                                     if ((val === 0 || isNaN(val)) && realRank > 0 && p.score && !String(p.score).includes('弃权')) {
                                         const qLimit = parseInt(document.getElementById('finalsTopN')?.value) || parseInt(qualifyLimit) || 8;
                                         const activeClean = (eventName || '').replace(' (预赛)', '').replace(' (决赛)', '').trim();
@@ -5326,152 +5350,188 @@ window.recalcRowTotalScore = function(inputEl) {
             </div>`;
             div.innerHTML = tableHtml;
         })
-        .catch(err => {
+       .catch(err => {
             div.innerHTML = '<div class="text-center text-red-500 py-10 font-bold text-xs">加载失败，请检查网络！</div>';
         });
     };
-// 🌟 一键并发拉取全场所有组别的详细积分矩阵，并导出为 Excel 或 Word 存档册
-    window.exportAllDetailedScoreTables = async function(format = 'excel') {
+
+    // 🌟 导出团体总分详细表（原生强制 Word/WPS A4 横向纸张 29.7cm × 21.0cm）
+    window.exportAllDetailedScoreTables = async function(format = 'word', onlyCurrentGroup = false) {
         if (!db.groups || db.groups.length === 0) {
-            return alert("暂无组别数据，无法导出！");
+            return alert("当前系统暂无组别数据！");
         }
 
-        const eventTitle = document.getElementById('cfgTitle')?.value || "田径运动会";
-        const today = new Date();
-        const year = today.getFullYear();
-        const dateStr = `${year}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+        let targetGroups = db.groups;
+        if (onlyCurrentGroup) {
+            if (!window.currentRankGroupName) return alert("请先在上方点击选择一个组别！");
+            targetGroups = db.groups.filter(g => g.name === window.currentRankGroupName);
+        }
 
-        // 1. 按组别顺序并发请求后端的详细积分矩阵接口
-        const groupList = db.groups.map(g => g.name);
-        const results = [];
+        const eventTitle = document.getElementById('cfgTitle')?.value || "运动会";
+        const year = new Date().getFullYear();
+        const div = document.getElementById('rankOutput');
+        const oldHtml = div ? div.innerHTML : '';
+
+        if (div) {
+            div.innerHTML = '<div class="text-center text-emerald-600 mt-16 font-black text-sm animate-pulse">⏳ 正在汇总团体总分详细表，请稍候...</div>';
+        }
 
         try {
-            const responses = await Promise.all(
-                groupList.map(gName =>
-                    fetch('/api/calculate_detailed_matrix?_t=' + Date.now(), {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ group_name: gName })
-                    }).then(r => r.json())
-                )
-            );
-
-            responses.forEach((data, i) => {
+            const allGroupsData = [];
+            for (const g of targetGroups) {
+                const res = await fetch('/api/calculate_detailed_matrix?_t=' + Date.now(), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group_name: g.name })
+                });
+                const data = await res.json();
                 if (data && data.rows && data.rows.length > 0) {
-                    results.push({
-                        groupName: groupList[i],
+                    allGroupsData.push({
+                        groupName: g.name,
                         compCols: data.columns || [],
                         customCols: data.custom_columns || [],
                         rows: data.rows || []
                     });
                 }
-            });
-        } catch (err) {
-            return alert("拉取各组别详细积分数据失败，请检查网络连接！");
-        }
+            }
 
-        if (results.length === 0) {
-            return alert("当前所有组别均暂无有效积分数据，无法导出！");
-        }
+            if (div) div.innerHTML = oldHtml;
 
-        // 2. 构建每个组别的标准双层表头 HTML 表格
-        const buildGroupTableHtml = (item, isPageBreak) => {
-            const { groupName, compCols, customCols, rows } = item;
+            if (allGroupsData.length === 0) {
+                return alert("所选组别暂无任何详细积分数据可导出！");
+            }
 
-            let headerRow1 = `<th rowspan="2" style="width:100px; border:1px solid #000; background:#f3f4f6;">班级 / 单位</th>`;
-            let headerRow2 = ``;
+            let pagesHtml = '';
+            allGroupsData.forEach((gData, gIdx) => {
+                const { groupName, compCols, customCols, rows } = gData;
+                const totalSubCols = compCols.length * 2 + customCols.length + 3;
+                // 根据列数自适应字号，确保在 A4 横向一页宽度内完整放下
+                const tableFontSize = totalSubCols > 26 ? '7.5pt' : (totalSubCols > 18 ? '8.5pt' : '9.5pt');
 
-            compCols.forEach(col => {
-                headerRow1 += `<th colspan="2" style="border:1px solid #000; background:#f3f4f6;">${col}</th>`;
-                headerRow2 += `<th style="width:35px; border:1px solid #000; background:#f3f4f6; font-weight:normal;">男</th><th style="width:35px; border:1px solid #000; background:#f3f4f6; font-weight:normal;">女</th>`;
-            });
-
-            customCols.forEach(col => {
-                headerRow1 += `<th rowspan="2" style="width:70px; border:1px solid #000; color:#4338ca; background:#eef2ff;">${col}</th>`;
-            });
-
-            headerRow1 += `<th rowspan="2" style="width:65px; border:1px solid #000; background:#f3f4f6;">总分</th><th rowspan="2" style="width:50px; border:1px solid #000; background:#f3f4f6;">名次</th>`;
-
-            let bodyHtml = '';
-            rows.forEach((row, idx) => {
-                let cells = `<td style="border:1px solid #000; font-weight:bold; text-align:center;">${row.team}</td>`;
+                let headerRow1 = `<th rowspan="2" style="width:75pt; border:1px solid #000; background-color:#f3f4f6;">班级</th>`;
+                let headerRow2 = ``;
 
                 compCols.forEach(col => {
-                    const detail = row.details[col] || { '男': 0, '女': 0 };
-                    const scoreM = detail['男'] > 0 ? detail['男'] : '';
-                    const scoreF = detail['女'] > 0 ? detail['女'] : '';
-                    cells += `<td style="border:1px solid #000; text-align:center;">${scoreM}</td><td style="border:1px solid #000; text-align:center;">${scoreF}</td>`;
+                    headerRow1 += `<th colspan="2" style="border:1px solid #000; background-color:#f3f4f6;">${col}</th>`;
+                    headerRow2 += `<th style="border:1px solid #000; background-color:#f3f4f6; font-weight:normal;">男</th><th style="border:1px solid #000; background-color:#f3f4f6; font-weight:normal;">女</th>`;
                 });
 
                 customCols.forEach(col => {
-                    const extraVal = row.custom_details[col];
-                    const displayExtra = (extraVal && extraVal > 0) ? extraVal : '';
-                    cells += `<td style="border:1px solid #000; text-align:center; font-weight:bold; color:#4338ca;">${displayExtra}</td>`;
+                    headerRow1 += `<th rowspan="2" style="border:1px solid #000; color:#4338ca; background-color:#eef2ff;">${col}</th>`;
                 });
 
-                cells += `<td style="border:1px solid #000; text-align:center; font-weight:bold; color:#b45309;">${row.total}</td><td style="border:1px solid #000; text-align:center; font-weight:bold;">${idx + 1}</td>`;
-                bodyHtml += `<tr style="height:24px;">${cells}</tr>`;
+                headerRow1 += `<th rowspan="2" style="width:42pt; border:1px solid #000; background-color:#f3f4f6;">总分</th><th rowspan="2" style="width:35pt; border:1px solid #000; background-color:#f3f4f6;">名次</th>`;
+
+                let bodyHtml = '';
+                rows.forEach((row, idx) => {
+                    let cells = `<td style="font-weight:bold; border:1px solid #000; text-align:center;">${row.team}</td>`;
+                    compCols.forEach(col => {
+                        const detail = row.details[col] || { '男': 0, '女': 0 };
+                        const scoreM = detail['男'] > 0 ? detail['男'] : '';
+                        const scoreF = detail['女'] > 0 ? detail['女'] : '';
+                        cells += `<td style="border:1px solid #000; text-align:center;">${scoreM}</td><td style="border:1px solid #000; text-align:center;">${scoreF}</td>`;
+                    });
+                    customCols.forEach(col => {
+                        const extraVal = row.custom_details ? row.custom_details[col] : 0;
+                        const displayExtra = (extraVal && extraVal > 0) ? `+${extraVal}` : '';
+                        cells += `<td style="font-weight:bold; color:#4338ca; background-color:#faf5ff; border:1px solid #000; text-align:center;">${displayExtra}</td>`;
+                    });
+                    cells += `<td style="font-weight:bold; color:#b45309; border:1px solid #000; text-align:center;">${row.total}</td><td style="font-weight:bold; border:1px solid #000; text-align:center;">${idx + 1}</td>`;
+                    bodyHtml += `<tr style="height:22px;">${cells}</tr>`;
+                });
+
+                // 🌟 使用普通分页符而非分节符，确保后续每一页都继承 WordSection1 的横向纸张设置
+                const pageBreak = (format === 'word' && gIdx > 0)
+                    ? `<br clear="all" style="page-break-before:always">`
+                    : (gIdx > 0 ? `<br><br>` : ``);
+
+                pagesHtml += `
+                ${pageBreak}
+                <div style="margin-bottom:16px;">
+                    <h2 style="text-align:center; font-size:18pt; font-weight:bold; margin:0 0 8px 0; font-family:SimSun;">${year} 年${eventTitle}团体总分详细积分表（${groupName}）</h2>
+                    <div style="text-align:left; font-weight:bold; margin-bottom:6px; font-size:10.5pt; font-family:SimSun;">组别：${groupName}</div>
+                    <table style="width:100%; border-collapse:collapse; font-size:${tableFontSize}; border:1px solid #000; text-align:center; font-family:SimSun;">
+                        <thead>
+                            <tr style="height:26px;">${headerRow1}</tr>
+                            <tr style="height:22px;">${headerRow2}</tr>
+                        </thead>
+                        <tbody>${bodyHtml}</tbody>
+                    </table>
+                    <table style="width:100%; border:none; margin-top:14px; font-size:10.5pt; font-weight:bold; font-family:SimSun;">
+                        <tr>
+                            <td style="border:none; text-align:left; width:50%;">总裁判长：________________</td>
+                            <td style="border:none; text-align:right; width:50%;">记录长：________________</td>
+                        </tr>
+                    </table>
+                </div>`;
             });
 
-            const totalColSpan = 1 + compCols.length * 2 + customCols.length + 2;
-            const pageBreakHtml = isPageBreak ? `<br clear="all" style="page-break-before:always; mso-break-type:section-break">` : ``;
+            const isExcel = (format === 'excel');
+            const ext = isExcel ? 'xls' : 'doc';
+            const mimeType = isExcel ? 'application/vnd.ms-excel;charset=utf-8' : 'application/msword;charset=utf-8';
+            const fileScopeName = onlyCurrentGroup ? window.currentRankGroupName : '全部组别';
 
-            return `
-            ${pageBreakHtml}
-            <div style="margin-bottom: 30px;">
-                <h2 style="text-align:center; font-size:18pt; font-weight:bold; margin-bottom:8px; font-family:SimSun;">${year}年 ${eventTitle} 团体总分明细表（${groupName}）</h2>
-                <table style="width:100%; border-collapse:collapse; font-size:10pt; font-family:SimSun; text-align:center; border:1px solid #000;">
-                    <thead>
-                        <tr style="height:28px; font-weight:bold;">${headerRow1}</tr>
-                        <tr style="height:22px;">${headerRow2}</tr>
-                    </thead>
-                    <tbody>${bodyHtml}</tbody>
-                    <tfoot>
-                        <tr style="height:36px; border:none;">
-                            <td colspan="${totalColSpan}" style="border:none; text-align:left; padding-top:15px; font-weight:bold; font-size:11pt;">
-                                总裁判长签字：____________________ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 记录长签字：____________________ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 日期：${year}年${today.getMonth()+1}月${today.getDate()}日
-                            </td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>`;
-        };
+            // 🌟 核心：通过 WordSection1 指定 29.7cm × 21.0cm 与 mso-page-orientation:landscape 强制 Word/WPS 横向打开
+            const fullDoc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta charset="utf-8">
+                <title>${year}年${eventTitle}团体总分详细表</title>
+                <!--[if gte mso 9]>
+                <xml>
+                    <w:WordDocument>
+                        <w:View>Print</w:View>
+                        <w:Zoom>100</w:Zoom>
+                        <w:DoNotOptimizeForBrowser/>
+                    </w:WordDocument>
+                </xml>
+                <![endif]-->
+                <style>
+                    @page {
+                        size: 29.7cm 21.0cm;
+                        mso-page-orientation: landscape;
+                        margin: 1.2cm 1.2cm 1.2cm 1.2cm;
+                    }
+                    @page WordSection1 {
+                        size: 29.7cm 21.0cm;
+                        mso-page-orientation: landscape;
+                        margin: 1.2cm 1.2cm 1.2cm 1.2cm;
+                        mso-header-margin: 1.0cm;
+                        mso-footer-margin: 1.0cm;
+                    }
+                    div.WordSection1 {
+                        page: WordSection1;
+                    }
+                    body {
+                        font-family: SimSun, 'Songti SC', serif;
+                    }
+                    td, th {
+                        padding: 2px 2px;
+                        mso-number-format: "\\@";
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="WordSection1">
+                    ${pagesHtml}
+                </div>
+            </body>
+            </html>`;
 
-        const allTablesHtml = results.map((item, idx) => buildGroupTableHtml(item, idx > 0)).join('');
-
-        // 3. 根据所选格式输出文件（横向 A4 纸张自适应）
-        const isExcel = (format === 'excel');
-        const mimeType = isExcel ? 'application/vnd.ms-excel' : 'application/msword';
-        const ext = isExcel ? 'xls' : 'doc';
-
-        const fullDoc = `
-        <html xmlns:o="urn:schemas-microsoft-com:office:office" 
-              xmlns:x="urn:schemas-microsoft-com:office:excel" 
-              xmlns:w="urn:schemas-microsoft-com:office:word" 
-              xmlns="http://www.w3.org/TR/REC-html40">
-        <head>
-            <meta charset="utf-8">
-            <title>${eventTitle}_全部组别团体详细积分表</title>
-            <style>
-                @page { size: A4 landscape; margin: 1.2cm 1.0cm; mso-page-orientation: landscape; }
-                body { font-family: 'SimSun', serif; color: #000; }
-                table { border-collapse: collapse; width: 100%; }
-                td, th { mso-number-format: "\\@"; padding: 3px 2px; }
-            </style>
-        </head>
-        <body>
-            ${allTablesHtml}
-        </body>
-        </html>`;
-
-        const blob = new Blob(['\ufeff' + fullDoc], { type: `${mimeType};charset=utf-8` });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `${eventTitle}_全场详细积分总表_${dateStr}.${ext}`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+            const blob = new Blob(['\ufeff', fullDoc], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${year}年${eventTitle}_团体总分详细积分表_${fileScopeName}.${ext}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            if (div) div.innerHTML = oldHtml;
+            alert("导出失败: " + err.message);
+        }
     };
+
     window.printLandscape = function() {
         const style = document.createElement('style'); 
         style.id = 'landscape-print-style';
@@ -8015,7 +8075,6 @@ window.recalculateAllPointsGlobal = function() {
         alert("核算请求失败: " + err.message);
     });
 };
-// 🌟 1. 一键导出全场成绩公告 Word 册（支持二次编辑、一页一个项目、签字同页）
 window.exportAllAnnouncementsWord = function() {
     const title = document.getElementById('cfgTitle')?.value || '田径运动会';
     window.location.href = '/api/export_all_announcements_word?_t=' + Date.now();
@@ -8023,8 +8082,113 @@ window.exportAllAnnouncementsWord = function() {
 
 // 🌟 2. 一键批量生成/另存为高清矢量 PDF
 window.exportAllAnnouncementsPDF = function() {
-    // 在新窗口打开专用打印预览排版页，自动调起浏览器的“另存为 PDF”
     window.open('/admin/print_all_announcements', '_blank');
+};
+
+// 🌟 3. 一键批量导出/套打获奖证书 Word（支持带框标准版 & 空白奖状纸套打版）
+window.exportCertificatesWord = function(isOverlay = false, onlyCurrentGroup = false) {
+    let gName = '';
+    if (onlyCurrentGroup) {
+        gName = window.curResGroup || '';
+        if (!gName) return alert("请先在上方选择一个【组别】！");
+    }
+    const modeStr = isOverlay ? '1' : '0';
+    const url = `/api/export_certificates_word?overlay=${modeStr}&group_name=${encodeURIComponent(gName)}&_t=${Date.now()}`;
+    window.location.href = url;
+};
+
+// 🌟 4. 自动快照管理与一键热恢复弹窗
+window.openAutoBackupModal = function() {
+    let modal = document.getElementById('autoBackupModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'autoBackupModal';
+        modal.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[82vh]">
+                <div class="bg-gradient-to-r from-emerald-600 to-teal-700 p-4 text-white flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">🛡️</span>
+                        <div>
+                            <h3 class="font-black text-base">系统数据库自动快照库 (每30分钟自动热备)</h3>
+                            <p class="text-[11px] text-emerald-100">保留最近 20 份本地快照，支持随时一键生成快照或时光机回滚</p>
+                        </div>
+                    </div>
+                    <button onclick="document.getElementById('autoBackupModal').classList.add('hidden')" class="text-white/80 hover:text-white text-2xl font-bold leading-none">&times;</button>
+                </div>
+                <div class="p-3 bg-emerald-50 border-b border-emerald-100 flex justify-between items-center">
+                    <span class="text-xs text-emerald-800 font-bold">💡 重大操作（如清空或重排）前，建议先点右侧按钮手动拍个快照</span>
+                    <button onclick="createInstantSnapshot()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-black shadow transition active:scale-95">📸 立即拍快照</button>
+                </div>
+                <div id="autoBackupListBody" class="p-4 overflow-y-auto flex-1 space-y-2 text-xs">
+                    <div class="text-center py-8 text-gray-400 font-bold">正在读取飞牛 NAS 本地快照列表...</div>
+                </div>
+                <div class="p-3 bg-gray-50 border-t border-gray-100 text-right">
+                    <button onclick="document.getElementById('autoBackupModal').classList.add('hidden')" class="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold">关 闭</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    modal.classList.remove('hidden');
+    loadAutoBackupList();
+};
+
+window.loadAutoBackupList = function() {
+    const box = document.getElementById('autoBackupListBody');
+    if (!box) return;
+    fetch('/api/backups/list?_t=' + Date.now())
+        .then(r => r.json())
+        .then(res => {
+            if (res.status !== 'success' || !res.backups || res.backups.length === 0) {
+                box.innerHTML = '<div class="text-center py-8 text-gray-400 font-bold">暂无自动快照文件，可点击右上角“📸 立即拍快照”立即创建</div>';
+                return;
+            }
+            box.innerHTML = res.backups.map((b, i) => `
+                <div class="flex items-center justify-between p-3 rounded-xl border ${i === 0 ? 'border-emerald-300 bg-emerald-50/40' : 'border-gray-200 bg-white'} hover:shadow-xs transition">
+                    <div>
+                        <div class="font-black text-gray-800 flex items-center gap-2">
+                            <span>🕒 ${b.time_str}</span>
+                            ${i === 0 ? '<span class="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">最新</span>' : ''}
+                        </div>
+                        <div class="text-[11px] text-gray-400 font-mono mt-0.5">${b.filename} · ${b.size_kb} KB</div>
+                    </div>
+                    <button onclick="restoreAutoSnapshot('${b.filename}', '${b.time_str}')" class="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 px-3 py-1.5 rounded-lg font-black text-xs transition active:scale-95">
+                        ⏪ 恢复到此时间点
+                    </button>
+                </div>
+            `).join('');
+        });
+};
+
+window.createInstantSnapshot = function() {
+    fetch('/api/backups/create_now', { method: 'POST' })
+        .then(r => r.json())
+        .then(res => {
+            if (res.status === 'success') {
+                loadAutoBackupList();
+            } else {
+                alert("创建快照失败: " + res.msg);
+            }
+        });
+};
+
+window.restoreAutoSnapshot = function(filename, timeStr) {
+    if (!confirm(`⚠️ 确定要将整个系统数据库回滚恢复到【${timeStr}】的快照状态吗？\n（恢复前系统会自动为您当前状态再拍一份保险快照）`)) return;
+    fetch('/api/backups/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: filename })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') {
+            alert(res.msg);
+            location.reload();
+        } else {
+            alert("恢复失败: " + res.msg);
+        }
+    });
 };
 window.refereeListCache = [];
 

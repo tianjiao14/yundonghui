@@ -3353,13 +3353,15 @@ def get_event_start_list():
             
             raw_start = str(item.get('start_score') or '').strip()
             raw_reg = str(item.get('reg_score') or '').strip()
-
-            if raw_start and raw_start != '-' and not any(k in raw_start for k in ['弃权', 'DNS', 'DQ']):
+            if raw_start and raw_start != '-':
                 item['score'] = raw_start
-            elif raw_reg and raw_reg != '-' and not any(k in raw_reg for k in ['弃权', 'DNS', 'DQ']):
+            elif raw_reg and raw_reg != '-':
                 item['score'] = raw_reg
             else:
-                item['score'] = raw_start if raw_start else raw_reg
+                item['score'] = ''
+            final_sc = str(item['score'] or '').strip().upper()
+            if final_sc and final_sc != '-' and not any(k in final_sc for k in ['弃权', 'DNS', 'DNF', '犯规', 'DQ', 'DISQ']):
+                item['checked_in'] = 1
 
             if not item.get('reg_id'):
                 item['reg_id'] = item.get('id')
@@ -3606,7 +3608,6 @@ def submit_score():
     data = request.json or {}
     incoming_id = data.get('id') or data.get('reg_id') or data.get('start_id')
     raw_val = str(data.get('score', '')).strip()
-    attempts_str = data.get('attempts') or data.get('attempts_json')
     
     is_dq = any(k in raw_val.upper() for k in ['犯规', 'DQ', 'DISQ'])
     is_dns = any(k in raw_val.upper() for k in ['弃权', 'DNS', 'DNF'])
@@ -3625,19 +3626,78 @@ def submit_score():
         else:
             formatted_score = clean_s
 
-    # 仅弃权时标记 checked_in = 2，犯规属于已上场完赛但无有效成绩(checked_in = 1)
-    chk_val = 2 if is_dns else (1 if formatted_score else 0)
+    # 🌟 修复：严格区分弃权(checked_in=2)、正常/犯规(checked_in=1)、清空(checked_in=0)
+    chk_val = 2 if formatted_score == '弃权' else (1 if formatted_score != '' else 0)
 
     conn = get_db_connection()
     c = conn.cursor()
     try:
         c.execute("BEGIN IMMEDIATE")
-        # 先查出原记录（含原成绩 old_val，避免 UPDATE 后再查拿不到旧值）
-        st_row = c.execute("SELECT group_name, event_name, gender, heat, team_name, name, score FROM start_list WHERE id = ?", (incoming_id,)).fetchone()
-        if not st_row:
+        st_row = c.execute("SELECT id, group_name, event_name, gender, heat, team_name, name, score FROM start_list WHERE id = ?", (incoming_id,)).fetchone()
+        
+        if st_row:
+            group_name = st_row['group_name']
+            event_name = st_row['event_name']
+            gender = st_row['gender']
+            name = st_row['name']
+            team_name = st_row['team_name']
+            old_val = st_row['score'] or ''
+
+            # 1. 更新当前 start_list 记录
+            c.execute("UPDATE start_list SET score = ?, checked_in = ? WHERE id = ?", (formatted_score, chk_val, incoming_id))
+
+            # 2. 同步更新接力全队道次与 registrations 报名表（兼容 4x/4*/4×）
+            if team_name:
+                is_relay = any(k in event_name for k in ['接力', '4x', '4×', '4*'])
+                norm_evt = event_name.split(' ')[0].replace('*', '×').replace('x', '×').replace('X', '×')
+                if is_relay:
+                    c.execute("""
+                        UPDATE start_list 
+                        SET score = ?, checked_in = ? 
+                        WHERE TRIM(team_name) = TRIM(?) AND TRIM(group_name) = TRIM(?) AND gender = ?
+                          AND (event_name = ? OR REPLACE(REPLACE(REPLACE(event_name, '*', '×'), 'x', '×'), 'X', '×') LIKE ? || '%')
+                    """, (formatted_score, chk_val, team_name, group_name, gender, event_name, norm_evt))
+                    c.execute("""
+                        UPDATE registrations 
+                        SET score = ? 
+                        WHERE TRIM(team_name) = TRIM(?) AND TRIM(group_name) = TRIM(?) AND gender = ?
+                          AND (event_name = ? OR REPLACE(REPLACE(REPLACE(event_name, '*', '×'), 'x', '×'), 'X', '×') LIKE ? || '%')
+                    """, (formatted_score, team_name, group_name, gender, event_name, norm_evt))
+                elif name:
+                    c.execute("""
+                        UPDATE registrations 
+                        SET score = ? 
+                        WHERE name = ? AND TRIM(team_name) = TRIM(?) AND TRIM(group_name) = TRIM(?) AND gender = ?
+                          AND (event_name = ? OR event_name = ? || ' (预赛)' OR event_name = REPLACE(?, ' (预赛)', ''))
+                    """, (formatted_score, name, team_name, group_name, gender, event_name, event_name, event_name))
+
+            record_referee_action(
+                action_type="成绩录入",
+                event_name=event_name,
+                group_name=group_name,
+                target_name=f"{name} ({team_name})",
+                detail_info=f"由 [{old_val}] 变更为 [{formatted_score}]",
+                cursor=c
+            )
+            conn.commit()
+            invalidate_event_cache(event_name, group_name)
+            trigger_debounced_recalculate(delay=1.5)
+
+            return jsonify({
+                "status": "success", 
+                "msg": "成绩已保存", 
+                "new_score": formatted_score
+            })
+        else:
+            reg_row = c.execute("SELECT id, group_name, event_name, gender, team_name, name, score FROM registrations WHERE id = ?", (incoming_id,)).fetchone()
+            if reg_row:
+                c.execute("UPDATE registrations SET score = ? WHERE id = ?", (formatted_score, incoming_id))
+                conn.commit()
+                invalidate_event_cache(reg_row['event_name'], reg_row['group_name'])
+                trigger_debounced_recalculate(delay=1.5)
+                return jsonify({"status": "success", "msg": "成绩已保存", "new_score": formatted_score})
             conn.rollback()
             return jsonify({"status": "error", "msg": "未找到道次记录"}), 404
-
         old_val = st_row['score'] or ''
         group_name = st_row['group_name']
         event_name = st_row['event_name']
@@ -5821,43 +5881,330 @@ force_sync_and_upgrade_db()
 upgrade_records()
 
 init_template_table()
-# 后台热备份守护线程
-def auto_db_backup_task():
+def perform_single_db_snapshot(prefix="sports_auto_backup"):
     backup_dir = os.path.join(DATA_DIR, "backups")
     os.makedirs(backup_dir, exist_ok=True)
-    
-    while True:
-        # 延长检测周期并设置短超时，避免在白天高并发录入成绩时硬抢主库写锁
-        gevent.sleep(3600)
-        src = None
-        dst = None
-        try:
-            if os.path.exists(DB_FILE):
-                stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                bk_file = os.path.join(backup_dir, f"sports_auto_backup_{stamp}.db")
-                
-                src = sqlite3.connect(DB_FILE, timeout=5)
-                dst = sqlite3.connect(bk_file)
-                # 使用 pages 参数分片热备，每次备份 50 个 page，出让写锁给比赛现场接口
-                src.backup(dst, pages=50)
-                
-                dst.close()
-                src.close()
-                
-                bk_list = sorted([os.path.join(backup_dir, f) for f in os.listdir(backup_dir) if f.endswith('.db')])
-                while len(bk_list) > 10:
-                    old_file = bk_list.pop(0)
-                    try: os.remove(old_file)
-                    except Exception: pass
-        except Exception as err:
-            print(f"⚠️ [自动热备份跳过或异常]: {err}")
-            if dst: 
-                try: dst.close()
-                except Exception: pass
-            if src: 
-                try: src.close()
-                except Exception: pass
+    src = None
+    dst = None
+    try:
+        if os.path.exists(DB_FILE):
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            bk_file = os.path.join(backup_dir, f"{prefix}_{stamp}.db")
+            src = sqlite3.connect(DB_FILE, timeout=5)
+            dst = sqlite3.connect(bk_file)
+            src.backup(dst, pages=50)
+            dst.close()
+            src.close()
 
+            bk_list = sorted([os.path.join(backup_dir, f) for f in os.listdir(backup_dir) if f.endswith('.db')])
+            while len(bk_list) > 20:
+                old_file = bk_list.pop(0)
+                try: os.remove(old_file)
+                except Exception: pass
+            return os.path.basename(bk_file)
+    except Exception as err:
+        print(f"⚠️ [数据库快照异常]: {err}")
+        if dst:
+            try: dst.close()
+            except Exception: pass
+        if src:
+            try: src.close()
+            except Exception: pass
+    return None
+
+def auto_db_backup_task():
+    # 启动后 10 秒先拍一份初始快照，之后每 30 分钟（1800 秒）自动拍一份快照
+    gevent.sleep(10)
+    perform_single_db_snapshot("sports_auto_backup")
+    while True:
+        gevent.sleep(1800)
+        perform_single_db_snapshot("sports_auto_backup")
+
+@app.route('/api/backups/list', methods=['GET'])
+@login_required('admin')
+def list_db_backups():
+    backup_dir = os.path.join(DATA_DIR, "backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    files = [f for f in os.listdir(backup_dir) if f.endswith('.db')]
+    files.sort(reverse=True)
+    result = []
+    for f in files:
+        full_p = os.path.join(backup_dir, f)
+        try:
+            st = os.stat(full_p)
+            dt_str = datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            result.append({
+                "filename": f,
+                "time_str": dt_str,
+                "size_kb": round(st.st_size / 1024, 1)
+            })
+        except Exception:
+            pass
+    return jsonify({"status": "success", "backups": result})
+
+@app.route('/api/backups/create_now', methods=['POST'])
+@login_required('admin')
+def create_db_backup_now():
+    fname = perform_single_db_snapshot("sports_manual_snap")
+    if fname:
+        return jsonify({"status": "success", "msg": f"已成功创建快照：{fname}"})
+    return jsonify({"status": "error", "msg": "快照创建失败"}), 500
+
+@app.route('/api/backups/restore', methods=['POST'])
+@login_required('admin')
+def restore_db_backup():
+    data = request.json or {}
+    fname = os.path.basename(str(data.get('filename') or ''))
+    backup_dir = os.path.join(DATA_DIR, "backups")
+    target_path = os.path.join(backup_dir, fname)
+    if not fname or not os.path.exists(target_path):
+        return jsonify({"status": "error", "msg": "所选快照文件不存在！"}), 404
+
+    # 恢复前先自动保存一份保险快照
+    perform_single_db_snapshot("sports_before_restore")
+    src = None
+    dst = None
+    try:
+        src = sqlite3.connect(target_path, timeout=10)
+        dst = sqlite3.connect(DB_FILE, timeout=10)
+        src.backup(dst)
+        dst.close()
+        src.close()
+        if '_cache_store' in globals():
+            _cache_store.clear()
+        return jsonify({"status": "success", "msg": f"✅ 已成功将系统数据库回滚恢复至快照【{fname}】！"})
+    except Exception as e:
+        if dst:
+            try: dst.close()
+            except Exception: pass
+        if src:
+            try: src.close()
+            except Exception: pass
+        return jsonify({"status": "error", "msg": f"恢复失败: {str(e)}"}), 500
+
+# 🌟 一键导出/套打获奖证书 Word（A4 横向 29.7cm × 21.0cm，支持带框标准版 & 空白奖状纸套打版）
+@app.route('/api/export_certificates_word')
+@login_required('admin')
+def export_certificates_word():
+    is_overlay = (request.args.get('overlay', '0') == '1')
+    filter_group = request.args.get('group_name', '').strip()
+
+    conn = get_db_connection()
+    try:
+        comp_title, pages = build_all_announcements_data(conn)
+        if filter_group:
+            pages = [p for p in pages if p['display_title'].startswith(filter_group)]
+        if not pages:
+            return "当前尚无符合条件的已完赛获奖数据可生成奖状！", 400
+
+        cn_nums = {1: "一", 2: "二", 3: "三", 4: "四", 5: "五", 6: "六", 7: "七", 8: "八"}
+        cert_pages_html = []
+        cert_count = 0
+
+        for p in pages:
+            # 解析 "A组（初一） 男子 · 100米 [ 决赛 ]"
+            raw_title = p['display_title'].replace('[ 决赛 ]', '').strip()
+            for r in p['rows']:
+                if r.get('is_err') or not str(r.get('rank', '')).isdigit():
+                    continue
+                rnk_int = int(r['rank'])
+                if rnk_int < 1 or rnk_int > 8:
+                    continue
+
+                rank_cn = f"第{cn_nums.get(rnk_int, str(rnk_int))}名"
+                ath_name = str(r['name']).replace('<br>', '、')
+                team_name = r['team']
+                score_val = r['score']
+
+                page_break = "<br clear='all' style='page-break-before:always'>" if cert_count > 0 else ""
+                cert_count += 1
+
+                if is_overlay:
+                    # 🖨️ 空白奖状纸套打模式：隐藏边框与“奖状”大标题，预留顶部边距直接对准实体奖状纸
+                    cert_html = f"""
+                    {page_break}
+                    <div style="padding: 5.2cm 3.2cm 1.5cm 3.2cm; font-family: 'SimSun', 'FangSong', serif;">
+                        <div style="font-size: 20pt; font-weight: bold; margin-bottom: 18pt;">
+                            <u>&nbsp;{team_name}&nbsp;</u> <u>&nbsp;{ath_name}&nbsp;</u> 同学：
+                        </div>
+                        <div style="font-size: 18pt; line-height: 2.0; text-indent: 2em; margin-bottom: 24pt;">
+                            在 {p['title']} <b>{raw_title}</b> 比赛中，表现优异，成绩为 <b>{score_val}</b>，荣获
+                        </div>
+                        <div style="text-align: center; font-size: 36pt; font-weight: bold; font-family: 'SimHei', sans-serif; margin: 12pt 0 28pt 0; letter-spacing: 6px;">
+                            {rank_cn}
+                        </div>
+                        <div style="font-size: 16pt; text-indent: 2em; margin-bottom: 30pt;">
+                            特发此状，以资鼓励。
+                        </div>
+                        <div style="text-align: right; font-size: 16pt; font-weight: bold; padding-right: 1.5cm;">
+                            <div>{p['title']}组委会</div>
+                            <div style="margin-top: 8pt;">{p['date']}</div>
+                        </div>
+                    </div>
+                    """
+                else:
+                    # 🏅 标准带金红双线外框奖状模式
+                    cert_html = f"""
+                    {page_break}
+                    <div style="border: 6pt double #b91c1c; padding: 1.4cm 2.2cm; font-family: 'SimSun', serif;">
+                        <div style="text-align: center; font-size: 42pt; font-weight: bold; color: #b91c1c; letter-spacing: 18px; margin-bottom: 16pt;">
+                            奖 状
+                        </div>
+                        <div style="font-size: 20pt; font-weight: bold; margin-bottom: 16pt;">
+                            <u>&nbsp;{team_name}&nbsp;</u> <u>&nbsp;{ath_name}&nbsp;</u> 同学：
+                        </div>
+                        <div style="font-size: 18pt; line-height: 1.9; text-indent: 2em; margin-bottom: 18pt;">
+                            在 <b>{p['title']}</b> <b>{raw_title}</b> 比赛中，奋勇拼搏，以 <b>{score_val}</b> 的优异成绩荣获
+                        </div>
+                        <div style="text-align: center; font-size: 36pt; font-weight: bold; color: #b91c1c; margin: 10pt 0 22pt 0; letter-spacing: 6px;">
+                            {rank_cn}
+                        </div>
+                        <div style="font-size: 16pt; text-indent: 2em; margin-bottom: 24pt;">
+                            特发此状，以资鼓励。
+                        </div>
+                        <div style="text-align: right; font-size: 16pt; font-weight: bold; padding-right: 1cm;">
+                            <div>{p['title']}组委会</div>
+                            <div style="margin-top: 6pt;">{p['date']}</div>
+                        </div>
+                    </div>
+                    """
+                cert_pages_html.append(cert_html)
+
+        if cert_count == 0:
+            return "当前尚无获得名次（前8名）的选手数据，请先核算积分排名！", 400
+
+        mode_label = "空白纸套打版" if is_overlay else "标准带框版"
+        scope_label = filter_group if filter_group else "全部组别"
+        full_doc = f"""<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+            <meta charset="utf-8">
+            <title>{comp_title} 获奖证书 ({mode_label})</title>
+            <!--[if gte mso 9]>
+            <xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml>
+            <![endif]-->
+            <style>
+                @page {{ size: 29.7cm 21.0cm; mso-page-orientation: landscape; margin: 1.5cm 1.8cm; }}
+                @page WordSection1 {{ size: 29.7cm 21.0cm; mso-page-orientation: landscape; margin: 1.5cm 1.8cm; }}
+                div.WordSection1 {{ page: WordSection1; }}
+            </style>
+        </head>
+        <body>
+            <div class="WordSection1">
+                {''.join(cert_pages_html)}
+            </div>
+        </body>
+        </html>"""
+
+        mem = BytesIO()
+        mem.write(full_doc.encode('utf-8'))
+        mem.seek(0)
+        return send_file(
+            mem,
+            mimetype='application/msword',
+            as_attachment=True,
+            download_name=f"{comp_title}_获奖证书_{scope_label}_{mode_label}.doc"
+        )
+    finally:
+        conn.close()
+
+# 🌟 操场大屏 / 电视端实时战报聚合接口（15秒内存缓存，保护飞牛 NAS 性能）
+@app.route('/api/tv_wall_data', methods=['GET'])
+def get_tv_wall_data():
+    cached = get_cached_data("tv_wall_data_cache", ttl_seconds=15)
+    if cached is not None:
+        return jsonify(cached)
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        # 1. 各年级组别团体总分排行
+        groups = [r['name'] for r in c.execute("SELECT name FROM cfg_groups ORDER BY IFNULL(sort_order, rowid) ASC").fetchall()]
+        col_row = c.execute("SELECT value FROM sys_config WHERE key = 'custom_score_cols'").fetchone()
+        custom_cols = []
+        if col_row and col_row['value']:
+            try: custom_cols = json.loads(col_row['value'])
+            except Exception: custom_cols = []
+
+        group_rankings = []
+        for g_name in groups:
+            team_rows = c.execute("""
+                SELECT t.name, t.custom_scores FROM cfg_teams t
+                LEFT JOIN cfg_groups g ON t.group_id = g.id
+                WHERE g.name = ? ORDER BY IFNULL(t.sort_order, t.rowid) ASC
+            """, (g_name,)).fetchall()
+            team_dict = {}
+            for tr in team_rows:
+                s_map = {}
+                if tr['custom_scores']:
+                    try: s_map = json.loads(tr['custom_scores'])
+                    except Exception: s_map = {}
+                team_dict[tr['name']] = {"name": tr['name'], "score": 0.0, "total_record_bonus": 0, "gold": 0, "silver": 0, "bronze": 0, "custom_scores": s_map}
+
+            rows = c.execute("""
+                WITH clean_scores AS (
+                    SELECT team_name, points, record_bonus, rank,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY CASE WHEN (event_name LIKE '%4x%' OR event_name LIKE '%4×%' OR event_name LIKE '%接力%' OR event_name LIKE '%集体%')
+                               THEN team_name || '#' || event_name || '#' || gender ELSE id END ORDER BY points DESC
+                           ) as rn
+                    FROM registrations WHERE group_name = ? AND (points > 0 OR record_bonus > 0)
+                )
+                SELECT team_name, SUM(points) as total_points, SUM(record_bonus) as total_bonus,
+                       SUM(CASE WHEN rank = '1' AND points > 0 THEN 1 ELSE 0 END) as gold,
+                       SUM(CASE WHEN rank = '2' AND points > 0 THEN 1 ELSE 0 END) as silver,
+                       SUM(CASE WHEN rank = '3' AND points > 0 THEN 1 ELSE 0 END) as bronze
+                FROM clean_scores WHERE rn = 1 GROUP BY team_name
+            """, (g_name,)).fetchall()
+
+            for r in rows:
+                tn = r['team_name']
+                if tn in team_dict:
+                    team_dict[tn]['score'] = float(r['total_points'] or 0) + int(r['total_bonus'] or 0)
+                    team_dict[tn]['total_record_bonus'] = int(r['total_bonus'] or 0)
+                    team_dict[tn]['gold'] = int(r['gold'] or 0)
+                    team_dict[tn]['silver'] = int(r['silver'] or 0)
+                    team_dict[tn]['bronze'] = int(r['bronze'] or 0)
+
+            final_teams = []
+            for tn, item in team_dict.items():
+                extra_sum = sum(resolve_custom_score_and_rank(item['custom_scores'].get(col, 0))[1] for col in custom_cols)
+                item['score'] = round(item['score'] + extra_sum, 2)
+                final_teams.append(item)
+            final_teams.sort(key=lambda x: (x['score'], x['gold'], x['silver'], x['bronze']), reverse=True)
+            group_rankings.append({"group_name": g_name, "teams": final_teams})
+
+        # 2. 最新完赛项目前三名喜报
+        _, ann_pages = build_all_announcements_data(conn)
+        recent_podiums = []
+        for p in reversed(ann_pages):
+            top3 = [r for r in p['rows'] if not r.get('is_err') and str(r.get('rank')) in ['1', '2', '3']][:3]
+            if top3:
+                recent_podiums.append({
+                    "title": p['display_title'].replace('[ 决赛 ]', '').strip(),
+                    "top3": [{"rank": r['rank'], "name": r['name'].replace('<br>', '、'), "team": r['team'], "score": r['score']} for r in top3]
+                })
+
+        # 3. 破纪录英雄榜
+        rec_rows = c.execute("""
+            SELECT group_name, gender, event_name, name, team_name, score, record_bonus
+            FROM registrations
+            WHERE record_bonus > 0
+            ORDER BY id DESC LIMIT 20
+        """).fetchall()
+        records = [dict(r) for r in rec_rows]
+
+        payload = {
+            "status": "success",
+            "group_rankings": group_rankings,
+            "recent_podiums": recent_podiums[:12],
+            "records": records
+        }
+        set_cached_data("tv_wall_data_cache", payload, ttl_seconds=15)
+        return jsonify(payload)
+    except Exception as e:
+        return jsonify({"status": "error", "msg": str(e)}), 500
+    finally:
+        conn.close()
 # 1. 轻量化搜索接口
 @app.route('/api/search_query', methods=['GET'])
 def search_query():
@@ -6122,12 +6469,12 @@ def draft_field_score():
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        # 单条轻量写入 start_list
+        chk_val = 2 if any(k in score_str.upper() for k in ['弃权', 'DNS', 'DNF']) else (1 if score_str else 0)
         c.execute("""
             UPDATE start_list 
-            SET score = ?, attempts_json = ? 
+            SET score = ?, attempts_json = ?, checked_in = ? 
             WHERE id = ?
-        """, (score_str, attempts_json, start_id))
+        """, (score_str, attempts_json, chk_val, start_id))
         
         # 同步更新 registrations
         reg_id = data.get('reg_id')
