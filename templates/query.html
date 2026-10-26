@@ -1119,10 +1119,16 @@ window.fetchTvWallData = function() {
             if (res.status !== 'success') return;
             const slides = [];
 
-            // 1. 各年级组别团体总分榜轮播页
+            // 1. 各年级组别《团体总分详细积分明细表》轮播页
             (res.group_rankings || []).forEach(g => {
-                if (g.teams && g.teams.length > 0) {
-                    slides.push({ type: 'ranking', group_name: g.group_name, teams: g.teams });
+                if (g.rows && g.rows.length > 0) {
+                    slides.push({
+                        type: 'ranking_matrix',
+                        group_name: g.group_name,
+                        columns: g.columns || [],
+                        custom_columns: g.custom_columns || [],
+                        rows: g.rows
+                    });
                 }
             });
 
@@ -1174,43 +1180,93 @@ window.renderCurrentTvSlide = function() {
         ).join('');
     }
 
-    if (slide.type === 'ranking') {
-        const maxScore = Math.max(...slide.teams.map(t => t.score || 0), 1);
-        const topTeams = slide.teams.slice(0, 10);
+    if (slide.type === 'ranking_matrix') {
+        const compCols = slide.columns || [];
+        const customCols = slide.custom_columns || [];
+        const rows = slide.rows || [];
+        const totalSubCols = compCols.length * 2 + customCols.length + 4;
+        // 根据列数自适应大屏字号与内边距，确保整张大表一屏展示
+        const fontCls = totalSubCols > 24 ? 'text-[11px]' : (totalSubCols > 16 ? 'text-xs' : 'text-sm');
+
+        let headerRow1 = `
+            <th rowspan="2" class="border border-slate-700 bg-slate-900 px-2 py-2 text-amber-300 w-14">名次</th>
+            <th rowspan="2" class="border border-slate-700 bg-slate-900 px-3 py-2 text-white w-24">班级</th>
+        `;
+        let headerRow2 = ``;
+
+        compCols.forEach(col => {
+            headerRow1 += `<th colspan="2" class="border border-slate-700 bg-slate-900/90 px-1.5 py-1.5 text-slate-200 font-extrabold">${col}</th>`;
+            headerRow2 += `
+                <th class="border border-slate-700 bg-slate-950 px-1 py-1 text-sky-400 font-bold text-[11px]">男</th>
+                <th class="border border-slate-700 bg-slate-950 px-1 py-1 text-pink-400 font-bold text-[11px]">女</th>
+            `;
+        });
+
+        customCols.forEach(col => {
+            headerRow1 += `<th rowspan="2" class="border border-slate-700 bg-indigo-950/80 px-2 py-1.5 text-indigo-300">${col}</th>`;
+        });
+
+        headerRow1 += `
+            <th rowspan="2" class="border border-slate-700 bg-slate-900 px-2 py-2 text-amber-200 w-24">奖牌(金/银/铜)</th>
+            <th rowspan="2" class="border border-slate-700 bg-amber-500/20 px-3 py-2 text-amber-300 w-20 font-black">总积分</th>
+        `;
+
+        const tbodyHtml = rows.map((row, idx) => {
+            const medal = idx === 0 ? '🥇 1' : (idx === 1 ? '🥈 2' : (idx === 2 ? '🥉 3' : (idx + 1)));
+            const rowBg = idx === 0 ? 'bg-amber-500/15' : (idx === 1 ? 'bg-slate-400/10' : (idx === 2 ? 'bg-orange-500/10' : (idx % 2 === 0 ? 'bg-slate-900/60' : 'bg-slate-900/30')));
+
+            let cells = `
+                <td class="border border-slate-800 px-2 py-2 font-black ${idx < 3 ? 'text-amber-300 text-base' : 'text-slate-400'}">${medal}</td>
+                <td class="border border-slate-800 px-2 py-2 font-black text-white whitespace-nowrap">${row.team}</td>
+            `;
+
+            compCols.forEach(col => {
+                const detail = (row.details && row.details[col]) ? row.details[col] : { '男': 0, '女': 0 };
+                const sM = detail['男'] > 0 ? detail['男'] : '';
+                const sF = detail['女'] > 0 ? detail['女'] : '';
+                cells += `
+                    <td class="border border-slate-800 px-1 py-1.5 font-mono font-bold ${sM ? 'text-sky-300 bg-sky-950/30' : 'text-slate-700'}">${sM}</td>
+                    <td class="border border-slate-800 px-1 py-1.5 font-mono font-bold ${sF ? 'text-pink-300 bg-pink-950/30' : 'text-slate-700'}">${sF}</td>
+                `;
+            });
+
+            customCols.forEach(col => {
+                const extraVal = row.custom_details ? row.custom_details[col] : 0;
+                const disp = (extraVal && extraVal > 0) ? `+${extraVal}` : '';
+                cells += `<td class="border border-slate-800 px-1.5 py-1.5 font-mono font-bold text-indigo-300 bg-indigo-950/20">${disp}</td>`;
+            });
+
+            cells += `
+                <td class="border border-slate-800 px-2 py-1.5 text-xs font-mono text-slate-300 whitespace-nowrap">
+                    <span class="text-amber-400 font-bold">${row.gold || 0}</span> /
+                    <span class="text-slate-300 font-bold">${row.silver || 0}</span> /
+                    <span class="text-orange-400 font-bold">${row.bronze || 0}</span>
+                </td>
+                <td class="border border-slate-800 px-2 py-1.5 font-mono font-black text-lg text-amber-300 bg-amber-500/10">${row.total}</td>
+            `;
+
+            return `<tr class="${rowBg} hover:bg-slate-800/80 transition text-center">${cells}</tr>`;
+        }).join('');
+
         body.innerHTML = `
-            <div class="mb-4 flex items-center justify-between">
-                <h2 class="text-2xl md:text-3xl font-black text-amber-300 flex items-center gap-2">
-                    <span>👑</span><span>【${slide.group_name}】团体总分排行榜</span>
+            <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-xl md:text-2xl font-black text-amber-300 flex items-center gap-2">
+                    <span>📊</span><span>【${slide.group_name}】团体总分详细积分明细表</span>
                 </h2>
-                <span class="text-xs md:text-sm bg-amber-500/20 text-amber-300 border border-amber-400/30 px-3 py-1 rounded-full font-bold">含田径、趣味及集体项目总积分</span>
+                <div class="flex items-center gap-3 text-xs">
+                    <span class="text-sky-400 font-bold">■ 男子单项得分</span>
+                    <span class="text-pink-400 font-bold">■ 女子单项得分</span>
+                    <span class="text-indigo-300 font-bold">■ 集体附加分</span>
+                </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                ${topTeams.map((t, idx) => {
-                    const medal = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : (idx === 2 ? '🥉' : `<span class="text-slate-400 font-mono">${idx + 1}</span>`));
-                    const pct = Math.max(8, Math.round(((t.score || 0) / maxScore) * 100));
-                    const cardCls = idx === 0 ? 'border-amber-400/60 bg-gradient-to-r from-amber-500/20 to-slate-900' :
-                                   (idx === 1 ? 'border-slate-300/50 bg-slate-900/90' :
-                                   (idx === 2 ? 'border-orange-400/50 bg-slate-900/90' : 'border-slate-800 bg-slate-900/60'));
-                    return `
-                    <div class="p-3.5 md:p-4 rounded-2xl border ${cardCls} flex items-center justify-between gap-4">
-                        <div class="flex items-center gap-3 min-w-[140px]">
-                            <div class="text-2xl md:text-3xl font-black w-10 text-center">${medal}</div>
-                            <div>
-                                <div class="text-lg md:text-xl font-black text-white">${t.name}</div>
-                                <div class="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
-                                    <span>🥇${t.gold || 0}</span>
-                                    <span>🥈${t.silver || 0}</span>
-                                    <span>🥉${t.bronze || 0}</span>
-                                    ${t.total_record_bonus > 0 ? `<span class="text-rose-400 font-bold">🔥破纪录+${t.total_record_bonus}</span>` : ''}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="flex-1 hidden sm:block bg-slate-800 h-3 rounded-full overflow-hidden">
-                            <div class="bg-gradient-to-r from-amber-400 to-orange-500 h-full rounded-full" style="width:${pct}%"></div>
-                        </div>
-                        <div class="text-2xl md:text-3xl font-black font-mono text-amber-300 shrink-0">${t.score}<span class="text-xs text-slate-400 ml-1">分</span></div>
-                    </div>`;
-                }).join('')}
+            <div class="w-full overflow-x-auto rounded-xl border border-slate-700 shadow-2xl">
+                <table class="w-full border-collapse text-center ${fontCls}">
+                    <thead>
+                        <tr>${headerRow1}</tr>
+                        <tr>${headerRow2}</tr>
+                    </thead>
+                    <tbody>${tbodyHtml}</tbody>
+                </table>
             </div>
         `;
     } else if (slide.type === 'podium') {
@@ -1268,7 +1324,6 @@ window.renderCurrentTvSlide = function() {
         `;
     }
 };
-
 // 支持电视浏览器直接通过 /query?tv=1 自动唤起大屏
 if (window.location.search.includes('tv=1')) {
     setTimeout(() => openTvWall(), 600);

@@ -6108,6 +6108,7 @@ def export_certificates_word():
         conn.close()
 
 # 🌟 操场大屏 / 电视端实时战报聚合接口（15秒内存缓存，保护飞牛 NAS 性能）
+# 🌟 操场大屏 / 电视端实时战报聚合接口（含各组别完整团体总分详细积分表）
 @app.route('/api/tv_wall_data', methods=['GET'])
 def get_tv_wall_data():
     cached = get_cached_data("tv_wall_data_cache", ttl_seconds=15)
@@ -6117,14 +6118,16 @@ def get_tv_wall_data():
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        # 1. 各年级组别团体总分排行
         groups = [r['name'] for r in c.execute("SELECT name FROM cfg_groups ORDER BY IFNULL(sort_order, rowid) ASC").fetchall()]
         col_row = c.execute("SELECT value FROM sys_config WHERE key = 'custom_score_cols'").fetchone()
         custom_cols = []
         if col_row and col_row['value']:
             try: custom_cols = json.loads(col_row['value'])
             except Exception: custom_cols = []
+        if not custom_cols:
+            custom_cols = ["跑操比赛"]
 
+        # 1. 构建每个组别的完整《团体总分详细积分明细表》
         group_rankings = []
         for g_name in groups:
             team_rows = c.execute("""
@@ -6132,46 +6135,98 @@ def get_tv_wall_data():
                 LEFT JOIN cfg_groups g ON t.group_id = g.id
                 WHERE g.name = ? ORDER BY IFNULL(t.sort_order, t.rowid) ASC
             """, (g_name,)).fetchall()
-            team_dict = {}
+
+            matrix = {}
             for tr in team_rows:
+                t_name = tr['name']
                 s_map = {}
                 if tr['custom_scores']:
                     try: s_map = json.loads(tr['custom_scores'])
                     except Exception: s_map = {}
-                team_dict[tr['name']] = {"name": tr['name'], "score": 0.0, "total_record_bonus": 0, "gold": 0, "silver": 0, "bronze": 0, "custom_scores": s_map}
 
-            rows = c.execute("""
-                WITH clean_scores AS (
-                    SELECT team_name, points, record_bonus, rank,
-                           ROW_NUMBER() OVER (
-                               PARTITION BY CASE WHEN (event_name LIKE '%4x%' OR event_name LIKE '%4×%' OR event_name LIKE '%接力%' OR event_name LIKE '%集体%')
-                               THEN team_name || '#' || event_name || '#' || gender ELSE id END ORDER BY points DESC
-                           ) as rn
-                    FROM registrations WHERE group_name = ? AND (points > 0 OR record_bonus > 0)
+                c_details = {}
+                extra_sum = 0.0
+                for col in custom_cols:
+                    _, score_v = resolve_custom_score_and_rank(s_map.get(col, 0))
+                    c_details[col] = score_v
+                    extra_sum += score_v
+
+                matrix[t_name] = {
+                    'team': t_name,
+                    'total': extra_sum,
+                    'gold': 0,
+                    'silver': 0,
+                    'bronze': 0,
+                    'record_bonus': 0,
+                    'details': {},
+                    'custom_details': c_details
+                }
+
+            sql = """
+            WITH clean_pts AS (
+                SELECT team_name, event_name, gender, points, IFNULL(record_bonus, 0) as record_bonus, rank
+                FROM (
+                    SELECT team_name, event_name, gender, points, record_bonus, rank,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY 
+                                CASE 
+                                    WHEN (event_name LIKE '%4x%' OR event_name LIKE '%4×%' OR event_name LIKE '%4*%' OR event_name LIKE '%接力%' OR event_name LIKE '%集体%' OR event_name LIKE '%团体%') 
+                                    THEN team_name || '#' || event_name || '#' || gender
+                                    ELSE team_name || '#' || event_name || '#' || gender || '#' || name
+                                END 
+                            ORDER BY points DESC
+                        ) as rn
+                    FROM registrations
+                    WHERE group_name = ? AND (points > 0 OR record_bonus > 0)
                 )
-                SELECT team_name, SUM(points) as total_points, SUM(record_bonus) as total_bonus,
-                       SUM(CASE WHEN rank = '1' AND points > 0 THEN 1 ELSE 0 END) as gold,
-                       SUM(CASE WHEN rank = '2' AND points > 0 THEN 1 ELSE 0 END) as silver,
-                       SUM(CASE WHEN rank = '3' AND points > 0 THEN 1 ELSE 0 END) as bronze
-                FROM clean_scores WHERE rn = 1 GROUP BY team_name
-            """, (g_name,)).fetchall()
+                WHERE rn = 1
+            )
+            SELECT team_name, event_name, gender,
+                   SUM(points + record_bonus) as pts,
+                   SUM(record_bonus) as bonus,
+                   SUM(CASE WHEN rank = '1' AND points > 0 THEN 1 ELSE 0 END) as gold,
+                   SUM(CASE WHEN rank = '2' AND points > 0 THEN 1 ELSE 0 END) as silver,
+                   SUM(CASE WHEN rank = '3' AND points > 0 THEN 1 ELSE 0 END) as bronze
+            FROM clean_pts
+            GROUP BY team_name, event_name, gender
+            """
+            raw_data = c.execute(sql, (g_name,)).fetchall()
+            all_core_events = set()
 
-            for r in rows:
-                tn = r['team_name']
-                if tn in team_dict:
-                    team_dict[tn]['score'] = float(r['total_points'] or 0) + int(r['total_bonus'] or 0)
-                    team_dict[tn]['total_record_bonus'] = int(r['total_bonus'] or 0)
-                    team_dict[tn]['gold'] = int(r['gold'] or 0)
-                    team_dict[tn]['silver'] = int(r['silver'] or 0)
-                    team_dict[tn]['bronze'] = int(r['bronze'] or 0)
+            for r in raw_data:
+                t = r['team_name']
+                full_evt = r['event_name']
+                gender = r['gender']
+                p = float(r['pts'] or 0)
+                b = int(r['bonus'] or 0)
 
-            final_teams = []
-            for tn, item in team_dict.items():
-                extra_sum = sum(resolve_custom_score_and_rank(item['custom_scores'].get(col, 0))[1] for col in custom_cols)
-                item['score'] = round(item['score'] + extra_sum, 2)
-                final_teams.append(item)
-            final_teams.sort(key=lambda x: (x['score'], x['gold'], x['silver'], x['bronze']), reverse=True)
-            group_rankings.append({"group_name": g_name, "teams": final_teams})
+                core_evt = re.sub(r"\(.*?\)|（.*?）|决赛|预赛|及格赛|男子|女子|混合|男|女|第一组|第二组|第三组|第四组|第\d+组", "", full_evt).strip()
+                if not core_evt:
+                    core_evt = full_evt
+                all_core_events.add(core_evt)
+
+                if t not in matrix:
+                    matrix[t] = {'team': t, 'total': 0.0, 'gold': 0, 'silver': 0, 'bronze': 0, 'record_bonus': 0, 'details': {}, 'custom_details': {col: 0.0 for col in custom_cols}}
+                if core_evt not in matrix[t]['details']:
+                    matrix[t]['details'][core_evt] = {'男': 0, '女': 0}
+
+                g_key = '男' if '男' in gender else ('女' if '女' in gender else '男')
+                matrix[t]['details'][core_evt][g_key] = round(matrix[t]['details'][core_evt][g_key] + p, 1)
+                matrix[t]['total'] = round(matrix[t]['total'] + p, 2)
+                matrix[t]['record_bonus'] += b
+                matrix[t]['gold'] += int(r['gold'] or 0)
+                matrix[t]['silver'] += int(r['silver'] or 0)
+                matrix[t]['bronze'] += int(r['bronze'] or 0)
+
+            cols = sorted(list(all_core_events))
+            rows = sorted(matrix.values(), key=lambda x: (x['total'], x['gold'], x['silver'], x['bronze']), reverse=True)
+            if rows:
+                group_rankings.append({
+                    "group_name": g_name,
+                    "columns": cols,
+                    "custom_columns": custom_cols,
+                    "rows": rows
+                })
 
         # 2. 最新完赛项目前三名喜报
         _, ann_pages = build_all_announcements_data(conn)
