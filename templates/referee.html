@@ -48,40 +48,44 @@
                     📱 裁判员控制台
                 </h1>
                 <div class="flex items-center gap-2">
-                    <button id="btnBack" onclick="resetRoleSelection()" class="hidden bg-blue-500 hover:bg-blue-400 px-3 py-1.5 rounded text-sm font-bold shadow-sm transition">⬅️ 换身份</button>
-                    <button onclick="refreshCurrentView()" class="bg-blue-800 hover:bg-blue-900 px-3 py-1.5 rounded text-sm font-bold shadow-sm transition">🔄 刷新</button>
-                </div>
+    <button id="btnBack" onclick="resetRoleSelection()" class="hidden bg-blue-500 hover:bg-blue-400 px-3 py-1.5 rounded text-sm font-bold shadow-sm transition active:scale-95">⬅️ 换岗位</button>
+    <button onclick="refreshCurrentView()" class="bg-blue-800 hover:bg-blue-900 px-3 py-1.5 rounded text-sm font-bold shadow-sm transition active:scale-95">🔄 刷新</button>
+    <button onclick="logoutReferee()" class="bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded text-sm font-bold shadow-sm transition active:scale-95 flex items-center gap-1">🚪 退出</button>
+</div>
             </div>
 
-            <div id="roleSelection" class="flex-1 flex flex-col justify-center items-center p-6 gap-5 bg-gray-50">
-                <div class="text-center mb-2">
-                    <h2 class="text-2xl font-black text-gray-800 mb-1">请选择您的裁判岗位</h2>
-                    <p class="text-xs text-gray-500">系统将为您切换专属的工作界面</p>
-                </div>
+            <div id="roleSelection" class="flex-1 flex flex-col justify-center items-center p-6 gap-3.5 bg-gray-50">
+    <div class="text-center mb-1">
+        <h2 class="text-2xl font-black text-gray-800 mb-1">请选择您的裁判岗位</h2>
+        <p class="text-xs text-gray-500">系统将为您切换专属的工作界面</p>
+    </div>
 
-                <button onclick="selectRole('checkin')" class="w-full max-w-sm bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-5 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1.5">
-                    <span class="text-3xl">📝</span>
-                    <span class="text-lg font-black tracking-widest">检录裁判入口</span>
-                    <span class="text-[11px] text-emerald-100 font-medium">按比赛时间顺序进行选手检录</span>
-                </button>
+    <button onclick="selectRole('checkin')" class="w-full max-w-sm bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-4 rounded-xl shadow active:scale-95 transition flex flex-col items-center gap-1">
+        <span class="text-2xl">📝</span>
+        <span class="text-base font-black tracking-widest">检录裁判入口</span>
+    </button>
 
-                <button onclick="selectRole('starter')" class="w-full max-w-sm bg-gradient-to-r from-amber-500 to-orange-600 text-white p-5 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1.5 ring-2 ring-orange-400 ring-offset-2">
-                    <span class="text-3xl">🚩</span>
-                    <span class="text-lg font-black tracking-widest">起点发令裁判入口</span>
-                    <span class="text-[11px] text-orange-100 font-medium">核验上道选手，向终点发令推送</span>
-                </button>
+    <button onclick="selectRole('starter')" class="w-full max-w-sm bg-gradient-to-r from-amber-500 to-orange-600 text-white p-4 rounded-xl shadow active:scale-95 transition flex flex-col items-center gap-1">
+        <span class="text-2xl">🚩</span>
+        <span class="text-base font-black tracking-widest">起点发令裁判入口</span>
+    </button>
 
-                <button onclick="selectRole('timing')" class="w-full max-w-sm bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1">
-                    <span class="text-3xl">📝</span>
-                    <span class="text-base font-black tracking-widest">终点记录裁判入口</span>
-                    <span class="text-[11px] text-blue-100 font-medium">核验成绩 · 手工录入 · 实时同步赛况</span>
-                </button>
-                <button onclick="selectRole('field')" class="w-full max-w-sm bg-gradient-to-r from-amber-600 to-orange-600 text-white p-4 rounded-2xl shadow-md hover:shadow-lg active:scale-95 transition transform flex flex-col items-center gap-1">
-                    <span class="text-3xl">🎯</span>
-                    <span class="text-base font-black tracking-widest">田赛 / 趣味项目裁判入口</span>
-                    <span class="text-[11px] text-amber-100 font-medium">跳远/跳高/铅球录入 · 趣味项目录入</span>
-                </button>
-            </div>
+    <button onclick="selectRole('timing')" class="w-full max-w-sm bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4 rounded-xl shadow active:scale-95 transition flex flex-col items-center gap-1">
+        <span class="text-2xl">⏱️</span>
+        <span class="text-base font-black tracking-widest">终点记录裁判入口</span>
+    </button>
+    <button onclick="selectRole('field')" class="w-full max-w-sm bg-gradient-to-r from-amber-700 to-amber-900 text-white p-4 rounded-xl shadow active:scale-95 transition flex flex-col items-center gap-1">
+        <span class="text-2xl">🎯</span>
+        <span class="text-base font-black tracking-widest">田赛项目裁判入口</span>
+        <span class="text-[10px] text-amber-200">跳远 / 跳高 / 铅球 / 实心球试跳录入</span>
+    </button>
+
+    <button onclick="selectRole('fun')" class="w-full max-w-sm bg-gradient-to-r from-purple-600 to-indigo-700 text-white p-4 rounded-xl shadow active:scale-95 transition flex flex-col items-center gap-1">
+        <span class="text-2xl">🎈</span>
+        <span class="text-base font-black tracking-widest">趣味与健康测试入口</span>
+        <span class="text-[10px] text-purple-200">随到随测打卡 · 一键未测弃权判定</span>
+    </button>
+</div>
 
             <div id="checkinSection" class="hidden flex-1 flex flex-col bg-gray-100 p-2 md:p-4">
                 <div class="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-emerald-800 text-xs text-center font-bold mb-3 shadow-xs">
@@ -344,7 +348,6 @@ socket.on('score_updated', function(payload) {
         }, 1500);
     } else if (currentRole === 'timing') {
         const curEvt = document.getElementById('selEvent')?.value || '';
-        // 🌟 只要收到成绩变动，且是当前正在看的项目，立刻重新拉取渲染
         if (payload && (payload.force_sync || payload.auto_finals_promoted || curEvt.includes(payload.event_name))) {
             loadAthletes();
         }
@@ -356,11 +359,11 @@ socket.on('referee_score_saved', function(payload) {
     }
 });
 function login() {
-    const user = document.getElementById('username').value.trim();
-    const pwd = document.getElementById('pwd').value;
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('pwd').value;
     const btn = document.getElementById('btnLogin');
 
-    if (!user) {
+    if (!username) {
         alert("请输入登录名");
         return;
     }
@@ -369,34 +372,40 @@ function login() {
     btn.innerHTML = `<span class="animate-spin">⌛</span> 登录中...`;
 
     fetch('/api/auth', {
-        method: 'POST', 
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ type: 'referee', username: user, password: pwd })
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'referee', username: username, password: password })
     })
     .then(r => r.json())
     .then(res => {
-        if(res.status === 'success') {
+        btn.disabled = false;
+        btn.innerHTML = `<span>开始工作</span>`;
+        if (res.status === 'success') {
+            if (res.roles) {
+                localStorage.setItem('my_referee_roles', JSON.stringify(res.roles));
+            }
+            if (res.referee_name) {
+                localStorage.setItem('my_referee_name', res.referee_name);
+            }
+
+            // 切换视觉状态
             document.getElementById('loginSection').classList.add('hidden');
             document.getElementById('mainConsoleSection').classList.remove('hidden');
             document.getElementById('bodyWrap').classList.remove('bg-green-800');
             document.getElementById('bodyWrap').classList.add('console-bg');
 
-            resetRoleSelection();
             initConsoleData();
+            showRoleSelection();
         } else {
-            alert(res.msg || "登录失败，请检查用户名或密码。");
-            btn.disabled = false;
-            btn.innerHTML = `<span>开始工作</span>`;
+            alert('登录失败: ' + res.msg);
         }
     })
-    .catch(err => {
-        console.error(err);
-        alert("网络连接失败，请检查服务器状态。");
+    .catch(() => {
         btn.disabled = false;
         btn.innerHTML = `<span>开始工作</span>`;
+        alert("网络请求失败，请检查服务连接！");
     });
 }
-
 document.getElementById('pwd').addEventListener('keypress', function (e) {
     if (e.key === 'Enter') login();
 });
@@ -417,7 +426,65 @@ function initConsoleData() {
         })
         .catch(e => console.log('获取日期失败，将回退为第X天格式'));
 }
+// 🌟 裁判员专属登出清理函数
+window.logoutReferee = function() {
+    if (!confirm("确定要退出当前裁判员账号吗？")) return;
 
+    // 1. 彻底清除前端保存的该裁判权限、姓名与旧角色缓存
+    localStorage.removeItem('my_referee_roles');
+    localStorage.removeItem('my_referee_name');
+    localStorage.removeItem('last_referee_role');
+
+    // 2. 调接口注销服务端 Session 并安全跳转回登录页
+    fetch('/api/logout?from=referee')
+        .then(() => {
+            window.location.href = '/referee/login?_t=' + Date.now();
+        })
+        .catch(() => {
+            window.location.href = '/referee/login?_t=' + Date.now();
+        });
+};
+// 🌟 裁判岗位权限前端显隐控制函数
+function filterRoleButtonsByPermission() {
+    const rolesJson = localStorage.getItem('my_referee_roles');
+    if (!rolesJson) return; // 若无缓存配置则默认全部可见或由全局处理
+    
+    let myRoles = [];
+    try {
+        myRoles = JSON.parse(rolesJson);
+    } catch(e) {
+        return;
+    }
+
+    // 对应 5 个裁判岗位的按钮选择器
+    const btnMap = {
+        'checkin': document.querySelector("button[onclick=\"selectRole('checkin')\"]"),
+        'starter': document.querySelector("button[onclick=\"selectRole('starter')\"]"),
+        'timing': document.querySelector("button[onclick=\"selectRole('timing')\"]"),
+        'field': document.querySelector("button[onclick=\"selectRole('field')\"]"),
+        'fun': document.querySelector("button[onclick=\"selectRole('fun')\"]")
+    };
+
+    Object.keys(btnMap).forEach(key => {
+        const btn = btnMap[key];
+        if (btn) {
+            // 如果后端下发的权限列表中包含该岗位，则显示；不包含则直接隐藏
+            if (myRoles.includes(key)) {
+                btn.classList.remove('hidden');
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+    });
+}
+function showRoleSelection() {
+    document.getElementById('loginSection')?.classList.add('hidden');
+    document.getElementById('roleSelection')?.classList.remove('hidden');
+    document.getElementById('workspace')?.classList.add('hidden');
+    
+    // 🌟 每次回到角色选择界面时，重新执行权限显隐检查
+    filterRoleButtonsByPermission();
+}
 // ==================== 修改后 ====================
 function selectRole(role) {
     currentRole = role;
@@ -456,7 +523,7 @@ function selectRole(role) {
         pollActiveHeat();
 
     } else if (role === 'field') {
-        document.getElementById('headerTitle').innerHTML = '🎯 田赛 / 趣味端';
+        document.getElementById('headerTitle').innerHTML = '🎯 田赛裁判端';
         document.getElementById('timingSection').classList.remove('hidden');
         document.getElementById('trackActiveNotice')?.classList.add('hidden');
         
@@ -464,6 +531,15 @@ function selectRole(role) {
         if (list) {
             list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-400 font-bold">请在上方选择组别、性别和项目开始录入</td></tr>';
         }
+        document.getElementById('filterSelectBar')?.classList.remove('hidden');
+        fetchMeta();
+    } else if (role === 'fun') {
+        document.getElementById('headerTitle').innerHTML = '🎈 趣味与健康测试端';
+        document.getElementById('timingSection').classList.remove('hidden');
+        document.getElementById('trackActiveNotice')?.classList.add('hidden');
+        document.getElementById('fieldControlBar')?.classList.add('hidden');
+        document.getElementById('highJumpSection')?.classList.add('hidden');
+        document.getElementById('normalTableSection')?.classList.remove('hidden');
         document.getElementById('filterSelectBar')?.classList.remove('hidden');
         fetchMeta();
     }
@@ -477,6 +553,7 @@ function resetRoleSelection() {
     document.getElementById('roleSelection').classList.remove('hidden');
     document.getElementById('btnBack').classList.add('hidden');
     document.getElementById('headerTitle').innerHTML = '📱 裁判员控制台';
+    filterRoleButtonsByPermission();
 }
 function refreshCurrentView() {
     if (currentRole === 'timing' || currentRole === 'field') {
@@ -932,6 +1009,7 @@ function onGenderChange() {
 
     let eventItems = metaData[gName][gen];
     if (currentRole === 'timing') {
+        // 径赛
         eventItems = eventItems.filter(item => {
             const t = typeof item === 'object' ? item.type : '';
             const name = typeof item === 'object' ? item.name : item;
@@ -940,7 +1018,13 @@ function onGenderChange() {
     } else if (currentRole === 'field') {
         eventItems = eventItems.filter(item => {
             const t = typeof item === 'object' ? item.type : '';
-            return t === '田赛' || t === '趣味' || t === '趣味项目';
+            return t === '田赛' && !t.includes('趣味');
+        });
+    } else if (currentRole === 'fun') {
+        eventItems = eventItems.filter(item => {
+            const t = typeof item === 'object' ? item.type : '';
+            const name = typeof item === 'object' ? item.name : item;
+            return t === '趣味' || t === '趣味项目' || t === '健康测试' || ['拔河', '跳绳', '投篮', '绕杆', '穿梭', '袋鼠', '毛毛虫', '沙包'].some(k => name.includes(k));
         });
     }
 
@@ -1437,7 +1521,8 @@ function renderCurrentFieldList() {
 function renderFieldAthleteRow(p, roundIndex) {
     const athId = p.reg_id || p.id;
     const attempts = p.attempts || ['', '', '', '', '', ''];
-
+    const allValid = attempts.map(v => parseFloat(v) || 0);
+    const bestScore = Math.max(0, ...allValid);
     return `
     <tr class="border-b border-gray-100 bg-white hover:bg-orange-50/30 transition" id="field_row_${athId}">
         <td class="p-2.5 text-center font-bold text-gray-400 border-r w-10">${p.orderIndex || p.lane || '-'}</td>
@@ -1490,17 +1575,37 @@ let hjHeights = ["1.00", "1.05", "1.10", "1.15", "1.20", "1.25", "1.30", "1.35",
 let curHjIndex = 0;
 let hjAthletes = [];
 
+function recalcHjAthleteState(ath) {
+    let best = 0;
+    let consecutiveX = 0;
+    const sortedH = Object.keys(ath.records || {}).sort((a, b) => parseFloat(a) - parseFloat(b));
+    sortedH.forEach(h => {
+        const arr = ath.records[h] || [];
+        arr.forEach(val => {
+            if (val === 'O') {
+                if (parseFloat(h) > best) best = parseFloat(h);
+                consecutiveX = 0;
+            } else if (val === 'X') {
+                consecutiveX++;
+            }
+        });
+    });
+    ath.bestHeight = best > 0 ? best.toFixed(2) : '';
+    ath.eliminated = (consecutiveX >= 3);
+}
+
 function initHighJumpData(data) {
     hjAthletes = data.map(p => {
         let parsedRecords = {};
         try { if (p.attempts_json) parsedRecords = JSON.parse(p.attempts_json); } catch(e) {}
-        return { ...p, records: parsedRecords, eliminated: false, bestHeight: p.score || '' };
+        const ath = { ...p, records: parsedRecords, eliminated: false, bestHeight: p.score || '' };
+        recalcHjAthleteState(ath);
+        return ath;
     });
     curHjIndex = 0;
     renderHighJumpHeightPills();
     renderHighJumpAthletes();
 }
-
 function renderHighJumpHeightPills() {
     const container = document.getElementById('highJumpBarPills');
     if (!container) return;
@@ -1577,7 +1682,7 @@ function renderHighJumpAthletes() {
                     else if (val === 'X') btnStyle = "bg-red-100 text-red-700 font-black border border-red-200";
                     else if (val === '-') btnStyle = "bg-gray-200 text-gray-600 font-black";
 
-                    const isDisabled = ath.eliminated || (isPassed && val !== 'O');
+                    const isDisabled = (ath.eliminated && val !== 'X') || (isPassed && val !== 'O');
 
                     return `
                         <button onclick="cycleHjAttempt('${ath.id || ath.reg_id}', '${curH}', ${attIdx})" 
@@ -1608,13 +1713,10 @@ function cycleHjAttempt(athId, height, attIdx) {
     else if (currentVal === '-') nextVal = '';
 
     ath.records[height][attIdx] = nextVal;
-    if (nextVal === 'O') {
-        ath.bestHeight = height;
-        saveHjScoreToBackend(ath, height);
-    }
+    recalcHjAthleteState(ath);
+    saveHjScoreToBackend(ath, ath.bestHeight);
     renderHighJumpAthletes();
 }
-
 function highJumpPassAllUnjumped() {
     const curH = hjHeights[curHjIndex];
     hjAthletes.forEach(ath => {

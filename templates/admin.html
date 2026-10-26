@@ -259,20 +259,23 @@
     </div>
 
     <div class="flex-1 overflow-y-auto py-3 pr-2 custom-scrollbar">
-    <button onclick="switchStep(0)" id="nav-0" class="nav-item">0. 报名参数设置</button>
-    <button onclick="switchStep(1)" id="nav-1" class="nav-item text-indigo-700 bg-indigo-50 font-bold border-l-4 border-indigo-500">1. 参赛单位设置</button>
-    <button onclick="switchStep(2)" id="nav-2" class="nav-item">2. 比赛项目设置</button>
-    <button onclick="switchStep(3)" id="nav-3" class="nav-item">3. 运动员报名管理</button>
-    <div class="my-2 border-t border-gray-100"></div>
-    <button onclick="switchStep(4)" id="nav-4" class="nav-item text-purple-700 bg-purple-50 font-bold">4. 智能编排 </button>
-    <button onclick="switchStep(5)" id="nav-5" class="nav-item border-l-4 border-orange-500 bg-orange-50 text-orange-700 font-bold">5. 成绩与决赛</button>
-    <button onclick="switchStep(6)" id="nav-6" class="nav-item border-l-4 border-pink-500 bg-pink-50 text-pink-700 font-bold">6. 团体总分排名</button>
-    <div class="my-2 border-t mx-4"></div>
-    <button onclick="switchStep(7)" id="nav-7" class="nav-item w-full text-left px-6 py-3 text-purple-600 font-bold hover:bg-purple-50 border-l-4 border-transparent transition-all">7. 账号密码管理</button>
-    <button onclick="switchStep(8)" id="nav-8" class="nav-item border-l-4 border-green-500 bg-green-50 text-green-700 font-bold">8. 报名数据统计</button>
-    <button onclick="switchStep(9)" id="nav-9" class="nav-item border-l-4 border-cyan-500 bg-cyan-50 text-cyan-800 font-bold">9. 运动会进程监控</button>
-    <button onclick="switchStep(10)" id="nav-10" class="nav-item border-l-4 border-indigo-500 bg-indigo-50 text-indigo-900 font-bold">10. 运动会数据分析</button>
-</div>
+        <button onclick="switchStep(0)" id="nav-0" class="nav-item">0. 报名参数设置</button>
+        <button onclick="switchStep(1)" id="nav-1" class="nav-item text-indigo-700 bg-indigo-50 font-bold border-l-4 border-indigo-500">1. 参赛单位设置</button>
+        <button onclick="switchStep(2)" id="nav-2" class="nav-item">2. 比赛项目设置</button>
+        <button onclick="switchStep(3)" id="nav-3" class="nav-item">3. 运动员报名管理</button>
+        <div class="my-2 border-t border-gray-100"></div>
+        <button onclick="switchStep(4)" id="nav-4" class="nav-item text-purple-700 bg-purple-50 font-bold">4. 智能编排 </button>
+        <button onclick="switchStep(5)" id="nav-5" class="nav-item border-l-4 border-orange-500 bg-orange-50 text-orange-700 font-bold">5. 成绩与决赛</button>
+        <button onclick="switchStep(6)" id="nav-6" class="nav-item border-l-4 border-pink-500 bg-pink-50 text-pink-700 font-bold">6. 团体总分排名</button>
+        <div class="my-2 border-t mx-4"></div>
+        <button onclick="switchStep(7)" id="nav-7" class="nav-item border-l-4 border-amber-500 bg-amber-50 text-amber-900 font-bold">
+            7. 裁判员管理
+        </button>
+        <button onclick="switchStep(8)" id="nav-8" class="nav-item text-purple-600 font-bold hover:bg-purple-50">8. 代表队账号管理</button>
+        <button onclick="switchStep(9)" id="nav-9" class="nav-item border-l-4 border-green-500 bg-green-50 text-green-700 font-bold">9. 报名数据统计</button>
+        <button onclick="switchStep(10)" id="nav-10" class="nav-item border-l-4 border-cyan-500 bg-cyan-50 text-cyan-800 font-bold">10. 运动会进程监控</button>
+        <button onclick="switchStep(11)" id="nav-11" class="nav-item border-l-4 border-indigo-500 bg-indigo-50 text-indigo-900 font-bold">11. 运动会数据分析</button>
+    </div>
 
     <div class="p-4 border-t border-gray-100 bg-gray-50/80 space-y-3 pb-8 lg:pb-6 no-print">
         <div class="bg-red-50 p-2.5 rounded-lg border border-red-100 space-y-2">
@@ -848,6 +851,23 @@
     <button onclick="calculateDetailedScoreTable()" class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow hover:bg-purple-700 font-bold text-xs flex items-center gap-1.5 transition active:scale-95">
         📑 详细积分表
     </button>
+
+    <!-- 🌟 新增：一键导出全场所有组别详细积分表（Excel / Word 双格式存档） -->
+    <div class="relative inline-block text-left group">
+        <button type="button" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg shadow font-bold text-xs transition active:scale-95 flex items-center gap-1.5">
+            <span>📥 导出全部详细表</span>
+            <span class="text-[10px]">▼</span>
+        </button>
+        <div class="hidden group-hover:block absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
+            <a href="javascript:void(0)" onclick="exportAllDetailedScoreTables('excel')" class="flex items-center gap-2 px-3.5 py-2 text-xs text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 font-bold">
+                <span>📊</span> 导出全部组别 Excel (.xls)
+            </a>
+            <a href="javascript:void(0)" onclick="exportAllDetailedScoreTables('word')" class="flex items-center gap-2 px-3.5 py-2 text-xs text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 font-bold border-t border-gray-100">
+                <span>📘</span> 导出全部组别 Word (.doc)
+            </a>
+        </div>
+    </div>
+
     <button onclick="window.print()" class="bg-gray-700 text-white px-3.5 py-2 rounded-lg hover:bg-gray-800 font-bold text-xs transition">
         🖨️ 打印
     </button>
@@ -859,7 +879,126 @@
                 </div>
             </div>
         </div>
-<div id="step-7" class="step-panel h-full hidden p-6  flex flex-col">
+<div id="step-7" class="step-panel h-full hidden p-4 md:p-6 flex flex-col overflow-hidden">
+    <div class="flex flex-wrap justify-between items-center mb-4 shrink-0 bg-white p-4 rounded-xl border border-gray-200 shadow-sm gap-2">
+        <div class="flex items-center gap-3">
+            <h2 class="text-xl font-black text-gray-800 flex items-center gap-2">
+                <span>⏱️</span> <span>裁判员岗位配置与操作日志</span>
+            </h2>
+            <div class="flex items-center bg-gray-100 p-1 rounded-lg text-xs font-bold">
+                <button type="button" onclick="switchRefTab('accounts')" id="btnTabAccounts" class="px-3 py-1 rounded-md bg-white text-amber-800 shadow-xs">账号与权限</button>
+                <button type="button" onclick="switchRefTab('logs')" id="btnTabLogs" class="px-3 py-1 rounded-md text-gray-600 hover:text-black">📋 操作日志</button>
+            </div>
+        </div>
+        
+        <div id="refAccountActions">
+            <button onclick="openAddRefereeModal()" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-xs font-black shadow flex items-center gap-1.5 transition active:scale-95">
+                <span>➕</span> <span>添加裁判员</span>
+            </button>
+        </div>
+
+        <div id="refLogActions" class="hidden flex items-center gap-2">
+            <input type="text" id="logSearchKey" placeholder="搜索裁判姓名/项目/选手" class="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-amber-500 w-48">
+            <button onclick="loadRefereeLogs()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition">查询</button>
+        </div>
+    </div>
+
+    <!-- 1. 账号与权限列表 -->
+    <div id="refAccountsView" class="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+        <div class="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
+            <table class="w-full text-left text-xs border-collapse">
+                <thead class="sticky top-0 bg-gray-100 shadow-xs z-10 text-gray-600">
+                    <tr class="border-b h-10">
+                        <th class="w-12 text-center">序</th>
+                        <th class="w-28 text-left pl-3">登录名</th>
+                        <th class="w-24 text-center font-mono">密码</th>
+                        <th class="w-28 text-left pl-3">裁判姓名</th>
+                        <th class="text-left pl-3">授权岗位</th>
+                        <th class="w-32 text-center">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="refereeTableBody" class="divide-y divide-gray-100"></tbody>
+            </table>
+        </div>
+    </div>
+<div id="refereeModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-[170] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-gray-100 overflow-hidden">
+        <div class="bg-gradient-to-r from-amber-600 to-orange-600 p-4 text-white flex justify-between items-center">
+            <h3 class="font-black text-base" id="refModalTitle">添加裁判员</h3>
+            <button onclick="closeRefereeModal()" class="text-white/80 hover:text-white font-bold text-xl leading-none">&times;</button>
+        </div>
+        <div class="p-5 space-y-3.5 text-xs">
+            <input type="hidden" id="editRefId">
+            <div>
+                <label class="font-bold text-gray-700 block mb-1">裁判姓名：</label>
+                <input type="text" id="refRealName" placeholder="如: 张老师 / 李裁判" class="w-full border border-gray-300 p-2 rounded-lg text-xs font-bold outline-none focus:border-amber-500">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">登录账号：</label>
+                    <input type="text" id="refUsername" placeholder="如: ref_track" class="w-full border border-gray-300 p-2 rounded-lg text-xs font-bold outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">登录密码：</label>
+                    <input type="text" id="refPassword" placeholder="至少6位" class="w-full border border-gray-300 p-2 rounded-lg text-xs font-mono font-bold outline-none focus:border-amber-500">
+                </div>
+            </div>
+            <div>
+                <label class="font-bold text-gray-700 block mb-1.5">岗位授权 (可多选)：</label>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+    <label class="flex items-center gap-1.5 p-2 bg-emerald-50 border border-emerald-200 rounded-lg cursor-pointer">
+        <input type="checkbox" name="ref_role" value="checkin" class="rounded text-emerald-600">
+        <span class="font-bold text-emerald-800">📝 检录裁判</span>
+    </label>
+    <label class="flex items-center gap-1.5 p-2 bg-orange-50 border border-orange-200 rounded-lg cursor-pointer">
+        <input type="checkbox" name="ref_role" value="starter" class="rounded text-orange-600">
+        <span class="font-bold text-orange-800">🚩 起点发令</span>
+    </label>
+    <label class="flex items-center gap-1.5 p-2 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer">
+        <input type="checkbox" name="ref_role" value="timing" class="rounded text-blue-600">
+        <span class="font-bold text-blue-800">⏱️ 终点记录</span>
+    </label>
+    <!-- 🌟 拆分1：纯田赛岗位 -->
+    <label class="flex items-center gap-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg cursor-pointer">
+        <input type="checkbox" name="ref_role" value="field" class="rounded text-amber-600">
+        <span class="font-bold text-amber-800">🎯 田赛裁判 (跳/投)</span>
+    </label>
+    <!-- 🌟 拆分2：纯趣味项目岗位 -->
+    <label class="flex items-center gap-1.5 p-2 bg-purple-50 border border-purple-200 rounded-lg cursor-pointer">
+        <input type="checkbox" name="ref_role" value="fun" class="rounded text-purple-600">
+        <span class="font-bold text-purple-800">🎈 趣味/游园裁判</span>
+    </label>
+</div>
+            </div>
+        </div>
+        <div class="p-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+            <button onclick="closeRefereeModal()" class="px-4 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-bold">取消</button>
+            <button onclick="submitSaveReferee()" class="px-5 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition">确认保存</button>
+        </div>
+    </div>
+</div>
+    <!-- 2. 操作追溯日志审计列表 -->
+    <div id="refLogsView" class="hidden flex-1 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+        <div class="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
+            <table class="w-full text-left text-xs border-collapse">
+                <thead class="sticky top-0 bg-gray-100 shadow-xs z-10 text-gray-600">
+                    <tr class="border-b h-10">
+                        <th class="w-12 text-center">ID</th>
+                        <th class="w-32 text-left pl-3">操作时间</th>
+                        <th class="w-24 text-left pl-3">操作裁判</th>
+                        <th class="w-20 text-center">动作类型</th>
+                        <th class="w-40 text-left pl-2">项目与组别</th>
+                        <th class="w-36 text-left pl-2">操作对象</th>
+                        <th class="text-left pl-2">改动详情</th>
+                        <th class="w-24 text-center">终端IP</th>
+                    </tr>
+                </thead>
+                <tbody id="refereeLogTableBody" class="divide-y divide-gray-100 font-mono text-[11px]"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<div id="step-8" class="step-panel h-full hidden p-6  flex flex-col">
     <h2 class="text-2xl font-bold text-gray-800 mb-4 shrink-0 no-print">🔐 代表队账号管理</h2>
     <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 no-print">
         <p class="text-sm text-yellow-700">
@@ -888,7 +1027,7 @@
         </div>
     </div>
 </div>
-<div id="step-8" class="step-panel h-full hidden p-6 overflow-y-auto">
+<div id="step-9" class="step-panel h-full hidden p-6 overflow-y-auto">
     <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">📊 报名数据实时统计</h2>
     <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 mb-8">
         <h3 class="font-bold text-blue-800 mb-4 border-b pb-2">👥 组别/性别人数统计</h3>
@@ -984,7 +1123,7 @@
         </div>
     </div>
 </div>
-<div id="step-9" class="step-panel h-full hidden p-6 flex flex-col overflow-hidden">
+<div id="step-10" class="step-panel h-full hidden p-6 flex flex-col overflow-hidden">
     <div class="flex flex-wrap justify-between items-center mb-4 shrink-0 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
         <div class="flex items-center gap-3">
             <h2 class="text-xl font-black text-gray-800 flex items-center gap-2">
@@ -1035,7 +1174,7 @@
         <div class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar" id="monitorTimelineContainer"></div>
     </div>
 </div>
-<div id="step-10" class="step-panel min-h-full hidden p-4 md:p-6 space-y-6 pb-20 overflow-y-auto">
+<div id="step-11" class="step-panel min-h-full hidden p-4 md:p-6 space-y-6 pb-20 overflow-y-auto">
     <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shrink-0">
         <div>
             <h2 class="text-xl font-black text-gray-800 flex items-center gap-2">
@@ -1100,7 +1239,7 @@
 
         <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
             <h3 class="text-xs font-black text-gray-700 mb-3 flex items-center gap-1.5">
-                <span>⚡</span> <span>单项前沿最优极值榜 (校纪录/最优对比)</span>
+                <span>⚡</span> <span>单项前沿最优极值榜</span>
             </h3>
             <div class="flex-1 min-h-[260px] relative">
                 <canvas id="chartDimensionRadar"></canvas>
@@ -1911,18 +2050,19 @@ window.saveRegDeadline = function(val) {
             case 6: 
                 if (typeof initRankPage === 'function') initRankPage(); 
                 break;
-            case 7: 
-                if (typeof loadTeamPasswords === 'function') loadTeamPasswords('get'); 
-                break;
-            case 8: 
-                if (typeof loadStatistics === 'function') loadStatistics(); 
-                break;
-            case 9:
-                if (typeof renderProcessMonitor === 'function') {
-                    renderProcessMonitor();
-                }
-                break;
+            case 7:
+    loadRefereeList();
+    break;
+case 8:
+    if (typeof loadTeamPasswords === 'function') loadTeamPasswords('get');
+    break;
+case 9:
+    if (typeof loadStatistics === 'function') loadStatistics();
+    break;
 case 10:
+    if (typeof renderProcessMonitor === 'function') renderProcessMonitor();
+    break;
+case 11:
     fetchPhysicalAnalysisData();
     break;
         }
@@ -4274,10 +4414,15 @@ function exportWord() {
                         record: e.record || '',
                         recordBonus: e.recordBonus || e.record_bonus || 0,
                         isDoubleScore: (String(e.isDoubleScore) === 'true' || String(e.is_double_score) === '1'),
+                        is_double_score: (String(e.isDoubleScore) === 'true' || String(e.is_double_score) === '1'),
                         needLane: (String(e.needLane) === 'true' || String(e.need_lane) === '1'),
                         hasPrelim: (String(e.hasPrelim) === 'true' || String(e.has_prelim) === '1'),
                         isRelay: (String(e.isRelay) === 'true' || String(e.is_relay) === '1'),
-                        isTeam: (String(e.isTeam) === 'true' || String(e.is_team) === '1')
+                        is_relay: (String(e.isRelay) === 'true' || String(e.is_relay) === '1'),
+                        isTeam: (String(e.isTeam) === 'true' || String(e.is_team) === '1'),
+                        is_team: (String(e.isTeam) === 'true' || String(e.is_team) === '1'),
+                        denseRank: (String(e.denseRank) === 'true' || String(e.dense_rank) === '1'),
+                        dense_rank: (String(e.denseRank) === 'true' || String(e.dense_rank) === '1')
                     };
                 });
 
@@ -4390,10 +4535,15 @@ function exportWord() {
             });
 
             // 赋予全局推算名次
+            const activeCleanEvt = (eventName || '').replace(' (预赛)', '').replace(' (决赛)', '').trim();
+            const activeNormEvt = activeCleanEvt.replace(/[*xX]/g, '×');
+            const globalEvtCfg = db.events.find(e => e.name === activeCleanEvt || e.name === activeNormEvt || e.name === eventName);
+            const isDenseRankGlobal = Boolean(globalEvtCfg && (String(globalEvtCfg.denseRank) === 'true' || String(globalEvtCfg.dense_rank) === '1'));
+
             let currentGlobalRank = 1;
             globalValidAthletes.forEach((item, idx) => {
                 if (idx > 0 && Math.abs(parseTimeVal(item.score) - parseTimeVal(globalValidAthletes[idx-1].score)) > 0.0001) {
-                    currentGlobalRank = idx + 1;
+                    currentGlobalRank = isDenseRankGlobal ? (currentGlobalRank + 1) : (idx + 1);
                 }
                 item._global_computed_rank = currentGlobalRank;
             });
@@ -4442,8 +4592,8 @@ function exportWord() {
 
                 // 强制按后端绝对名次或前端全局大排名的名次排序
                 items.sort((a, b) => {
-                    const rA = (a.rank && a.rank !== '--') ? parseInt(a.rank) : (a._global_computed_rank || 999);
-                    const rB = (b.rank && b.rank !== '--') ? parseInt(b.rank) : (b._global_computed_rank || 999);
+                    const rA = a._global_computed_rank || ((a.rank && a.rank !== '--') ? parseInt(a.rank) : 999);
+                    const rB = b._global_computed_rank || ((b.rank && b.rank !== '--') ? parseInt(b.rank) : 999);
                     return rA - rB;
                 });
 
@@ -4476,27 +4626,32 @@ function exportWord() {
 
                     items.forEach((p) => {
                         const val = p.score || '';
-                        const isAbsent = (val === '弃权' || String(p.checked_in) === '2');
+                        const isAbsent = (val === '弃权' || val === '犯规' || String(p.checked_in) === '2');
                         
-                        let rankDisplay = (p.rank && p.rank !== '') ? p.rank : (p._global_computed_rank ? String(p._global_computed_rank) : '--');
-                        let pts = parseInt(p.points) || 0;
+                        // 优先采用基于最新全员成绩实时算出的 _global_computed_rank，避免后台防抖延迟期间新旧名次冲突
+                        let rankDisplay = (!isAbsent && p._global_computed_rank) ? String(p._global_computed_rank) : ((p.rank && p.rank !== '' && !isAbsent) ? p.rank : '--');
+                        let pts = 0;
                         
-                        // 全局推算积分兜底
-                        if (pts === 0 && rankDisplay !== '--' && !isAbsent) {
-    const rnk = parseInt(rankDisplay);
-    const qLimit = parseInt(document.getElementById('finalsTopN')?.value) || parseInt(qualifyLimit) || 8;
-    const rules = [9, 7, 6, 5, 4, 3, 2, 1];
-    if (rnk > 0 && rnk <= qLimit && rnk <= rules.length) {
-        pts = rules[rnk - 1];
-        const activeClean = (eventName || '').replace(' (预赛)', '').replace(' (决赛)', '').trim();
-        const curEvtCfg = db.events.find(e => e.name === activeClean || e.name === eventName);
-        const isTeamDouble = (isRelayEvent || (curEvtCfg && (curEvtCfg.isTeam || curEvtCfg.is_team || curEvtCfg.isDoubleScore)));
-        // 🌟 只有真正的接力或团体项目才双倍，立定跳远等个人项目绝对不翻倍！
-        if (isTeamDouble) {
-            pts *= 2;
-        }
-    }
-}
+                        // 实时根据当前准确名次计算积分（严格判断 === true 或 === '1'，杜绝字符串 "0" 导致翻倍）
+                        if (rankDisplay !== '--' && !isAbsent) {
+                            const rnk = parseInt(rankDisplay);
+                            const qLimit = parseInt(document.getElementById('finalsTopN')?.value) || parseInt(qualifyLimit) || 8;
+                            const ruleStr = globalEvtCfg?.scoreRule || globalEvtCfg?.score_rule || "9,7,6,5,4,3,2,1";
+                            const rules = ruleStr.replace(/，/g, ',').split(',').map(Number);
+                            if (rnk > 0 && rnk <= qLimit && rnk <= rules.length) {
+                                pts = rules[rnk - 1];
+                                const isTeamDouble = Boolean(
+                                    isRelayEvent || 
+                                    (globalEvtCfg && (
+                                        String(globalEvtCfg.isTeam) === 'true' || String(globalEvtCfg.is_team) === '1' ||
+                                        String(globalEvtCfg.isDoubleScore) === 'true' || String(globalEvtCfg.is_double_score) === '1'
+                                    ))
+                                );
+                                if (isTeamDouble) {
+                                    pts *= 2;
+                                }
+                            }
+                        }
                         
                         let scoreContent = isEditMode 
                             ? `<input type="text" value="${val}" class="text-center font-bold bg-yellow-50 border border-yellow-300 rounded px-2 py-1 w-24" style="font-family:Times New Roman; font-size:12pt;" onblur="updateAdminScore(${p.id}, this)">`
@@ -4593,7 +4748,14 @@ function exportWord() {
                                         
                                         if (realRank <= qLimit && realRank <= rules.length) {
     let calcPts = rules[realRank - 1];
-    if (isRelayEvent || curEvtCfg?.isTeam || curEvtCfg?.is_team || curEvtCfg?.isDoubleScore) {
+   const isTeamDouble = Boolean(
+        isRelayEvent || 
+        (curEvtCfg && (
+            String(curEvtCfg.isTeam) === 'true' || String(curEvtCfg.is_team) === '1' ||
+            String(curEvtCfg.isDoubleScore) === 'true' || String(curEvtCfg.is_double_score) === '1'
+        ))
+    );
+    if (isTeamDouble) {
         calcPts *= 2; 
     }
     val = calcPts;
@@ -5020,43 +5182,7 @@ window.saveTeamCustomScore = function(teamName, groupName, itemKey, inputEl) {
         inputEl.style.backgroundColor = '#fee2e2';
     });
 };
-// 🌟 保存单个附加分：只静默更新后台和输入框样式，不刷新重绘 DOM
-window.saveTeamCustomScore = function(teamName, groupName, itemKey, inputEl) {
-    const rawVal = inputEl.value.trim();
-    const val = parseFloat(rawVal) || 0;
-    
-    // 立即锁定当前输入框显示的数值
-    inputEl.value = val;
-    inputEl.style.backgroundColor = '#fef3c7'; // 保存中黄底
 
-    fetch('/api/update_team_custom_score', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            team_name: teamName,
-            group_name: groupName,
-            item_key: itemKey,
-            score: val
-        })
-    })
-    .then(r => r.json())
-    .then(res => {
-        if (res.status === 'success') {
-            // 🌟 强行再次确认数值，坚决防止被旧数据覆写
-            inputEl.value = val;
-            inputEl.style.backgroundColor = '#dcfce7'; // 保存成功变绿
-            setTimeout(() => {
-                inputEl.style.backgroundColor = '';
-            }, 600);
-        } else {
-            alert('保存失败：' + (res.msg || ''));
-            inputEl.style.backgroundColor = '#fee2e2';
-        }
-    })
-    .catch(() => {
-        inputEl.style.backgroundColor = '#fee2e2';
-    });
-};
 window.recalcRowTotalScore = function(inputEl) {
     const tr = inputEl.closest('tr');
     if (!tr) return;
@@ -5196,7 +5322,7 @@ window.recalcRowTotalScore = function(inputEl) {
                     <span>总裁判长：________________</span> 
                     <span>记录长：________________</span> 
                 </div>
-                <div style="text-align:center; margin-top:10px; color:#999; font-size:10px;" class="no-print"> * 提示：如项目较多，请在打印预览中选择“横向”纸张方向 </div>
+                <div style="text-align:center; margin-top:10px; color:#999; font-size:10px;" class="no-print"> </div>
             </div>`;
             div.innerHTML = tableHtml;
         })
@@ -5204,7 +5330,148 @@ window.recalcRowTotalScore = function(inputEl) {
             div.innerHTML = '<div class="text-center text-red-500 py-10 font-bold text-xs">加载失败，请检查网络！</div>';
         });
     };
+// 🌟 一键并发拉取全场所有组别的详细积分矩阵，并导出为 Excel 或 Word 存档册
+    window.exportAllDetailedScoreTables = async function(format = 'excel') {
+        if (!db.groups || db.groups.length === 0) {
+            return alert("暂无组别数据，无法导出！");
+        }
 
+        const eventTitle = document.getElementById('cfgTitle')?.value || "田径运动会";
+        const today = new Date();
+        const year = today.getFullYear();
+        const dateStr = `${year}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+
+        // 1. 按组别顺序并发请求后端的详细积分矩阵接口
+        const groupList = db.groups.map(g => g.name);
+        const results = [];
+
+        try {
+            const responses = await Promise.all(
+                groupList.map(gName =>
+                    fetch('/api/calculate_detailed_matrix?_t=' + Date.now(), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ group_name: gName })
+                    }).then(r => r.json())
+                )
+            );
+
+            responses.forEach((data, i) => {
+                if (data && data.rows && data.rows.length > 0) {
+                    results.push({
+                        groupName: groupList[i],
+                        compCols: data.columns || [],
+                        customCols: data.custom_columns || [],
+                        rows: data.rows || []
+                    });
+                }
+            });
+        } catch (err) {
+            return alert("拉取各组别详细积分数据失败，请检查网络连接！");
+        }
+
+        if (results.length === 0) {
+            return alert("当前所有组别均暂无有效积分数据，无法导出！");
+        }
+
+        // 2. 构建每个组别的标准双层表头 HTML 表格
+        const buildGroupTableHtml = (item, isPageBreak) => {
+            const { groupName, compCols, customCols, rows } = item;
+
+            let headerRow1 = `<th rowspan="2" style="width:100px; border:1px solid #000; background:#f3f4f6;">班级 / 单位</th>`;
+            let headerRow2 = ``;
+
+            compCols.forEach(col => {
+                headerRow1 += `<th colspan="2" style="border:1px solid #000; background:#f3f4f6;">${col}</th>`;
+                headerRow2 += `<th style="width:35px; border:1px solid #000; background:#f3f4f6; font-weight:normal;">男</th><th style="width:35px; border:1px solid #000; background:#f3f4f6; font-weight:normal;">女</th>`;
+            });
+
+            customCols.forEach(col => {
+                headerRow1 += `<th rowspan="2" style="width:70px; border:1px solid #000; color:#4338ca; background:#eef2ff;">${col}</th>`;
+            });
+
+            headerRow1 += `<th rowspan="2" style="width:65px; border:1px solid #000; background:#f3f4f6;">总分</th><th rowspan="2" style="width:50px; border:1px solid #000; background:#f3f4f6;">名次</th>`;
+
+            let bodyHtml = '';
+            rows.forEach((row, idx) => {
+                let cells = `<td style="border:1px solid #000; font-weight:bold; text-align:center;">${row.team}</td>`;
+
+                compCols.forEach(col => {
+                    const detail = row.details[col] || { '男': 0, '女': 0 };
+                    const scoreM = detail['男'] > 0 ? detail['男'] : '';
+                    const scoreF = detail['女'] > 0 ? detail['女'] : '';
+                    cells += `<td style="border:1px solid #000; text-align:center;">${scoreM}</td><td style="border:1px solid #000; text-align:center;">${scoreF}</td>`;
+                });
+
+                customCols.forEach(col => {
+                    const extraVal = row.custom_details[col];
+                    const displayExtra = (extraVal && extraVal > 0) ? extraVal : '';
+                    cells += `<td style="border:1px solid #000; text-align:center; font-weight:bold; color:#4338ca;">${displayExtra}</td>`;
+                });
+
+                cells += `<td style="border:1px solid #000; text-align:center; font-weight:bold; color:#b45309;">${row.total}</td><td style="border:1px solid #000; text-align:center; font-weight:bold;">${idx + 1}</td>`;
+                bodyHtml += `<tr style="height:24px;">${cells}</tr>`;
+            });
+
+            const totalColSpan = 1 + compCols.length * 2 + customCols.length + 2;
+            const pageBreakHtml = isPageBreak ? `<br clear="all" style="page-break-before:always; mso-break-type:section-break">` : ``;
+
+            return `
+            ${pageBreakHtml}
+            <div style="margin-bottom: 30px;">
+                <h2 style="text-align:center; font-size:18pt; font-weight:bold; margin-bottom:8px; font-family:SimSun;">${year}年 ${eventTitle} 团体总分明细表（${groupName}）</h2>
+                <table style="width:100%; border-collapse:collapse; font-size:10pt; font-family:SimSun; text-align:center; border:1px solid #000;">
+                    <thead>
+                        <tr style="height:28px; font-weight:bold;">${headerRow1}</tr>
+                        <tr style="height:22px;">${headerRow2}</tr>
+                    </thead>
+                    <tbody>${bodyHtml}</tbody>
+                    <tfoot>
+                        <tr style="height:36px; border:none;">
+                            <td colspan="${totalColSpan}" style="border:none; text-align:left; padding-top:15px; font-weight:bold; font-size:11pt;">
+                                总裁判长签字：____________________ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 记录长签字：____________________ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 日期：${year}年${today.getMonth()+1}月${today.getDate()}日
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>`;
+        };
+
+        const allTablesHtml = results.map((item, idx) => buildGroupTableHtml(item, idx > 0)).join('');
+
+        // 3. 根据所选格式输出文件（横向 A4 纸张自适应）
+        const isExcel = (format === 'excel');
+        const mimeType = isExcel ? 'application/vnd.ms-excel' : 'application/msword';
+        const ext = isExcel ? 'xls' : 'doc';
+
+        const fullDoc = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+              xmlns:x="urn:schemas-microsoft-com:office:excel" 
+              xmlns:w="urn:schemas-microsoft-com:office:word" 
+              xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+            <meta charset="utf-8">
+            <title>${eventTitle}_全部组别团体详细积分表</title>
+            <style>
+                @page { size: A4 landscape; margin: 1.2cm 1.0cm; mso-page-orientation: landscape; }
+                body { font-family: 'SimSun', serif; color: #000; }
+                table { border-collapse: collapse; width: 100%; }
+                td, th { mso-number-format: "\\@"; padding: 3px 2px; }
+            </style>
+        </head>
+        <body>
+            ${allTablesHtml}
+        </body>
+        </html>`;
+
+        const blob = new Blob(['\ufeff' + fullDoc], { type: `${mimeType};charset=utf-8` });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${eventTitle}_全场详细积分总表_${dateStr}.${ext}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
     window.printLandscape = function() {
         const style = document.createElement('style'); 
         style.id = 'landscape-print-style';
@@ -7759,25 +8026,185 @@ window.exportAllAnnouncementsPDF = function() {
     // 在新窗口打开专用打印预览排版页，自动调起浏览器的“另存为 PDF”
     window.open('/admin/print_all_announcements', '_blank');
 };
+window.refereeListCache = [];
+
+window.loadRefereeList = function() {
+    const tbody = document.getElementById('refereeTableBody');
+    fetch('/api/manage_referees')
+    .then(r => r.json())
+    .then(res => {
+        if (res.status !== 'success' || !res.referees || res.referees.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-gray-400 font-bold">暂无裁判账号，点击右上角添加</td></tr>';
+            return;
+        }
+        window.refereeListCache = res.referees;
+        const roleLabels = {
+            'checkin': '<span class="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold mr-1">📝 检录</span>',
+            'starter': '<span class="bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded font-bold mr-1">🚩 起点发令</span>',
+            'timing': '<span class="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold mr-1">⏱️ 终点记录</span>',
+            'field': '<span class="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold mr-1">🎯 田赛</span>',
+            'fun': '<span class="bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-bold mr-1">🎈 趣味/健康</span>'
+        };
+
+        tbody.innerHTML = res.referees.map((r, idx) => `
+            <tr class="hover:bg-amber-50/40 transition h-10 text-xs">
+                <td class="text-center font-mono text-gray-400">${idx + 1}</td>
+                <td class="text-left pl-3 font-bold text-gray-800">${r.username}</td>
+                <td class="text-center font-mono font-bold text-blue-600 bg-gray-50/80 px-2 py-1 rounded">${r.password}</td>
+                <td class="text-left pl-3 font-black text-gray-900">${r.real_name}</td>
+                <td class="text-left pl-3">
+                    ${r.roles.map(role => roleLabels[role] || role).join('')}
+                </td>
+                <td class="text-center whitespace-nowrap">
+                    <button onclick="editRefereeItem(${r.id})" class="text-blue-600 hover:text-blue-800 font-bold px-2 py-1">编辑</button>
+                    <button onclick="deleteRefereeItem(${r.id}, '${r.real_name}')" class="text-red-600 hover:text-red-800 font-bold px-2 py-1">删除</button>
+                </td>
+            </tr>
+        `).join('');
+    });
+};
+
+window.openAddRefereeModal = function() {
+    document.getElementById('editRefId').value = '';
+    document.getElementById('refRealName').value = '';
+    document.getElementById('refUsername').value = 'ref_' + Math.floor(1000 + Math.random() * 9000);
+    document.getElementById('refPassword').value = Math.floor(100000 + Math.random() * 900000);
+    document.querySelectorAll('input[name="ref_role"]').forEach(cb => cb.checked = true);
+    document.getElementById('refModalTitle').innerText = '添加裁判员';
+    document.getElementById('refereeModal').classList.remove('hidden');
+};
+
+window.editRefereeItem = function(id) {
+    const item = window.refereeListCache.find(r => r.id === id);
+    if (!item) return;
+    document.getElementById('editRefId').value = item.id;
+    document.getElementById('refRealName').value = item.real_name;
+    document.getElementById('refUsername').value = item.username;
+    document.getElementById('refPassword').value = item.password;
+    document.querySelectorAll('input[name="ref_role"]').forEach(cb => {
+        cb.checked = item.roles.includes(cb.value);
+    });
+    document.getElementById('refModalTitle').innerText = '编辑裁判员权限';
+    document.getElementById('refereeModal').classList.remove('hidden');
+};
+
+window.closeRefereeModal = function() {
+    document.getElementById('refereeModal').classList.add('hidden');
+};
+
+window.submitSaveReferee = function() {
+    const id = document.getElementById('editRefId').value;
+    const real_name = document.getElementById('refRealName').value.trim();
+    const username = document.getElementById('refUsername').value.trim();
+    const password = document.getElementById('refPassword').value.trim();
+    const roles = Array.from(document.querySelectorAll('input[name="ref_role"]:checked')).map(cb => cb.value);
+
+    if (!real_name || !username || !password) return alert("请完整填写裁判员姓名、账号及密码！");
+    if (roles.length === 0) return alert("请至少为裁判员赋予一个岗位的权限！");
+
+    fetch('/api/manage_referees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id ? parseInt(id) : null, real_name, username, password, roles })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status === 'success') {
+            alert(res.msg);
+            closeRefereeModal();
+            loadRefereeList();
+        } else {
+            alert('保存失败：' + res.msg);
+        }
+    });
+};
+
+window.deleteRefereeItem = function(id, name) {
+    if (!confirm(`确定要注销裁判员【${name}】的账号吗？`)) return;
+    fetch('/api/manage_referees', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+    })
+    .then(r => r.json())
+    .then(res => {
+        alert(res.msg);
+        loadRefereeList();
+    });
+};
+window.switchRefTab = function(tabName) {
+    const isAcc = tabName === 'accounts';
+    document.getElementById('refAccountsView').classList.toggle('hidden', !isAcc);
+    document.getElementById('refAccountActions').classList.toggle('hidden', !isAcc);
+    
+    document.getElementById('refLogsView').classList.toggle('hidden', isAcc);
+    document.getElementById('refLogActions').classList.toggle('hidden', isAcc);
+
+    document.getElementById('btnTabAccounts').className = isAcc ? "px-3 py-1 rounded-md bg-white text-amber-800 shadow-xs" : "px-3 py-1 rounded-md text-gray-600 hover:text-black";
+    document.getElementById('btnTabLogs').className = !isAcc ? "px-3 py-1 rounded-md bg-white text-amber-800 shadow-xs" : "px-3 py-1 rounded-md text-gray-600 hover:text-black";
+
+    // 🌟 核心：只要切到日志视图，立即主动拉取最新记录！
+    if (!isAcc) {
+        loadRefereeLogs();
+    }
+};
+
+window.loadRefereeLogs = function() {
+    const tbody = document.getElementById('refereeLogTableBody');
+    const kw = document.getElementById('logSearchKey')?.value || '';
+    if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-blue-500 font-bold animate-pulse">正在拉取审计日志流水...</td></tr>';
+    }
+
+    fetch('/api/get_referee_logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: kw })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (!res.logs || res.logs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-gray-400 font-bold">暂无操作日志记录（请先在裁判端录入成绩或核验检录产生操作）</td></tr>';
+            return;
+        }
+        tbody.innerHTML = res.logs.map(log => `
+            <tr class="hover:bg-amber-50/30 transition h-9 border-b border-gray-100">
+                <td class="text-center font-mono text-gray-400">${log.id}</td>
+                <td class="text-left pl-3 text-gray-500 font-mono">${log.created_at}</td>
+                <td class="text-left pl-3 font-bold text-gray-800">${log.referee_name}</td>
+                <td class="text-center"><span class="bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded font-bold">${log.action_type}</span></td>
+                <td class="text-left pl-2 font-bold text-blue-900">${log.group_name} ${log.event_name}</td>
+                <td class="text-left pl-2 font-bold text-gray-700">${log.target_name}</td>
+                <td class="text-left pl-2 text-gray-600">${log.detail_info}</td>
+                <td class="text-center text-gray-400 font-mono text-[10px]">${log.ip_addr}</td>
+            </tr>
+        `).join('');
+    })
+    .catch(err => {
+        if (tbody) {
+            tbody.innerHTML = '<td colspan="8" class="p-8 text-center text-red-500 font-bold">拉取日志失败，请检查网络连接</td>';
+        }
+    });
+};
 // =======================================================
 // 🌟 管理端 Socket.IO 全局长连接与事件驱动中心
 // =======================================================
 const socket = io();
 // 1. 跑道起点发令广播 -> 实时刷新赛事监控进度
 socket.on('heat_activated', function(payload) {
-    if (currentStepId === 9 && typeof renderProcessMonitor === 'function') {
+    if (currentStepId === 10 && typeof renderProcessMonitor === 'function') {
         renderProcessMonitor();
     }
 });
 // 2. 检录打钩/弃权广播 -> 实时刷新赛事监控与进度条
 socket.on('checkin_updated', function(payload) {
-    if (currentStepId === 9 && typeof renderProcessMonitor === 'function') {
+    if (currentStepId === 10 && typeof renderProcessMonitor === 'function') {
         renderProcessMonitor();
     }
 });
 // 3. 裁判录入成绩广播 -> 实时刷新后台成绩单、总分榜与监控进度
 socket.on('score_updated', function(payload) {
-    if (currentStepId === 9 && typeof renderProcessMonitor === 'function') {
+    if (currentStepId === 10 && typeof renderProcessMonitor === 'function') {
         renderProcessMonitor();
     }
     if (currentStepId === 5 && typeof renderResultSheet === 'function') {
@@ -7786,14 +8213,14 @@ socket.on('score_updated', function(payload) {
     if (currentStepId === 6 && typeof calculateTeamRanking === 'function') {
         calculateTeamRanking(window.currentRankGroupName);
     }
-    if (currentStepId === 10 && typeof fetchPhysicalAnalysisData === 'function') {
+    if (currentStepId === 11 && typeof fetchPhysicalAnalysisData === 'function') {
         fetchPhysicalAnalysisData();
     }
 });
 
 // 4. 监听跑道成绩录完释放广播
 socket.on('track_released', function(payload) {
-    if (currentStepId === 9 && typeof renderProcessMonitor === 'function') {
+    if (currentStepId === 10 && typeof renderProcessMonitor === 'function') {
         renderProcessMonitor();
     }
 });

@@ -245,12 +245,11 @@
             const d = new Date();
             document.getElementById('sysDate').innerText = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
             
+            // 先用本地缓存秒开渲染首屏，随后后台静默校验最新导航（兼顾秒开速度与数据实时性）
             const cachedNav = sessionStorage.getItem('query_nav_cache');
             if (cachedNav) {
                 try {
-                    const data = JSON.parse(cachedNav);
-                    renderWithNavData(data);
-                    return;
+                    renderWithNavData(JSON.parse(cachedNav));
                 } catch(e) {}
             }
 
