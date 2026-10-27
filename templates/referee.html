@@ -143,7 +143,7 @@
         <button onclick="switchFieldRound(6)" id="btnRound6" disabled class="round-pill px-3 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-400 cursor-not-allowed" data-round="6">第6次</button>
     </div>
     <div class="flex items-center gap-1.5">
-        <!-- 🌟 新增：针对趣味/游园项目的一键未参赛弃权按钮 -->
+
         <button type="button" onclick="batchMarkUnfinishedAsAbsent()" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-2.5 py-1.5 rounded-lg text-xs font-black shadow-xs transition active:scale-95 flex items-center gap-1">
             <span>🚫</span> 一键未测弃权
         </button>
@@ -216,7 +216,6 @@
         </div>
     </div>
 
-    <!-- 起点发令弹窗 -->
     <div id="newHeatModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full border-4 border-amber-500 overflow-hidden transform transition-all text-center p-6 space-y-4">
             <div class="text-5xl">🚀</div>
@@ -235,8 +234,6 @@
     </div>
 <script>
 const socket = io();
-
-// 3. 监听检录状态打钩事件（加入防抖，避免高频并发重绘）
 let checkinDebounceTimer = null;
 socket.on('checkin_updated', function(payload) {
     if (currentRole === 'starter' || currentRole === 'checkin') {
@@ -295,7 +292,6 @@ socket.on('checkin_updated', function(payload) {
     }
 });
 
-// 监听后台晋级新赛程/决赛名单发布
 socket.on('meta_updated', function() {
     if (currentRole === 'checkin' || currentRole === 'starter') {
         loadCheckinSchedule();
@@ -304,7 +300,6 @@ socket.on('meta_updated', function() {
     }
 });
 
-// 监听专属决赛自动晋级生成事件
 socket.on('finals_promoted', function(payload) {
     if (currentRole === 'checkin' || currentRole === 'starter') {
         loadCheckinSchedule();
@@ -317,7 +312,6 @@ socket.on('finals_promoted', function(payload) {
     }
 });
 
-// 🌟 监听跑道释放事件
 socket.on('track_released', function(payload) {
     window.isTrackBusy = false;
     currentActiveHeatData = null;
@@ -334,7 +328,6 @@ socket.on('track_released', function(payload) {
     }
 });
 
-// 监听成绩更新事件
 let scoreUpdatedTimer = null;
 socket.on('score_updated', function(payload) {
     if (currentRole === 'starter' || currentRole === 'checkin') {
@@ -425,16 +418,12 @@ function initConsoleData() {
         })
         .catch(e => console.log('获取日期失败，将回退为第X天格式'));
 }
-// 🌟 裁判员专属登出清理函数
+
 window.logoutReferee = function() {
     if (!confirm("确定要退出当前裁判员账号吗？")) return;
-
-    // 1. 彻底清除前端保存的该裁判权限、姓名与旧角色缓存
     localStorage.removeItem('my_referee_roles');
     localStorage.removeItem('my_referee_name');
     localStorage.removeItem('last_referee_role');
-
-    // 2. 调接口注销服务端 Session 并安全跳转回登录页
     fetch('/api/logout?from=referee')
         .then(() => {
             window.location.href = '/referee/login?_t=' + Date.now();
@@ -443,10 +432,10 @@ window.logoutReferee = function() {
             window.location.href = '/referee/login?_t=' + Date.now();
         });
 };
-// 🌟 裁判岗位权限前端显隐控制函数
+
 function filterRoleButtonsByPermission() {
     const rolesJson = localStorage.getItem('my_referee_roles');
-    if (!rolesJson) return; // 若无缓存配置则默认全部可见或由全局处理
+    if (!rolesJson) return; 
     
     let myRoles = [];
     try {
@@ -454,8 +443,6 @@ function filterRoleButtonsByPermission() {
     } catch(e) {
         return;
     }
-
-    // 对应 5 个裁判岗位的按钮选择器
     const btnMap = {
         'checkin': document.querySelector("button[onclick=\"selectRole('checkin')\"]"),
         'starter': document.querySelector("button[onclick=\"selectRole('starter')\"]"),
@@ -467,7 +454,6 @@ function filterRoleButtonsByPermission() {
     Object.keys(btnMap).forEach(key => {
         const btn = btnMap[key];
         if (btn) {
-            // 如果后端下发的权限列表中包含该岗位，则显示；不包含则直接隐藏
             if (myRoles.includes(key)) {
                 btn.classList.remove('hidden');
             } else {
@@ -480,18 +466,15 @@ function showRoleSelection() {
     document.getElementById('loginSection')?.classList.add('hidden');
     document.getElementById('roleSelection')?.classList.remove('hidden');
     document.getElementById('workspace')?.classList.add('hidden');
-    
-    // 🌟 每次回到角色选择界面时，重新执行权限显隐检查
     filterRoleButtonsByPermission();
 }
-// ==================== 修改后 ====================
+
 function selectRole(role) {
     currentRole = role;
     localStorage.setItem('last_referee_role', role);
     document.getElementById('roleSelection').classList.add('hidden');
     document.getElementById('btnBack').classList.remove('hidden');
 
-    // 删除了报错的 if (trackPollingTimer) 与 if (starterPollingTimer)
     document.getElementById('checkinSection')?.classList.add('hidden');
     document.getElementById('timingSection')?.classList.add('hidden');
 
@@ -512,7 +495,7 @@ function selectRole(role) {
         loadCheckinSchedule();
 
     } else if (role === 'timing') {
-        document.getElementById('headerTitle').innerHTML = '⏱️ 终点记录终端';
+        document.getElementById('headerTitle').innerHTML = '⏱️ 终点记录端';
         document.getElementById('timingSection').classList.remove('hidden');
         document.getElementById('fieldControlBar')?.classList.add('hidden');
         document.getElementById('highJumpSection')?.classList.add('hidden');
@@ -533,7 +516,7 @@ function selectRole(role) {
         document.getElementById('filterSelectBar')?.classList.remove('hidden');
         fetchMeta();
     } else if (role === 'fun') {
-        document.getElementById('headerTitle').innerHTML = '🎈 趣味与健康测试端';
+        document.getElementById('headerTitle').innerHTML = '🎈 趣味/健康端';
         document.getElementById('timingSection').classList.remove('hidden');
         document.getElementById('trackActiveNotice')?.classList.add('hidden');
         document.getElementById('fieldControlBar')?.classList.add('hidden');
@@ -556,7 +539,7 @@ function resetRoleSelection() {
 }
 function refreshCurrentView() {
     if (currentRole === 'timing' || currentRole === 'field' || currentRole === 'fun') {
-        if (currentRole === 'timing') pollActiveHeat(); // 👈 点击刷新时立即同步最新发令状态！
+        if (currentRole === 'timing') pollActiveHeat(); 
         const curEvent = document.getElementById('selEvent')?.value;
         const curGroup = document.getElementById('selGroup')?.value;
         if (curEvent && curGroup && !curGroup.includes('连接') && !curGroup.includes('选择')) {
@@ -621,7 +604,6 @@ function loadCheckinSchedule() {
             const isFunOrHealth = item.is_fun === '1' || item.isFun === true || item.type === 'fun' || 
                                   ['趣味', '健康', '足球', '篮球', '投篮', '蛙跳', '跳绳', '拔河', '毛毛虫', '沙包', '毽'].some(k => eName.includes(k));
             
-            // 🌟 趣味项目与健康测试免检录：直接跳过不排入检录列表
             if (isFunOrHealth) {
                 return;
             }
@@ -632,7 +614,6 @@ function loadCheckinSchedule() {
             const ampm = match ? match[2] : '上午';
             const unitKey = `${dayNum}_${ampm}`; 
 
-            // 🌟 修复：补全 fun: {} 阻止后续的 TypeError
             if (!units[unitKey]) {
                 units[unitKey] = { day: dayNum, ampm: ampm, track: {}, field: {}, fun: {} };
             }
@@ -659,8 +640,6 @@ function loadCheckinSchedule() {
             if (!el.classList.contains('hidden')) window.expandedHeatCards.add(cardKey);
             else window.expandedHeatCards.delete(cardKey);
         };
-
-        // 🌟 把 getCheckedState 提取到公共位置，让两者都能调用
         const getCheckedState = (p) => {
             if (p.checkedIn !== undefined && p.checkedIn !== null) return parseInt(p.checkedIn);
             if (p.checked_in !== undefined && p.checked_in !== null) return parseInt(p.checked_in);
@@ -732,22 +711,16 @@ function loadCheckinSchedule() {
                 return state === 1 || state === 2; // 1到位，2弃权
             }).length;
             const isAllChecked = (totalCount > 0 && handledCount >= totalCount);
-
-           // 🌟 1. 判断终点是否已经录入了有效比赛成绩（排除检录弃权，只看真实成绩）
             const hasRecordedScore = group.athletes.some(p => {
                 const s = String(p.score !== undefined ? p.score : (p.start_score || '')).trim();
                 const isAbandon = s.includes('弃权') || s.includes('DNS') || s.includes('DNF') || s.includes('DQ');
                 return s !== '' && s !== '-' && !s.includes('待定') && !isAbandon;
             });
-
-            // 🌟 2. 判断是否全员均已完赛（有成绩 或 弃权）
             const isAllFinished = totalCount > 0 && group.athletes.every(p => {
                 const s = String(p.score !== undefined ? p.score : (p.start_score || '')).trim();
                 const c = getCheckedState(p);
                 return c === 2 || (s !== '' && s !== '-' && !s.includes('待定'));
             });
-
-            // 只要终点录了任何一人的成绩，或者全员完赛，即视为比赛已出成绩（禁止重发！）
             const isHeatCompletedWithScore = hasRecordedScore || isAllFinished;
             const isAlreadyPushed = group.athletes.some(p => p.is_started === 1 || p.isStarted === 1) || isHeatCompletedWithScore;
             
@@ -807,14 +780,12 @@ function loadCheckinSchedule() {
                     <div class="flex items-center gap-2 shrink-0">
                         ${showPushBtn ? (() => {
                             if (isHeatCompletedWithScore) {
-                                // 🌟 终点已录成绩：锁定为“已完赛”，彻底禁止重发
                                 return `
                                     <button disabled data-started="1" class="btn-push-heat bg-slate-200 text-slate-600 border border-slate-300 px-3 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed flex items-center gap-1 select-none">
                                         <span>✔</span> <span>已完赛</span>
                                     </button>
                                 `;
                             } else if (isAlreadyPushed) {
-                                // 🌟 已发令但终点尚未录成绩：允许点击重发
                                 return `
                                     <button onclick="pushHeatToFinish('${group.groupName}', '${group.eventName}', '${group.gender}', '${group.heat}', this, true)" 
                                             class="btn-push-heat bg-emerald-50 hover:bg-amber-100 text-emerald-700 hover:text-amber-800 border border-emerald-300 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition active:scale-95 cursor-pointer">
@@ -1008,7 +979,6 @@ function onGenderChange() {
 
     let eventItems = metaData[gName][gen];
     if (currentRole === 'timing') {
-        // 径赛
         eventItems = eventItems.filter(item => {
             const t = typeof item === 'object' ? item.type : '';
             const name = typeof item === 'object' ? item.name : item;
@@ -1110,8 +1080,6 @@ function loadAthletes() {
         if (list) list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-red-500 font-bold">加载名单失败，请检查网络或刷新重试</td></tr>';
     });
 }
-
-// 🌟 彻底补全：田赛 6 次试跳与前 8 强倒序出场系统
 let currentFieldRound = 1; 
 let fieldAthletesData = []; 
 
@@ -1140,8 +1108,6 @@ function initFieldAthletesData(data) {
         } else if (p.score && p.score.trim() !== '' && p.score !== '弃权') {
             parsedAttempts[0] = String(p.score);
         }
-
-        // 2. 本地若有录入未上传的内容，深度补充合并
         const draftKey = `${p.name}_${p.team_name}`;
         if (localDraftMap[draftKey]) {
             parsedAttempts = parsedAttempts.map((v, i) => {
@@ -1176,8 +1142,6 @@ window.switchFieldRound = function(roundNum) {
         }
     });
     renderCurrentFieldList();
-
-    // 🌟 切换轮次后自动聚焦当前轮次第一个未出成绩的选手输入框
     setTimeout(() => {
         const firstUnscored = fieldAthletesData.find(a => !a.attempts[roundNum - 1] || a.attempts[roundNum - 1].trim() === '');
         const target = firstUnscored || fieldAthletesData[0];
@@ -1191,11 +1155,7 @@ window.switchFieldRound = function(roundNum) {
         }
     }, 150);
 };
-// ========================================================
-// 🌟 田赛纯前端离线规则算法（世界田联 TR 25.6 次优成绩决胜）
-// ========================================================
 
-// 1. 计算选手的排序比对向量：[第1好成绩, 第2好成绩, 第3好成绩, ..., 第6好成绩]
 function getFieldTieBreakerVector(attemptsArr, limitRounds = 3) {
     let validScores = [];
     for (let i = 0; i < Math.min(attemptsArr.length, limitRounds); i++) {
@@ -1205,39 +1165,29 @@ function getFieldTieBreakerVector(attemptsArr, limitRounds = 3) {
             validScores.push(num);
         }
     }
-    // 降序排列：由大到小比对
     validScores.sort((a, b) => b - a);
     while (validScores.length < 6) {
         validScores.push(0);
     }
     return validScores;
 }
-
-// 2. 比对两名选手的优劣 (Vector A vs Vector B)
 function compareFieldVectors(vecA, vecB) {
     for (let i = 0; i < 6; i++) {
         if (Math.abs(vecA[i] - vecB[i]) > 0.0001) {
-            return vecB[i] - vecA[i]; // 大的排前面
+            return vecB[i] - vecA[i]; 
         }
     }
     return 0; // 完全相同
 }
 
-// ========================================================
-// 🌟 纯前端离线截取前 8 强并倒序出场
-// ========================================================
 window.settleTop8ForFinals = function() {
     if (!fieldAthletesData || fieldAthletesData.length === 0) {
         return alert("暂无参赛选手数据！");
     }
-
-    // 1. 纯本地提取前3轮成绩并生成决胜向量
     let qualifiedList = [];
     fieldAthletesData.forEach(ath => {
         let atts = ath.attempts || ['', '', '', '', '', ''];
         let vec = getFieldTieBreakerVector(atts, 3);
-        
-        // 只要前3轮有至少一次有效成绩（大于0米）
         if (vec[0] > 0) {
             qualifiedList.push({
                 ...ath,
@@ -1254,31 +1204,18 @@ window.settleTop8ForFinals = function() {
     if (!confirm(`已在本地检测到 ${qualifiedList.length} 名选手具备有效成绩。\n确定根据前3轮成绩截取前8名进入后3轮决赛，并按倒序排定出场次序吗？`)) {
         return;
     }
-
-    // 2. 本地执行全排序（世界田联平分决胜：第1好 -> 第2好 -> 第3好）
     qualifiedList.sort((a, b) => compareFieldVectors(a._vec, b._vec));
-
-    // 3. 截取前 8 名（不足 8 名则全部录取）
     let top8 = qualifiedList.slice(0, 8);
-
-    // 标记预赛排位名次（1 ~ 8）
     top8.forEach((ath, idx) => {
         ath.prelim_rank = idx + 1;
     });
-
-    // 4. 倒序出场（预赛第8名排在第1位试跳，预赛第1名最后压轴试跳）
     top8.reverse();
-
-    // 分配后3轮的出场序号（1 ~ N）
     top8.forEach((ath, idx) => {
         delete ath._vec;
-        ath.orderIndex = idx + 1; // 决赛实际出场次序
+        ath.orderIndex = idx + 1; 
         ath.isFinalist = true;
     });
-
-    // 5. 覆盖当前列表并激活第 4、5、6 轮
     fieldAthletesData = top8;
-
     [4, 5, 6].forEach(r => {
         let btn = document.getElementById(`btnRound${r}`);
         if (btn) {
@@ -1286,23 +1223,16 @@ window.settleTop8ForFinals = function() {
             btn.className = "round-pill px-3 py-1 rounded-lg text-xs font-bold bg-white text-gray-600 border border-gray-200";
         }
     });
-
-    // 6. 保存到本地 LocalStorage 防丢
     const storageKey = `field_draft_${fieldAthletesData[0]?.event_name}_${fieldAthletesData[0]?.group_name}_${fieldAthletesData[0]?.gender}`;
     try {
         localStorage.setItem(storageKey, JSON.stringify(fieldAthletesData));
     } catch(e) {}
-
-    // 7. 切换进入第 4 轮
     switchFieldRound(4);
 
     if (typeof triggerVibrate === 'function') triggerVibrate([50, 50, 50]);
     alert(`🎉 【本地离线决胜完成】\n已成功按田径规则截取前 ${top8.length} 名晋级决赛！\n出场顺序已自动倒序（第8名先出场，第1名最后出场），可直接进行第4轮试跳。`);
 };
 
-// ========================================================
-// 🌟 纯前端单次成绩录入（本地防抖秒存，断网不丢）
-// ========================================================
 window.saveFieldScore = function(regId, roundNum, input, callback) {
     const key = `${regId}_${roundNum}`;
     if (typeof fieldDebounceTimers !== 'undefined') clearTimeout(fieldDebounceTimers[key]);
@@ -1319,14 +1249,11 @@ window.saveFieldScore = function(regId, roundNum, input, callback) {
     let allValid = athlete.attempts.map(v => parseFloat(v) || 0);
     let overallBest = Math.max(0, ...allValid);
     athlete.score = overallBest > 0 ? overallBest.toFixed(2) : (athlete.attempts.some(v => String(v).includes('弃权')) ? '弃权' : '');
-
-    // 🌟 1. 核心：优先写入 LocalStorage 离线数据库
     const storageKey = `field_draft_${athlete.event_name}_${athlete.group_name}_${athlete.gender}`;
     try {
         localStorage.setItem(storageKey, JSON.stringify(fieldAthletesData));
     } catch (e) {}
 
-    // 更新页面展示
     if (typeof updateFieldRowDOM === 'function') {
         updateFieldRowDOM(athlete, roundNum);
     }
@@ -1335,7 +1262,6 @@ window.saveFieldScore = function(regId, roundNum, input, callback) {
     input.classList.add('saved');
     setTimeout(() => input.classList.remove('saved'), 500);
 
-    // 🌟 2. 弱网尝试异步静默推送给后台草稿，断网失败也完全不弹窗阻断，静默兜底
     fetch('/api/draft_field_score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1346,27 +1272,19 @@ window.saveFieldScore = function(regId, roundNum, input, callback) {
             attempts_json: JSON.stringify(athlete.attempts)
         })
     }).catch(() => {
-        // 静默捕获网络错误，不影响裁判继续录入！
     });
 
     if (typeof triggerVibrate === 'function') triggerVibrate(40);
     if (typeof callback === 'function') callback({ status: 'success' });
 };
 
-// ========================================================
-// 🌟 比赛全部结束：前端一键汇总打包，统一上传管理端
-// ========================================================
 window.finalizeFieldCompetition = function() {
     if (!fieldAthletesData || fieldAthletesData.length === 0) {
         return alert("暂无选手数据！");
     }
-
-    // 检查是否有未录完的情况并给予友好确认
     if (!confirm("⚠️ 确定要统一上传本项目的全部成绩并结算名次与总积分吗？\n上传后管理端将立刻生成最终成绩公告与积分排名。")) {
         return;
     }
-
-    // 打包 6 轮明细及最高成绩
     const payloadList = fieldAthletesData.map(p => {
         let atts = p.attempts || ['', '', '', '', '', ''];
         let allValid = atts.map(v => parseFloat(v) || 0);
@@ -1431,7 +1349,6 @@ window.finalizeFieldCompetition = function() {
     }
 }
 
-// 🌟 辅助震动工具函数
 function triggerVibrate(pattern = 50) {
     try {
         if (window.navigator && window.navigator.vibrate) {
@@ -1440,21 +1357,18 @@ function triggerVibrate(pattern = 50) {
     } catch (e) {}
 }
 
-// 🌟 田赛防抖计时器字典
 let fieldDebounceTimers = {};
 
-// 🌟 田赛 1 秒无操作自动保存函数
 window.autoSaveFieldScoreDebounced = function(regId, roundNum, input) {
     const key = `${regId}_${roundNum}`;
     clearTimeout(fieldDebounceTimers[key]);
 
-    // 用户正在输入时显示淡黄等待背景
     input.classList.remove('saved', 'error');
     input.classList.add('saving');
 
     fieldDebounceTimers[key] = setTimeout(() => {
         saveFieldScore(regId, roundNum, input);
-    }, 1000); // 1秒无输入自动触发保存
+    }, 1000); 
 };
 
 window.saveAndNextFieldAthlete = function(regId, roundNum) {
@@ -1463,7 +1377,6 @@ window.saveAndNextFieldAthlete = function(regId, roundNum) {
     if (currentInput) {
         saveFieldScore(athId, roundNum, currentInput);
     }
-    // 寻找下一个有效选手
     const currIdx = fieldAthletesData.findIndex(a => (a.reg_id || a.id) === athId);
     if (currIdx >= 0 && currIdx < fieldAthletesData.length - 1) {
         const nextAthlete = fieldAthletesData[currIdx + 1];
@@ -1476,7 +1389,7 @@ window.saveAndNextFieldAthlete = function(regId, roundNum) {
             if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(30);
         }
     } else if (currIdx === fieldAthletesData.length - 1) {
-        // 当前轮次最后一人录毕提示
+
         if (window.navigator && window.navigator.vibrate) window.navigator.vibrate([40, 40, 40]);
         if (roundNum < 3) {
             if (confirm(`🎉 第 ${roundNum} 轮已全部录入完毕！\n是否直接切换进入【第 ${roundNum + 1} 轮】试跳？`)) {
@@ -1494,7 +1407,6 @@ window.saveAndNextFieldAthlete = function(regId, roundNum) {
     }
 };
 
-// 🌟 回车监听事件
 window.handleFieldInputKeydown = function(event, regId, roundNum) {
     if (event.key === 'Enter' || event.keyCode === 13) {
         event.preventDefault();
@@ -1516,7 +1428,6 @@ function renderCurrentFieldList() {
     list.innerHTML = html;
 }
 
-// 🌟 渲染单名选手行（已去除“下一位”按钮，界面清爽，回车仍可自动跳转下一位）
 function renderFieldAthleteRow(p, roundIndex) {
     const athId = p.reg_id || p.id;
     const attempts = p.attempts || ['', '', '', '', '', ''];
@@ -1562,14 +1473,12 @@ function renderFieldAthleteRow(p, roundIndex) {
         </td>
     </tr>`;
 }
-// 🌟 弃权标记优化
 window.quickMarkFieldAbsent = function(regId, roundNum, btn) {
     const input = document.getElementById(`field_input_${regId}`) || btn.previousElementSibling;
     if (!input) return;
     input.value = "弃权";
     saveFieldScore(regId, roundNum, input);
 };
-// 🌟 彻底补全：跳高与撑竿跳高全套升杆/试跳打分系统
 let hjHeights = ["1.00", "1.05", "1.10", "1.15", "1.20", "1.25", "1.30", "1.35", "1.40"];
 let curHjIndex = 0;
 let hjAthletes = [];
@@ -1756,15 +1665,12 @@ function renderNormalTrackList(filteredData) {
 
     let firstUnscoredInputId = null;
     const sortedHeats = Object.keys(heatsMap).sort((a, b) => parseInt(a) - parseInt(b));
-
-    // 🌟 检查当前项目是否为接力或团体项目
     const curEventName = document.getElementById('selEvent')?.value || filteredData[0]?.event_name || '';
     const isRelayEvent = curEventName.includes('接力') || curEventName.includes('4×') || curEventName.includes('4*') || curEventName.includes('4x');
 
     sortedHeats.forEach(heatNum => {
         let heatItems = heatsMap[heatNum];
 
-        // 接力项目按 代表队 去重，一个班级队伍只展示一行
         if (isRelayEvent) {
             const teamMap = {};
             heatItems.forEach(p => {
@@ -1781,26 +1687,47 @@ function renderNormalTrackList(filteredData) {
         }
 
         const totalCount = heatItems.length;
-        // 统计已出成绩（无论有效成绩还是弃权/犯规）
         const scoredCount = heatItems.filter(p => {
             const s = String(p.score !== undefined && p.score !== null ? p.score : '').trim();
             const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn || 0));
             return (s !== '' && s !== '-') || checkState === 2;
         }).length;
 
-        const isHeatFinished = (totalCount > 0 && scoredCount === totalCount);
+       const isHeatFinished = (totalCount > 0 && scoredCount === totalCount);
         const heatArrowId = `timing_heat_arrow_${heatNum}`;
+
+        const savedRankedItems = heatItems
+            .filter(p => parseInt(p.heat_rank) > 0 && p.lane)
+            .sort((a, b) => parseInt(a.heat_rank) - parseInt(b.heat_rank));
+        const hasTwoDigitLane = savedRankedItems.some(p => String(p.lane).trim().length > 1);
+        const initialLaneOrderStr = savedRankedItems.map(p => String(p.lane).trim()).join(hasTwoDigitLane ? ' ' : '');
 
         html += `
         <tr class="border-y border-blue-200 cursor-pointer select-none transition ${isHeatFinished ? 'bg-gray-100 text-gray-600' : 'bg-blue-50 text-blue-900'}"
             onclick="toggleTimingHeat('${heatNum}', '${heatArrowId}')">
             <td colspan="4" class="p-2.5 px-3">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <div class="flex items-center gap-2 flex-wrap">
                         <span class="font-black text-sm">🚩 第 ${heatNum} 组</span>
                         <span id="timing_heat_badge_${heatNum}" class="text-[11px] font-bold px-2 py-0.5 rounded-full ${isHeatFinished ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
-                            ${isHeatFinished ? `✔ 成绩已录毕 (${scoredCount}/${totalCount})` : `⏳ 录入中 (${scoredCount}/${totalCount})`}
+                            ${isHeatFinished ? `✔ 成绩已录(${scoredCount}/${totalCount})` : `⏳ 录入中 (${scoredCount}/${totalCount})`}
                         </span>
+                        <div class="flex items-center gap-1 bg-white/90 border border-purple-300 rounded-full px-2 py-0.5 shadow-2xs" onclick="event.stopPropagation()">
+                            <span class="text-[10px] font-black text-purple-800">名次(道次序):</span>
+                            <input type="text" inputmode="numeric"
+                                   id="heat_lane_order_${heatNum}"
+                                   value="${initialLaneOrderStr}"
+                                   data-last-order="${initialLaneOrderStr}"
+                                   placeholder=""
+                                   title="按第1名到第8名的顺序连续输入道次号（例如输入85641237代表8道第1名、5道第2名…7道第8名）"
+                                   class="w-24 text-xs font-mono font-black text-purple-900 bg-transparent outline-none text-center placeholder-purple-300"
+                                   onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault(); this.blur();}"
+                                   onblur="applyHeatLaneOrderString('${heatNum}', this, false)">
+                        </div>
+                        <button type="button" onclick="event.stopPropagation(); applyHeatLaneOrderString('${heatNum}', document.getElementById('heat_lane_order_${heatNum}'), true)"
+                                class="text-[10px] bg-purple-600 hover:bg-purple-700 text-white font-black px-2.5 py-1 rounded-full shadow-2xs transition active:scale-95">
+                            ⚖️ 按名次校准
+                        </button>
                     </div>
                     <span id="${heatArrowId}" class="text-xs font-bold text-blue-600">${isHeatFinished ? '展开查看成绩 ▼' : '▲ 收起'}</span>
                 </div>
@@ -1809,9 +1736,9 @@ function renderNormalTrackList(filteredData) {
 
         heatItems.forEach(p => {
             const val = String(p.score || '').trim();
+            const heatRankVal = parseInt(p.heat_rank) > 0 ? String(parseInt(p.heat_rank)) : '';
             const checkState = parseInt(p.checked_in !== undefined ? p.checked_in : (p.checkedIn || 0));
             
-            // 🌟 修复：只要已有合法成绩（非空且不含弃权/犯规），优先视为正常有效成绩，绝不显示弃权！
             const isDQ = val.includes('犯规') || val.includes('DQ');
             const hasValidScore = val !== '' && val !== '-' && !isDQ && !val.includes('弃权') && !val.includes('DNS') && !val.includes('DNF');
             const isAbandoned = !hasValidScore && !isDQ && ((checkState === 2) || val.includes('弃权') || val.includes('DNS') || val.includes('DNF'));
@@ -1823,8 +1750,8 @@ function renderNormalTrackList(filteredData) {
                 firstUnscoredInputId = inputId;
             }
 
-            // 构建姓名部分的 DOM
             let nameHtml = `<span class="name-text transition-all ${isAbsent ? 'line-through text-gray-400 opacity-60' : 'text-gray-800'}">${p.name}</span>`;
+            let rankBadgeHtml = `<span class="heat-rank-badge text-[10px] bg-purple-100 text-purple-800 border border-purple-200 px-1.5 py-0.2 rounded font-black ml-1 ${heatRankVal ? '' : 'hidden'}">${heatRankVal ? `第${heatRankVal}名` : ''}</span>`;
             let tagHtml = '';
             
             if (isAbandoned) {
@@ -1834,16 +1761,21 @@ function renderNormalTrackList(filteredData) {
             }
 
             html += `
-            <tr data-heat-row="${heatNum}" id="row_${inputId}" class="border-b border-gray-100 ${isHeatFinished ? 'hidden' : ''} ${isAbsent ? 'bg-red-50/40' : 'bg-white'} hover:bg-gray-50 transition">
+            <tr data-heat-row="${heatNum}" id="row_${inputId}"
+                data-start-id="${p.id}" data-reg-id="${p.reg_id || p.id}"
+                data-lane="${p.lane || ''}" data-heat-rank="${heatRankVal}"
+                data-ath-name="${p.name}" data-team-name="${p.team_name}"
+                data-group-name="${p.group_name}" data-event-name="${p.event_name}" data-gender="${p.gender}"
+                class="border-b border-gray-100 ${isHeatFinished ? 'hidden' : ''} ${isAbsent ? 'bg-red-50/40' : 'bg-white'} hover:bg-gray-50 transition">
                 <td class="p-2 text-center font-bold text-gray-400 border-r w-12 text-sm">${p.lane || '-'}</td>
                 <td class="p-2 text-center font-mono font-bold bib-cell ${isAbsent ? 'text-gray-400' : 'text-blue-600'} text-xs border-r w-14">${isRelayEvent ? '---' : (p.bib || '---')}</td>
                 <td class="p-2">
-                    <div class="font-black text-xs flex items-center">
-                        ${nameHtml}${tagHtml}
+                    <div class="font-black text-xs flex items-center flex-wrap">
+                        ${nameHtml}${rankBadgeHtml}${tagHtml}
                     </div>
                     <div class="text-[10px] text-gray-500 font-bold truncate max-w-[140px]">${p.team_name}</div>
                 </td>
-                <td class="p-2 text-right w-40">
+                <td class="p-2 text-right w-44">
                     <div class="flex items-center justify-end gap-1">
                         <input type="text" inputmode="decimal" value="${val}" 
        id="${inputId}"
@@ -1851,7 +1783,6 @@ function renderNormalTrackList(filteredData) {
        data-heat="${heatNum}"
        data-last-val="${val}"
        class="input-score w-24 border border-blue-200 bg-blue-50/50 rounded-lg p-1.5 text-center shadow-inner text-blue-950 font-bold text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-400"
-       oninput="autoSaveTrackScoreDebounced(${p.id}, this, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})"
        onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault(); this.blur();}"
        onblur="handleTrackScoreBlur(this, ${p.id}, {id:${p.id}, reg_id:${p.reg_id || p.id}, name:'${p.name}', team_name:'${p.team_name}', group_name:'${p.group_name}', event_name:'${p.event_name}', gender:'${p.gender}', heat:'${heatNum}'})">
                         <div class="flex items-center gap-1 shrink-0">
@@ -1906,7 +1837,7 @@ window.autoSaveTrackScoreDebounced = function(regId, input, pData) {
 
     trackDebounceTimers[regId] = setTimeout(() => {
         saveScore(regId, input, pData);
-    }, 1000); // 1秒无输入自动触发保存
+    }, 1000); 
 };
 
 function updateTimingHeatProgress(heatNum) {
@@ -1926,7 +1857,7 @@ function updateTimingHeatProgress(heatNum) {
     const isFinished = (totalCount > 0 && scoredCount >= totalCount);
     if (isFinished) {
         badge.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800";
-        badge.innerText = `✔ 成绩已录毕 (${scoredCount}/${totalCount})`;
+        badge.innerText = `✔ 成绩已录 (${scoredCount}/${totalCount})`;
     } else {
         badge.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800";
         badge.innerText = `⏳ 录入中 (${scoredCount}/${totalCount})`;
@@ -1940,7 +1871,6 @@ window.handleTrackScoreBlur = function(input, regId, pData) {
     const row = input.closest('tr');
     const hasResidualTag = row && row.querySelector('.tag-status') && !val.includes('弃权') && !val.includes('犯规');
     
-    // 内容未变更且无残留弃权标签时不重复发网络包
     if (val === lastVal && !hasResidualTag) return;
     input.dataset.lastVal = val;
     saveScore(regId, input, pData);
@@ -1956,7 +1886,6 @@ function saveScore(regId, input, pData) {
     if (typeof triggerVibrate === 'function') triggerVibrate(30);
     setTimeout(() => input.classList.remove('saved'), 400);
 
-    // 🌟 强制清除/更新视觉状态
     const row = input.closest('tr');
     if (row) {
         const isAbandoned = val.includes('弃权') || val.includes('DNS') || val.includes('DNF');
@@ -2029,6 +1958,9 @@ function saveScore(regId, input, pData) {
             input.dataset.lastVal = res.new_score || '';
             removeOfflineScoreById(regId);
             updateTimingHeatProgress(payloadObj.heat);
+            if (typeof autoCalibrateHeatTimesByManualRank === 'function') {
+                autoCalibrateHeatTimesByManualRank(payloadObj.heat, false);
+            }
         } else {
             input.classList.add('error');
             input.dataset.lastVal = '';
@@ -2138,6 +2070,223 @@ async function flushOfflineScoreQueue(manualClick = false) {
 window.addEventListener('online', () => flushOfflineScoreQueue(false));
 setInterval(() => flushOfflineScoreQueue(false), 8000);
 setTimeout(() => updateOfflineBadgeUI(), 500);
+
+function parseTrackTimeSeconds(rawStr) {
+    if (!rawStr) return 0;
+    let s = String(rawStr).trim().replace(/：/g, ':').replace(/。/g, '.');
+    if (!s || s === '-' || ['弃权', 'DNS', 'DNF', '犯规', 'DQ'].some(k => s.toUpperCase().includes(k))) {
+        return 0;
+    }
+    if (s.includes(':')) {
+        const pts = s.split(':');
+        if (pts.length === 2) return (parseInt(pts[0]) || 0) * 60 + (parseFloat(pts[1]) || 0);
+        if (pts.length === 3) return (parseInt(pts[0]) || 0) * 3600 + (parseInt(pts[1]) || 0) * 60 + (parseFloat(pts[2]) || 0);
+    }
+    const dotPts = s.split('.');
+    if (dotPts.length === 3) {
+        return (parseInt(dotPts[0]) || 0) * 60 + parseFloat(dotPts[1] + '.' + dotPts[2]);
+    }
+    const v = parseFloat(s);
+    return isNaN(v) || v <= 0 ? 0 : v;
+}
+
+window.applyHeatLaneOrderString = function(heatNum, orderInput, isManualClick = false) {
+    const h = String(heatNum || '1');
+    const rawOrder = orderInput ? String(orderInput.value || '').trim() : '';
+    const rows = Array.from(document.querySelectorAll(`#athleteList tr[data-heat-row="${h}"]`));
+    if (rows.length === 0) return;
+
+    let laneSeq = [];
+    if (rawOrder !== '') {
+        if (/[\s,，、\-]/.test(rawOrder)) {
+            laneSeq = rawOrder.split(/[\s,，、\-]+/).map(s => s.trim()).filter(Boolean);
+        } else {
+            laneSeq = rawOrder.replace(/[^0-9]/g, '').split('');
+        }
+        laneSeq = Array.from(new Set(laneSeq));
+    }
+
+    const orderChanged = orderInput && (rawOrder !== (orderInput.dataset.lastOrder || ''));
+    if (orderInput) orderInput.dataset.lastOrder = rawOrder;
+
+    rows.forEach(r => {
+        const laneStr = String(r.dataset.lane || '').trim();
+        const rankIdx = laneSeq.indexOf(laneStr);
+        const newRankStr = rankIdx >= 0 ? String(rankIdx + 1) : '';
+        const oldRankStr = String(r.dataset.heatRank || '');
+        r.dataset.heatRank = newRankStr;
+
+        const badge = r.querySelector('.heat-rank-badge');
+        if (badge) {
+            if (newRankStr) {
+                badge.innerText = `第${newRankStr}名`;
+                badge.classList.remove('hidden');
+            } else {
+                badge.innerText = '';
+                badge.classList.add('hidden');
+            }
+        }
+
+        if (orderChanged && newRankStr !== oldRankStr) {
+            const scoreInp = r.querySelector('.input-score');
+            fetch('/api/submit_score', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: r.dataset.startId,
+                    score: scoreInp ? scoreInp.value.trim() : '',
+                    heat_rank: newRankStr,
+                    name: r.dataset.athName,
+                    team_name: r.dataset.teamName,
+                    group_name: r.dataset.groupName,
+                    event_name: r.dataset.eventName,
+                    gender: r.dataset.gender
+                })
+            }).catch(() => {});
+        }
+    });
+
+    autoCalibrateHeatTimesByManualRank(h, isManualClick);
+};
+
+window.autoCalibrateHeatTimesByManualRank = function(heatNum, isManualClick = false) {
+    const h = String(heatNum || '1');
+    const rows = Array.from(document.querySelectorAll(`#athleteList tr[data-heat-row="${h}"]`));
+    if (rows.length === 0) return;
+
+    const curEvtName = document.getElementById('selEvent')?.value || rows[0].dataset.eventName || '';
+    const isTimingEvent = ['跑', '绕杆', '计时', '接力', '冲刺', '米', '栏'].some(k => curEvtName.includes(k)) && !['跳绳', '投篮'].some(k => curEvtName.includes(k));
+    const isCountingOrField = !isTimingEvent && ['跳', '投', '掷', '起坐', '引体', '垫球', '踢毽', '跳绳', '篮', '立定跳远'].some(k => curEvtName.includes(k));
+    const sortAsc = !isCountingOrField;
+
+    const items = rows.map(r => {
+        const scoreInput = r.querySelector('.input-score');
+        const scoreStr = scoreInput ? scoreInput.value.trim() : '';
+        const manualRank = parseInt(r.dataset.heatRank) > 0 ? parseInt(r.dataset.heatRank) : 0;
+        const numVal = parseTrackTimeSeconds(scoreStr);
+        return {
+            row: r,
+            startId: r.dataset.startId,
+            lane: r.dataset.lane || '',
+            name: r.dataset.athName || '',
+            teamName: r.dataset.teamName || '',
+            groupName: r.dataset.groupName || '',
+            eventName: r.dataset.eventName || '',
+            gender: r.dataset.gender || '',
+            scoreInput,
+            scoreStr,
+            numVal,
+            manualRank
+        };
+    });
+
+    const allManualRanked = items.filter(it => it.manualRank > 0);
+    if (allManualRanked.length === 0) {
+        if (isManualClick) alert(`请先在左侧输入框中输入第 ${h} 组的冲线道次顺序（例如输入 85641237 代表 8道第1名、5道第2名…）！`);
+        return;
+    }
+
+    const activeRanked = allManualRanked.filter(it => {
+        const val = it.scoreStr.toUpperCase();
+        return !val.includes('弃权') && !val.includes('DNS') && !val.includes('DNF');
+    });
+    if (!isManualClick && activeRanked.some(it => it.numVal <= 0)) {
+        return;
+    }
+
+    const validRows = items.filter(it => it.numVal > 0);
+    if (validRows.length < 2) return;
+
+    const timeSorted = [...validRows].sort((a, b) => sortAsc ? (a.numVal - b.numVal) : (b.numVal - a.numVal));
+    const sortedScoreStrings = timeSorted.map(it => it.scoreStr);
+
+    const rankedValid = validRows.filter(it => it.manualRank > 0).sort((a, b) => a.manualRank - b.manualRank);
+    const unrankedValid = validRows.filter(it => it.manualRank === 0).sort((a, b) => sortAsc ? (a.numVal - b.numVal) : (b.numVal - a.numVal));
+
+    const maxManualRank = Math.max(...rankedValid.map(it => it.manualRank), 0);
+    const swappedNames = [];
+
+    if (maxManualRank <= validRows.length) {
+        const slots = new Array(validRows.length).fill(null);
+        rankedValid.forEach(it => {
+            let targetIdx = Math.min(validRows.length - 1, Math.max(0, it.manualRank - 1));
+            while (targetIdx < validRows.length && slots[targetIdx] !== null) targetIdx++;
+            if (targetIdx >= validRows.length) targetIdx = slots.findIndex(s => s === null);
+            if (targetIdx >= 0) slots[targetIdx] = it;
+        });
+
+        let uIdx = 0;
+        for (let i = 0; i < slots.length; i++) {
+            if (slots[i] === null && uIdx < unrankedValid.length) {
+                slots[i] = unrankedValid[uIdx++];
+            }
+        }
+
+        slots.forEach((runner, idx) => {
+            if (!runner) return;
+            const targetScore = sortedScoreStrings[idx];
+            if (runner.scoreStr !== targetScore) {
+                swappedNames.push(`${runner.lane}道${runner.name}(${runner.scoreStr}➔${targetScore})`);
+                runner.scoreInput.value = targetScore;
+                runner.scoreInput.dataset.lastVal = targetScore;
+                runner.scoreInput.classList.remove('error');
+                runner.scoreInput.classList.add('saved');
+                setTimeout(() => runner.scoreInput.classList.remove('saved'), 900);
+
+                fetch('/api/submit_score', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: runner.startId,
+                        score: targetScore,
+                        heat_rank: runner.manualRank > 0 ? String(runner.manualRank) : '',
+                        name: runner.name,
+                        team_name: runner.teamName,
+                        group_name: runner.groupName,
+                        event_name: runner.eventName,
+                        gender: runner.gender
+                    })
+                }).catch(() => {});
+            }
+        });
+    } else {
+        const subTimeSorted = [...rankedValid].sort((a, b) => sortAsc ? (a.numVal - b.numVal) : (b.numVal - a.numVal));
+        const subScoreStrings = subTimeSorted.map(it => it.scoreStr);
+
+        rankedValid.forEach((runner, idx) => {
+            const targetScore = subScoreStrings[idx];
+            if (runner.scoreStr !== targetScore) {
+                swappedNames.push(`${runner.lane}道${runner.name}(${runner.scoreStr}➔${targetScore})`);
+                runner.scoreInput.value = targetScore;
+                runner.scoreInput.dataset.lastVal = targetScore;
+                runner.scoreInput.classList.add('saved');
+                setTimeout(() => runner.scoreInput.classList.remove('saved'), 900);
+
+                fetch('/api/submit_score', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: runner.startId,
+                        score: targetScore,
+                        heat_rank: String(runner.manualRank),
+                        name: runner.name,
+                        team_name: runner.teamName,
+                        group_name: runner.groupName,
+                        event_name: runner.eventName,
+                        gender: runner.gender
+                    })
+                }).catch(() => {});
+            }
+        });
+    }
+
+    if (swappedNames.length > 0) {
+        showTip(`⚡ 已按冲线道次自动校准对调时间：${swappedNames.join(' ， ')}`, "text-purple-700");
+        if (typeof triggerVibrate === 'function') triggerVibrate([40, 60, 40]);
+    } else if (isManualClick) {
+        showTip(`✅ 第 ${h} 组当前成绩时间快慢顺序与冲线道次完全一致！`, "text-emerald-600");
+    }
+};
 function showTip(msg, colorClass) {
     const tip = document.getElementById('statusTip');
     tip.innerText = msg; tip.className = "text-xs font-bold py-2 " + colorClass;
@@ -2147,7 +2296,6 @@ function updateHeatCardCheckinProgress(rowElement) {
     const heatContainer = rowElement.closest('.bg-white.rounded-xl') || rowElement.closest('.bg-gray-100');
     if (!heatContainer) return;
 
-    // 统计当前卡片下的所有选手行
     const allRows = heatContainer.querySelectorAll('tbody tr[id^="checkin_row_"]');
     const total = allRows.length;
     let handled = 0;
@@ -2155,7 +2303,6 @@ function updateHeatCardCheckinProgress(rowElement) {
     allRows.forEach(r => {
         const btnPresent = r.querySelector('.btn-present');
         const btnAbsent = r.querySelector('.btn-absent');
-        // 仅根据背景样式判断状态，避免 innerText 恒为 true 的问题
         const isPresent = btnPresent && btnPresent.classList.contains('bg-emerald-600');
         const isAbsent = btnAbsent && btnAbsent.classList.contains('bg-red-600');
         if (isPresent || isAbsent) handled++;
@@ -2163,7 +2310,6 @@ function updateHeatCardCheckinProgress(rowElement) {
 
     const isAllDone = (total > 0 && handled >= total);
 
-    // 1. 安全查找顶部状态徽章，避免非法选择器报错
     const badge = heatContainer.querySelector('.checkin-status-badge') || heatContainer.querySelector('span[class*="font-mono"]');
     if (badge) {
         if (isAllDone) {
@@ -2174,8 +2320,6 @@ function updateHeatCardCheckinProgress(rowElement) {
             badge.innerText = `⏳ 检录中 ${handled}/${total}`;
         }
     }
-
-    // 2. 如果是起点发令端，同步更新发令推送按钮
     const pushBtn = heatContainer.querySelector('.btn-push-heat');
     if (pushBtn && !pushBtn.dataset.started) {
         if (isAllDone && !window.isTrackBusy) {
@@ -2209,17 +2353,17 @@ function setCheckinStatus(startId, targetStatus) {
     if (nameSpan) nameSpan.classList.remove('line-through', 'text-gray-400');
     if (tagAbsent) tagAbsent.classList.add('hidden');
 
-    if (targetStatus === 1) { // 到位
+    if (targetStatus === 1) { 
         row.classList.add('bg-emerald-50');
         if (btnPresent) {
             btnPresent.className = "btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-emerald-600 text-white border-emerald-600 shadow-sm";
-            btnPresent.setAttribute('onclick', `setCheckinStatus(${startId}, 0)`); // 再次点击可取消
+            btnPresent.setAttribute('onclick', `setCheckinStatus(${startId}, 0)`); 
         }
         if (btnAbsent) {
             btnAbsent.className = "btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-white text-gray-300 border-gray-300 hover:border-red-500";
             btnAbsent.setAttribute('onclick', `setCheckinStatus(${startId}, 2)`);
         }
-    } else if (targetStatus === 2) { // 弃权
+    } else if (targetStatus === 2) { 
         row.classList.add('bg-red-50');
         if (nameSpan) nameSpan.classList.add('line-through', 'text-gray-400');
         if (tagAbsent) tagAbsent.classList.remove('hidden');
@@ -2229,9 +2373,9 @@ function setCheckinStatus(startId, targetStatus) {
         }
         if (btnAbsent) {
             btnAbsent.className = "btn-absent w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-red-600 text-white border-red-600 shadow-sm";
-            btnAbsent.setAttribute('onclick', `setCheckinStatus(${startId}, 0)`); // 再次点击可取消
+            btnAbsent.setAttribute('onclick', `setCheckinStatus(${startId}, 0)`); 
         }
-    } else { // 恢复未检 (0)
+    } else { 
         if (btnPresent) {
             btnPresent.className = "btn-present w-8 h-8 rounded-lg border flex items-center justify-center font-black text-base transition bg-white text-gray-300 border-gray-300 hover:border-emerald-500";
             btnPresent.setAttribute('onclick', `setCheckinStatus(${startId}, 1)`);
@@ -2246,10 +2390,7 @@ function setCheckinStatus(startId, targetStatus) {
         window.navigator.vibrate(30);
     }
     
-    // 更新上级卡片统计
     updateHeatCardCheckinProgress(row);
-
-    // 发起网络持久化请求
     fetch('/api/toggle_checkin', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -2301,7 +2442,6 @@ function pushHeatToFinish(gName, eName, gen, heat, btn, isRepush = false) {
         alert("网络异常，未能成功通知终点！");
     });
 }
-// ==================== 补回在 let lastNotifiedHeatKey 上方 ====================
 function playStartBeep() {
     try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -2403,7 +2543,6 @@ function switchToActiveHeat() {
     });
 }
 
-// 🌟 趣味/游园项目专属：将所有无成绩选手一键标记弃权
 window.batchMarkUnfinishedAsAbsent = function() {
     const gName = document.getElementById('selGroup')?.value || '';
     const gender = document.getElementById('selGender')?.value || '';
@@ -2413,7 +2552,6 @@ window.batchMarkUnfinishedAsAbsent = function() {
         return alert("请先选择具体的组别、性别和项目！");
     }
 
-    // 1. 针对田赛/多次试跳模式 (fieldAthletesData)
     if (fieldAthletesData && fieldAthletesData.length > 0 && !document.getElementById('fieldControlBar').classList.contains('hidden')) {
         let unscoredAthletes = fieldAthletesData.filter(a => {
             const atts = a.attempts || [];
@@ -2435,16 +2573,10 @@ window.batchMarkUnfinishedAsAbsent = function() {
             a.attempts[0] = '弃权';
             a.score = '弃权';
         });
-
-        // 刷新当前轮次显示
         renderCurrentFieldList();
-
-        // 统一提交后台
         finalizeFieldCompetition();
         return;
     }
-
-    // 2. 针对普通列表展示模式 (表格列表)
     const inputs = Array.from(document.querySelectorAll('#athleteList .input-score'));
     let blankInputs = inputs.filter(inp => {
         const val = String(inp.value || '').trim();
@@ -2485,7 +2617,6 @@ window.batchMarkUnfinishedAsAbsent = function() {
         alert("网络通信异常，请重试！");
     });
 };
-// 终点弃权处理
 window.quickMarkAbsent = function(regId, btn, pData) {
     const input = document.getElementById(`score_input_${regId}`) || btn.closest('td')?.querySelector('.input-score');
     if (!input) return;
@@ -2495,7 +2626,6 @@ window.quickMarkAbsent = function(regId, btn, pData) {
     saveScore(regId, input, pData); // 直接调用统一的保存逻辑，让 saveScore 去处理视觉
 };
 
-// 终点犯规处理
 window.quickMarkDQ = function(regId, btn, pData) {
     const input = document.getElementById(`score_input_${regId}`) || btn.closest('td')?.querySelector('.input-score');
     if (!input) return;
@@ -2504,7 +2634,6 @@ window.quickMarkDQ = function(regId, btn, pData) {
     input.value = "犯规";
     saveScore(regId, input, pData);
 };
-// 监听发车广播
 socket.on('heat_activated', function(payload) {
     if (currentRole === 'timing') {
         pollActiveHeat(); 
@@ -2512,7 +2641,7 @@ socket.on('heat_activated', function(payload) {
         window.isTrackBusy = true;
         loadCheckinSchedule();
     }
-});// 🌟 彻底补全：自动检查登录态
+});
 document.addEventListener("DOMContentLoaded", function() {
     fetch('/api/check_session?_t=' + Date.now())
         .then(r => r.json())
@@ -2529,7 +2658,6 @@ document.addEventListener("DOMContentLoaded", function() {
         })
         .catch(err => console.log("检查登录态异常:", err));
 });
-// 🌟 彻底补全：输入成绩回车自动跳转下一道
 document.addEventListener('DOMContentLoaded', function() {
     const listContainer = document.getElementById('athleteList');
     if (!listContainer) return;
@@ -2538,8 +2666,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.key === 'Enter' || e.keyCode === 13) {
             const currentInput = e.target;
             if (!currentInput.classList.contains('input-score')) return;
-
-            // 🌟 如果是田赛输入框，已由 handleFieldInputKeydown 专门处理，跳过全局事件
             if (currentInput.classList.contains('field-score-input')) return;
 
             e.preventDefault();

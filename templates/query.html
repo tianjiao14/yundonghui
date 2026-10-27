@@ -248,8 +248,7 @@
         window.onload = () => {
             const d = new Date();
             document.getElementById('sysDate').innerText = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
-            
-            // 先用本地缓存秒开渲染首屏，随后后台静默校验最新导航（兼顾秒开速度与数据实时性）
+          
             const cachedNav = sessionStorage.getItem('query_nav_cache');
             if (cachedNav) {
                 try {
@@ -309,8 +308,6 @@ window.parseTimeVal = function(val) {
 
             window.scrollTo(0, 0);
         }
-
-       // 🌟 1. 必须先给全局缓存初始化为空对象，防止报 undefined 异常
         window._globalRecordsMemory = window._globalRecordsMemory || {};
 
         function toggleAcc(panelId) { 
@@ -374,8 +371,6 @@ window.parseTimeVal = function(val) {
                 </li>
             `).join('');
         }
-
-        // 🌟 单项静态缓存字典：避免重复拉取
         window.eventDetailCache = {};
 
 let currentEventAbortController = null;
@@ -400,14 +395,12 @@ function goToEventDetail(eventName, isFinalsList, isSilent = false, forceReload 
         return;
     }
 
-    // 🌟 中断上一个未完成的请求，防止连续快速点击导致的数据串位
     if (currentEventAbortController) {
         currentEventAbortController.abort();
     }
     currentEventAbortController = new AbortController();
 
     if (!isSilent) {
-        // 🌟 核心优化：使用流畅的骨架屏代替生硬的提示文字
         contentArea.innerHTML = `
             <div class="animate-pulse space-y-4 pt-2">
                 <div class="h-12 bg-slate-200/60 rounded-xl w-full"></div>
@@ -430,11 +423,11 @@ function goToEventDetail(eventName, isFinalsList, isSilent = false, forceReload 
         renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent);
     })
     .catch(err => {
-        if (err.name === 'AbortError') return; // 用户主动切走，静默忽略
+        if (err.name === 'AbortError') return; 
         contentArea.innerHTML = '<div class="p-10 text-center text-red-500 font-medium">数据加载失败，请点击右上角刷新重试</div>';
     });
 }
-     // 🌟 纯只读直出：100% 依照管理端核定的 score, rank, points, qualify 输出
+
 function renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent) {
     const contentArea = document.getElementById('detContentArea');
     if (!data || data.length === 0) {
@@ -457,8 +450,6 @@ function renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent
     Object.keys(grouped).sort().forEach((groupKey, gIndex) => {
         const groupData = grouped[groupKey];
         const contentId = `grp_content_${gIndex}`;
-
-        // 判断该组别/项目是否全部完赛（非弃权选手均录入真实成绩）
         const isAllHeatsFinished = groupData.length > 0 && groupData.every(i => {
             const s = String(i.score || '').trim();
             const isAbandoned = s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || String(i.checked_in) === '2';
@@ -486,7 +477,6 @@ function renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent
             <div id="${contentId}" class="grp-content-box hidden transition-all duration-300">`;
 
         if (isFinalsList) {
-            // 决赛名单检录表展示
             const heats = {};
             groupData.forEach(i => { 
                 const h = i.heat || '1'; 
@@ -511,7 +501,6 @@ function renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent
                 html += `</tbody></table>`;
             });
         } else {
-            // 1. 各小组成绩展示
             const heats = {};
             groupData.forEach(i => { 
                 const h = i.heat || '1'; 
@@ -549,10 +538,7 @@ function renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent
                 html += `</tbody></table>`;
             });
 
-            // 2. 🌟 官方核定综合名次表：100% 对齐管理端
             let displayAthletes = [...groupData];
-
-            // 接力队伍聚合去重（确保一个单位只显示一条记录）
             if (isRelayEvent) {
                 const relayMap = {};
                 displayAthletes.forEach(i => {
@@ -569,7 +555,6 @@ function renderEventDetailDOM(eventName, isFinalsList, data, cleanCore, isSilent
                 displayAthletes = Object.values(relayMap);
             }
 
-            // 拆分有效完成选手与弃权/犯规选手
             let validAthletes = displayAthletes.filter(i => {
                 const s = String(i.score || '').trim();
                 const isAb = s.includes('弃权') || s.includes('DNS') || s.includes('DQ') || s.includes('犯规') || String(i.checked_in) === '2';
@@ -590,9 +575,8 @@ const sortAsc = !isDesc;
 validAthletes.sort((a, b) => {
     const rA = (a.rank && a.rank !== '--' && !isNaN(parseInt(a.rank))) ? parseInt(a.rank) : 999;
     const rB = (b.rank && b.rank !== '--' && !isNaN(parseInt(b.rank))) ? parseInt(b.rank) : 999;
-    if (rA !== rB) return rA - rB; // 优先按后端排好的名次
+    if (rA !== rB) return rA - rB; 
     
-    // 若后端尚未出名次，按成绩兜底排序
     const vA = parseTimeVal(a.score);
     const vB = parseTimeVal(b.score);
     return sortAsc ? (vA - vB) : (vB - vA);
@@ -616,10 +600,7 @@ validAthletes.sort((a, b) => {
                     <th class="w-12 text-orange-800">${extraColName}</th>
                 </tr></thead>
                 <tbody>`;
-
-            // 渲染有效完赛选手
             validAthletes.forEach((item, idx) => {
-                // 优先取管理端落盘 rank，若为空且已全部跑完则取列表次序
                 let rnk = (item.rank && item.rank !== '--' && item.rank !== '') ? String(item.rank).trim() : (isAllHeatsFinished ? String(idx + 1) : '--');
                 const pts = parseInt(item.points) || 0;
                 const qLimit = parseInt(item.qualify_count) || 8;
@@ -636,15 +617,12 @@ if (!isPrelim && rnk && rnk !== '--') {
     }
 }
 
-                // 录取列 / 得分列
                 let extraColHtml = '<span class="text-slate-300 font-mono text-xs">--</span>';
                 if (isPrelim) {
-                    // 预赛完赛且名次在录取线内，显示管理端标准的 q
                     if (isAllHeatsFinished && rnk !== '--' && parseInt(rnk) <= qLimit) {
                         extraColHtml = '<span class="font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-[14px] font-mono shadow-sm">q</span>';
                     }
                 } else {
-                    // 决赛直接直读管理端 points
                     if (isAllHeatsFinished && pts > 0) {
                         extraColHtml = `<span class="font-extrabold text-amber-600 bg-amber-50 px-2 py-0.5 rounded shadow-sm text-[13px] font-mono">+${pts}</span>`;
                     }
@@ -662,7 +640,6 @@ if (!isPrelim && rnk && rnk !== '--') {
                 </tr>`;
             });
 
-            // 渲染弃权/犯规选手
             invalidAthletes.forEach(item => {
                 const s = String(item.score || '').trim().toUpperCase();
                 const isDQ = s.includes('犯规') || s.includes('DQ');
@@ -684,7 +661,6 @@ if (!isPrelim && rnk && rnk !== '--') {
         html += `</div></div>`;
     });
 
-    // 记录原先已经展开的卡片，重新渲染后保持展开状态
     const openedCardKeys = Array.from(document.querySelectorAll('.grp-card-container'))
         .filter(el => {
             const box = el.querySelector('.grp-content-box');
@@ -770,7 +746,6 @@ if (!isPrelim && rnk && rnk !== '--') {
         const customCols = res.columns || [];
         const teamsList = Array.isArray(res) ? res : (res.teams || []);
 
-        // 🌟 1. 动态生成表头（插入附加集体项目列）
         if (thead) {
             let customThs = customCols.map(col => `<th class="text-indigo-600 whitespace-nowrap px-2">${col}</th>`).join('');
             thead.innerHTML = `
@@ -790,14 +765,11 @@ if (!isPrelim && rnk && rnk !== '--') {
             return;
         }
 
-        // 🌟 2. 动态生成数据行（渲染附加分）
         tbody.innerHTML = teamsList.map((t, i) => {
             const gold = parseInt(t.gold || 0);
             const silver = parseInt(t.silver || 0);
             const bronze = parseInt(t.bronze || 0);
             const sMap = t.custom_scores || {};
-
-            // 渲染附加集体列单元格
             let customTds = customCols.map(col => {
                 const rawVal = sMap[col] !== undefined ? sMap[col] : 0;
                 const parsed = window.convertCustomRankToScore(rawVal);
@@ -880,8 +852,7 @@ if (!isPrelim && rnk && rnk !== '--') {
                     tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-400 text-sm">该班级暂无得分明细</td></tr>'; 
                     return; 
                 }
-                
-                // 🌟 严格过滤：金牌只保留第1名，银牌只保留第2名，铜牌只保留第3名
+
                 let displayData = data;
                 if (medalFilter !== 'all') {
                     displayData = data.filter(r => parseInt(r.rank) === parseInt(medalFilter));
@@ -930,7 +901,6 @@ if (!isPrelim && rnk && rnk !== '--') {
             });
         }
 
-        // 🌟 修复后的轻量级搜索：精准返回匹配结果，彻底杜绝语法撕裂
         function executeSearch() {
             const type = document.getElementById('searchType').value;
             const kw = document.getElementById('searchInput').value.trim();
@@ -976,7 +946,6 @@ if (!isPrelim && rnk && rnk !== '--') {
                 });
         }
 
-        // 🌟 修复后的个人详情函数：直接向后端拉取个人战绩，不再报“数据异常”
         function goToAthleteDetail(athleteName) {
             document.getElementById('athDetailName').innerText = `${athleteName}`;
             document.getElementById('athDetailBib').innerText = '--';
@@ -1037,7 +1006,6 @@ function refreshCurrentActiveView() {
     }
 }
 
-// ==================== 🌟 操场大屏 / 电视端实时战报轮播系统 ====================
 window.tvWallActive = false;
 window.tvWallSlides = [];
 window.tvWallSlideIdx = 0;
@@ -1119,7 +1087,6 @@ window.fetchTvWallData = function() {
             if (res.status !== 'success') return;
             const slides = [];
 
-            // 1. 各年级组别《团体总分详细积分明细表》轮播页
             (res.group_rankings || []).forEach(g => {
                 if (g.rows && g.rows.length > 0) {
                     slides.push({
@@ -1132,13 +1099,10 @@ window.fetchTvWallData = function() {
                 }
             });
 
-            // 2. 最新完赛项目前三名喜报轮播页（每页展示 4 个最新决赛项目）
             const podiums = res.recent_podiums || [];
             for (let i = 0; i < podiums.length; i += 4) {
                 slides.push({ type: 'podium', items: podiums.slice(i, i + 4), page: Math.floor(i / 4) + 1 });
             }
-
-            // 3. 破纪录荣耀榜轮播页
             if (res.records && res.records.length > 0) {
                 slides.push({ type: 'records', items: res.records });
             }
@@ -1185,7 +1149,6 @@ window.renderCurrentTvSlide = function() {
         const customCols = slide.custom_columns || [];
         const rows = slide.rows || [];
         const totalSubCols = compCols.length * 2 + customCols.length + 4;
-        // 根据列数自适应大屏字号与内边距，确保整张大表一屏展示
         const fontCls = totalSubCols > 24 ? 'text-[11px]' : (totalSubCols > 16 ? 'text-xs' : 'text-sm');
 
         let headerRow1 = `
@@ -1324,7 +1287,6 @@ window.renderCurrentTvSlide = function() {
         `;
     }
 };
-// 支持电视浏览器直接通过 /query?tv=1 自动唤起大屏
 if (window.location.search.includes('tv=1')) {
     setTimeout(() => openTvWall(), 600);
 }

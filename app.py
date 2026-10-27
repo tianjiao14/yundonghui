@@ -3221,7 +3221,13 @@ def get_event_start_list():
     event_name = str(data.get('event_name') or '').strip()
     group_name = str(data.get('group_name') or '').strip()
     gender = str(data.get('gender') or '').strip()
-
+    
+    is_public_viewer = session.get('user_role') not in ['admin', 'referee']
+    cache_key = f"evt_sl_{group_name}_{gender}_{event_name}"
+    if is_public_viewer:
+        cached_list = get_cached_data(cache_key, ttl_seconds=5)
+        if cached_list is not None:
+            return jsonify(cached_list)
     clean_core = re.sub(r"\(.*?\)|（.*?）|预赛|决赛|男子|女子|混合", "", event_name).strip()
     norm_core = clean_core.replace('*', '×').replace('x', '×').replace('X', '×')
 
@@ -3301,6 +3307,7 @@ def get_event_start_list():
                 s.is_field, 
                 s.checked_in, 
                 s.score AS start_score,
+                COALESCE(NULLIF(s.heat_rank, ''), NULLIF(r.heat_rank, ''), '') AS heat_rank,
                 COALESCE(s.points, r.points, 0) AS points,
                 r.id AS reg_id, 
                 r.score AS reg_score, 
@@ -3367,7 +3374,8 @@ def get_event_start_list():
                 item['reg_id'] = item.get('id')
 
             result.append(item)
-
+            if is_public_viewer:
+                set_cached_data(cache_key, result, ttl_seconds=5)
         return jsonify(result)
     except Exception as e:
         print(f"❌ 获取道次列表异常: {e}")
@@ -3608,7 +3616,7 @@ def submit_score():
     data = request.json or {}
     incoming_id = data.get('id') or data.get('reg_id') or data.get('start_id')
     raw_val = str(data.get('score', '')).strip()
-    
+    heat_rank_val = str(data.get('heat_rank', '')).strip() if 'heat_rank' in data else None
     is_dq = any(k in raw_val.upper() for k in ['犯规', 'DQ', 'DISQ'])
     is_dns = any(k in raw_val.upper() for k in ['弃权', 'DNS', 'DNF'])
     
@@ -3645,7 +3653,8 @@ def submit_score():
 
             # 1. 更新当前 start_list 记录
             c.execute("UPDATE start_list SET score = ?, checked_in = ? WHERE id = ?", (formatted_score, chk_val, incoming_id))
-
+            if heat_rank_val is not None:
+                  c.execute("UPDATE start_list SET heat_rank = ? WHERE id = ?", (heat_rank_val, incoming_id))
             # 2. 同步更新接力全队道次与 registrations 报名表（兼容 4x/4*/4×）
             if team_name:
                 is_relay = any(k in event_name for k in ['接力', '4x', '4×', '4*'])
@@ -4567,6 +4576,12 @@ def force_sync_and_upgrade_db():
         try: c.execute("ALTER TABLE start_list ADD COLUMN rank TEXT DEFAULT ''")
         except Exception: pass
         try: c.execute("ALTER TABLE start_list ADD COLUMN record_bonus INTEGER DEFAULT 0")
+        except Exception: pass
+        try: c.execute("ALTER TABLE start_list ADD COLUMN record_bonus INTEGER DEFAULT 0")
+        except Exception: pass
+        try: c.execute("ALTER TABLE start_list ADD COLUMN heat_rank TEXT DEFAULT ''")
+        except Exception: pass
+        try: c.execute("ALTER TABLE registrations ADD COLUMN heat_rank TEXT DEFAULT ''")
         except Exception: pass
         try:
             c.execute("CREATE INDEX IF NOT EXISTS idx_reg_lookup ON registrations (group_name, gender, event_name);")

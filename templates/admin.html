@@ -45,36 +45,27 @@
 .modern-list-table tbody tr:hover { background-color: #f8fafc; }
 
 @media (max-width: 768px) {
-    /* 移动端隐藏大横排手写表格，展示卡片式响应列表 */
     .res-card-desktop { display: none !important; }
     .res-card-mobile { display: block !important; }
 }
 @media (min-width: 769px) {
-    /* 桌面端隐藏移动端列表，展示标准横向检录单 */
     .res-card-desktop { display: block !important; }
     .res-card-mobile { display: none !important; }
 }
 
 @media print {
-    /* 打印时一律强制输出标准纸质横排成绩单 */
     .res-card-desktop { display: block !important; }
     .res-card-mobile { display: none !important; }
 }
         body { font-family: 'SimSun', 'Songti SC', serif; background-color: #f3f4f6; overflow: hidden; color: #000; }
         .ui-font { font-family: 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif; }
-        
-        /* 侧边栏与布局 */
         .nav-item { text-align: left; padding: 12px 20px; width: 100%; border-radius: 0 25px 25px 0; margin-bottom: 8px; color: #4b5563; font-weight: 500; transition: all 0.2s; }
         .nav-item:hover { background-color: #f3f4f6; color: #2563eb; }
         .nav-item.active { background-color: #eff6ff; color: #2563eb; border-left: 4px solid #2563eb; font-weight: bold; }
-        
-        /* 通用表格样式 */
         .fixed-table { table-layout: fixed; width: 100%; }
         .fixed-table th { background-color: #f8fafc; color: #64748b; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; padding: 10px; border-bottom: 2px solid #e2e8f0; white-space: nowrap; overflow: hidden; text-align: center; }
         .fixed-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; font-size: 0.875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
         .fixed-table tr:hover { background-color: #f8fafc; }
-        
-        /* 检录表/成绩表 打印预览样式 */
         .rc-card { background: white; border: 2px solid #000; padding: 20px; margin-bottom: 30px; font-family: "SimSun", serif; width: 100%; box-sizing: border-box; }
         .rc-title { text-align: center; font-size: 26px; font-weight: bold; margin-bottom: 15px; letter-spacing: 2px; }
         .rc-header { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; font-weight: bold; padding: 0 5px; }
@@ -82,19 +73,15 @@
         .rc-table { width: 100%; border-collapse: collapse; border: 2px solid #000; font-size: 13px; text-align: center; table-layout: fixed; }
         .rc-table td, .rc-table th { border: 1px solid #000; padding: 4px 2px; height: 32px; white-space: nowrap; overflow: hidden; }
         .rc-footer { display: flex; justify-content: space-between; font-size: 14px; margin-top: 15px; padding: 0 10px; font-weight: bold; }
-
-        /* 标签样式 */
         .badge { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; display: inline-block; margin: 0 2px; }
         .badge-score { background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
         .badge-bonus { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
         .badge-double { background-color: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
         .badge-fun { background-color: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
         .checkbox-disabled { opacity: 0.5; cursor: not-allowed; text-decoration: line-through; color: #9ca3af; }
-
-        /* --- Step 6 成绩表专用样式 (横向道次版) --- */
         .res-card { 
             background: white; 
-            border: 2px solid #000; /* 外框 */
+            border: 2px solid #000; 
             padding: 20px; 
             margin-bottom: 30px; 
             font-family: "SimSun", serif; 
@@ -113,32 +100,27 @@
         .res-table { 
             width: 100%; border-collapse: collapse; text-align: center; margin-bottom: 15px; table-layout: fixed;
         }
-        /* 强制表格边框 - 黑色实线 */
         .res-table td { 
             border: 1px solid #000 !important; 
             padding: 8px 2px; 
             font-size: 11pt; 
             vertical-align: middle;
-            height: 45px; /* 增加行高，方便手写 */
+            height: 45px; 
         }
         
-        /* 表头列样式 (道次、姓名、成绩...) */
         .res-label-col {
             width: 100px;
             font-weight: bold;
             font-size: 13pt;
-            font-family: 'SimHei', sans-serif; /* 黑体 */
+            font-family: 'SimHei', sans-serif; 
             background-color: transparent;
         }
-        
-        /* 底部签字栏 */
         .res-footer { 
             display: flex; justify-content: space-between; 
             margin-top: 30px; padding: 0 20px; 
             font-size: 12pt; font-weight: bold;
         }
-       /* admin.html 样式修正 */
-/* 树状菜单通用样式 */
+
 .tree-group, .tree-team { 
     cursor: pointer; 
     padding: 8px 12px; 
@@ -147,7 +129,6 @@
     margin: 2px 0;
 }
 
-/* 组别选中效果：浅蓝色背景 + 左侧粗条 */
 .active-group { 
     background-color: #dbeafe !important; /* 浅蓝 */
     color: #1e40af !important; 
@@ -155,7 +136,6 @@
     border-left: 4px solid #2563eb; 
 }
 
-/* 班级选中效果：深蓝色背景 + 白色文字 */
 .tree-team.active { 
     background-color: #2563eb !important; /* 深蓝 */
     color: white !important; 
@@ -163,18 +143,16 @@
     box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
 }
 
-/* 鼠标悬停预览 */
 .tree-group:hover:not(.active-group), 
 .tree-team:hover:not(.active) { 
     background-color: #f3f4f6; 
 }
-/* 移动端抽屉过渡动效 */
+
 #sidebar {
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @media (max-width: 1024px) {
-    /* 移动端默认隐藏在屏幕左侧外面 */
     #sidebar {
         position: fixed;
         top: 0;
@@ -183,16 +161,12 @@
         z-index: 50;
         transform: translateX(-100%);
     }
-    /* 呼出抽屉状态 */
     #sidebar.sidebar-open {
         transform: translateX(0);
     }
 }
 @media print {
-    /* 1. 隐藏所有侧边栏和按钮 */
     .w-64, .no-print, nav, button, .bg-yellow-50 { display: none !important; }
-    
-    /* 2. 隐藏非当前活动的面板 */
     .step-panel { display: none !important; }
     #step-4:not(.hidden), #step-5:not(.hidden), #step-6:not(.hidden), #step-7:not(.hidden), 
     #step-8:not(.hidden), #step-9:not(.hidden) { 
@@ -207,28 +181,22 @@
         height: auto !important;
         overflow: visible !important;
     }
-
-    /* 3. 强制解除容器高度限制，防止空白页及长表格被截断 */
     body, .flex-1, main, #step-4, #scheduleOutput { height: auto !important; overflow: visible !important; }
-
-  /* 3. 密码条卡片样式优化：防止分页切断 */
     #passwordList {
         display: grid !important;
-        grid-template-columns: repeat(3, 1fr) !important; /* 打印时每行两个，更省纸 */
+        grid-template-columns: repeat(3, 1fr) !important; 
         gap: 15px !important;
     }
 
     #passwordList > div {
         page-break-inside: avoid !important;
-        border: 2px solid #000 !important; /* 打印时虚线改实线，更清晰 */
+        border: 2px solid #000 !important; 
     }
        .rc-card { box-shadow: none !important; margin-bottom: 20px !important; break-inside: avoid; page-break-inside: avoid; border: 2px solid #000 !important; width: 100% !important; }
         }
-/* 移动端滚动条隐藏与紧凑触控优化 */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* 移动端横向滑动胶囊菜单 */
 .mobile-pill {
     white-space: nowrap;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -237,8 +205,6 @@
 .mobile-pill:active {
     transform: scale(0.95);
 }
-
-/* 移动端小屏自适应表格行与卡片边界 */
 @media (max-width: 1024px) {
     .mobile-dense-table th, .mobile-dense-table td {
         padding: 6px 4px !important;
@@ -504,7 +470,6 @@
         </div>
     </div>
 
-    <!-- 核心两栏容器：大屏左右分布，小屏折叠自适应 -->
     <div class="flex-1 flex flex-col lg:flex-row gap-3 min-h-0 overflow-y-auto lg:overflow-hidden">
         
         <!-- 🏷️ 1. 组别管理卡片（移动端平时折叠，点击标题栏展开/收起） -->
@@ -518,7 +483,7 @@
                 <span class="text-[10px] bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded font-bold" id="groupBadgeCount">0 组</span>
             </div>
 
-            <!-- 移动端可折叠内容区（大屏lg常显，小屏移动端默认隐藏） -->
+
             <div id="groupContentWrapper" class="hidden lg:flex flex-col flex-1 overflow-hidden">
                 <!-- 添加组别输入区 -->
                 <div class="p-2.5 bg-gray-50 border-b border-gray-100 flex gap-2 items-end shrink-0">
@@ -551,7 +516,7 @@
             </div>
         </div>
 
-        <!-- 🚩 2. 代表队管理卡片（补回此包裹容器） -->
+
         <div class="w-full lg:w-2/3 bg-white rounded-xl border border-purple-200 flex flex-col shadow-xs overflow-hidden flex-1">
             <div class="p-3 bg-purple-50/70 border-b border-purple-100 flex justify-between items-center shrink-0">
                 <div class="flex items-center gap-2">
@@ -597,9 +562,8 @@
                 </button>
             </div>
 
-            <!-- 代表队列表主体 -->
+
             <div class="flex-1 overflow-y-auto custom-scrollbar">
-                <!-- 桌面端表格 -->
                 <div class="hidden md:block">
                     <table class="fixed-table text-left text-xs">
                         <thead class="sticky top-0 bg-gray-100 shadow-xs z-10">
@@ -621,7 +585,6 @@
                     </table>
                 </div>
 
-                <!-- 移动端专属紧凑卡片列表容器 -->
                 <div id="teamListMobile" class="md:hidden p-2 space-y-2"></div>
             </div>
         </div>
@@ -716,10 +679,7 @@
         </div>
     </div>
 
-    <!-- 🌟 电脑端(lg及以上)三栏并排(25% + 25% + 50%)；移动端保持原有全宽流式堆叠 -->
     <div class="flex-1 flex flex-col lg:flex-row gap-2.5 min-h-0 overflow-y-auto lg:overflow-hidden print:overflow-visible print:block">
-        
-        <!-- 1. 待排项目池：移动端全宽自适应，电脑端占 25% (lg:w-1/4) -->
         <div class="w-full lg:w-1/6 bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden shadow-xs shrink-0 transition-all duration-300 no-print">
             <div class="p-2.5 bg-gray-50 border-b font-black text-xs text-gray-700 flex justify-between items-center cursor-pointer select-none" onclick="togglePoolMobile()">
                 <span class="flex items-center gap-1">📦 待排项目池 <span class="lg:hidden text-[10px] text-blue-600 font-normal" id="poolToggleTip">(点击展开)</span></span>
@@ -728,7 +688,6 @@
             <div id="timeBudgetContainer" class="hidden lg:block flex-1 overflow-y-auto p-2 space-y-2 bg-gray-50/50 custom-scrollbar max-h-48 lg:max-h-full"></div>
         </div>
 
-        <!-- 2. 运动会沙盘区域：移动端全宽自适应，电脑端占 25% (lg:w-1/4) -->
         <div class="w-full lg:w-2/6 bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden shadow-xs shrink-0 transition-all duration-300 no-print">
             <div class="p-2.5 bg-gray-50 border-b font-black text-xs text-gray-700 shrink-0 flex justify-between items-center cursor-pointer select-none" onclick="toggleGridMobile()">
                 <span class="flex items-center gap-1">
@@ -740,7 +699,6 @@
             <div id="manualScheduleGrid" class="hidden lg:block flex-1 overflow-y-auto p-2.5 space-y-3 bg-gray-100 custom-scrollbar max-h-[50vh] lg:max-h-full"></div>
         </div>
 
-        <!-- 3. 检录表预览：移动端全宽，电脑端占 50% (lg:w-2/4) -->
         <div class="w-full lg:w-3/6 flex-1 min-h-0 bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col shadow-xs print:w-full print:h-auto print:border-none print:overflow-visible print:block">
             <div class="p-2.5 bg-gray-50 border-b font-bold text-xs text-gray-700 flex justify-between items-center shrink-0 no-print">
                 <span class="flex items-center gap-1.5 font-black text-gray-800">
@@ -801,7 +759,7 @@
                 📄 生成成绩公告
             </button>
 
-            <!-- 🌟 一键导出全部成绩公告（Word / PDF） -->
+
             <div class="relative inline-block text-left group">
                 <button type="button" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg shadow font-bold text-xs transition active:scale-95 flex items-center gap-1">
                     <span>📥 导出全部公告</span>
@@ -817,7 +775,6 @@
                 </div>
             </div>
 
-            <!-- 🌟 新增：一键批量导出/套打获奖证书 Word (横向 A4) -->
             <div class="relative inline-block text-left group">
                 <button type="button" class="bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-1.5 rounded-lg shadow font-bold text-xs transition active:scale-95 flex items-center gap-1">
                     <span>🎓 导出获奖证书</span>
@@ -877,7 +834,6 @@
         📑 详细积分表
     </button>
 
-    <!-- 🌟 新增：一键导出全场所有组别详细积分表（Excel / Word 双格式存档） -->
     <div class="relative inline-block text-left group">
         <button type="button" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg shadow font-bold text-xs transition active:scale-95 flex items-center gap-1.5">
             <span>📥 导出全部详细表</span>
@@ -928,7 +884,6 @@
         </div>
     </div>
 
-    <!-- 1. 账号与权限列表 -->
     <div id="refAccountsView" class="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
         <div class="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
             <table class="w-full text-left text-xs border-collapse">
@@ -983,12 +938,10 @@
         <input type="checkbox" name="ref_role" value="timing" class="rounded text-blue-600">
         <span class="font-bold text-blue-800">⏱️ 终点记录</span>
     </label>
-    <!-- 🌟 拆分1：纯田赛岗位 -->
     <label class="flex items-center gap-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg cursor-pointer">
         <input type="checkbox" name="ref_role" value="field" class="rounded text-amber-600">
         <span class="font-bold text-amber-800">🎯 田赛裁判 (跳/投)</span>
     </label>
-    <!-- 🌟 拆分2：纯趣味项目岗位 -->
     <label class="flex items-center gap-1.5 p-2 bg-purple-50 border border-purple-200 rounded-lg cursor-pointer">
         <input type="checkbox" name="ref_role" value="fun" class="rounded text-purple-600">
         <span class="font-bold text-purple-800">🎈 趣味/游园裁判</span>
@@ -1002,7 +955,6 @@
         </div>
     </div>
 </div>
-    <!-- 2. 操作追溯日志审计列表 -->
     <div id="refLogsView" class="hidden flex-1 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
         <div class="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
             <table class="w-full text-left text-xs border-collapse">
@@ -1086,7 +1038,6 @@
             </div>
         </div>
     </div>
-<!-- 🌟 项目组别报名人数明细弹窗 -->
 <div id="eventDetailModal" class="fixed inset-0 bg-black/50 backdrop-blur-xs hidden z-[110] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-gray-100 overflow-hidden transform transition-all">
         <div class="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 text-white flex justify-between items-center">
@@ -1097,14 +1048,13 @@
             <button onclick="closeEventDetailModal()" class="text-white/80 hover:text-white font-bold text-xl leading-none">&times;</button>
         </div>
         <div class="p-4 max-h-[60vh] overflow-y-auto" id="modalEventContent">
-            <!-- 动态填充各组别人数 -->
         </div>
         <div class="p-3 bg-gray-50 border-t border-gray-100 text-right">
             <button onclick="closeEventDetailModal()" class="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold transition">关 闭</button>
         </div>
     </div>
 </div>
-<!-- 兼项冲突检测结果弹窗 -->
+
 <div id="conflictModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-[120] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-gray-100 overflow-hidden flex flex-col max-h-[85vh]">
         <div class="bg-gradient-to-r from-rose-600 to-red-600 p-4 text-white flex justify-between items-center shrink-0">
@@ -1126,7 +1076,7 @@
         </div>
     </div>
 </div>
-<!-- 🌟 班级详细得分明细弹窗 -->
+
 <div id="teamScoreDetailModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-[150] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-gray-100 overflow-hidden flex flex-col max-h-[85vh]">
         <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 text-white flex justify-between items-center shrink-0">
@@ -1141,7 +1091,6 @@
             <span id="modalTeamTotalSubtitle" class="bg-blue-600 text-white px-2 py-0.5 rounded-full font-mono font-bold">总分: 0</span>
         </div>
         <div class="overflow-y-auto flex-1 p-4" id="modalTeamDetailContent">
-            <!-- 动态填充项目明细表格 -->
         </div>
         <div class="p-3 bg-gray-50 border-t border-gray-100 flex justify-end shrink-0">
             <button onclick="closeTeamScoreDetailModal()" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold transition">关 闭</button>
@@ -1185,7 +1134,6 @@
         </div>
     </div>
 
-    <!-- 列表容器 -->
     <div class="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
         <div class="p-3 bg-gray-50 border-b flex justify-between items-center text-xs font-bold text-gray-600 shrink-0">
             <span>📊 项目执行序列</span>
@@ -1208,19 +1156,16 @@
             <p class="text-xs text-gray-400 mt-0.5"></p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-            <!-- 1. 年级/组别筛选 -->
             <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg">
                 <span class="text-[11px] font-bold text-gray-500">年级:</span>
                 <select id="analysisGradeSelect" onchange="onAnalysisFilterChange()" class="bg-transparent font-bold text-xs outline-none text-gray-700"></select>
             </div>
-            <!-- 2. 班级筛选 -->
             <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg">
                 <span class="text-[11px] font-bold text-gray-500">班级:</span>
                 <select id="analysisTeamSelect" onchange="renderAnalysisView()" class="bg-transparent font-bold text-xs outline-none text-gray-700">
                     <option value="ALL">全部班级(年级大盘)</option>
                 </select>
             </div>
-            <!-- 3. 性别筛选 -->
             <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg">
                 <span class="text-[11px] font-bold text-gray-500">性别:</span>
                 <select id="analysisGenderSelect" onchange="renderAnalysisView()" class="bg-transparent font-bold text-xs outline-none text-gray-700">
@@ -1229,7 +1174,6 @@
                     <option value="女">仅看女生</option>
                 </select>
             </div>
-            <!-- 4. 单项聚焦 -->
             <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg">
                 <span class="text-[11px] font-bold text-gray-500">项目:</span>
                 <select id="analysisEventSelect" onchange="renderAnalysisView()" class="bg-transparent font-bold text-xs outline-none text-gray-700">
@@ -1242,7 +1186,6 @@
         </div>
     </div>
 
-    <!-- 核心具体单项指标卡片矩阵 (平均值、极值一览) -->
     <div>
         <div class="text-xs font-black text-gray-700 mb-2 flex items-center justify-between">
             <span>🎯 各独立项目水平与极值档案</span>
@@ -1251,7 +1194,6 @@
         <div id="eventMetricsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
     </div>
 
-    <!-- 可视化图表对比 -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
             <h3 class="text-xs font-black text-gray-700 mb-3 flex items-center gap-1.5">
@@ -1272,7 +1214,6 @@
         </div>
     </div>
 
-  <!-- 班级横向对比排查表 -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div class="p-3.5 bg-gray-50/80 border-b border-gray-200 flex justify-between items-center">
             <span class="text-xs font-black text-gray-800 flex items-center gap-1.5">
@@ -1292,7 +1233,7 @@
         </div>
     </div>
 </div>
-<!-- 🌟 1. 保存为模板弹窗 -->
+
 <div id="saveTemplateModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-[160] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-gray-100 overflow-hidden">
         <div class="bg-gradient-to-r from-indigo-600 to-blue-600 p-4 text-white flex justify-between items-center">
@@ -1320,7 +1261,6 @@
     </div>
 </div>
 
-<!-- 🌟 2. 选用/管理模板弹窗 -->
 <div id="loadTemplateModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-[160] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-gray-100 overflow-hidden flex flex-col max-h-[80vh]">
         <div class="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 text-white flex justify-between items-center shrink-0">
@@ -1362,7 +1302,6 @@
                 document.getElementById('competition_start_date').value = data.start_date;
                 window.competitionStartDate = data.start_date;
             }
-            // 🌟 修复：结束时间必须直接取后端数据库返回的 end_date，不能只取本地浏览器的 localStorage
             if (data.end_date) {
                 document.getElementById('competition_end_date').value = data.end_date;
                 window.competitionEndDate = data.end_date;
@@ -1371,7 +1310,7 @@
             updateDaysTip();
         });
     });
-// ---------------- 模板管理前端函数 ---------------- //
+
 window.openSaveTemplateModal = function() {
     document.getElementById('tplNameInput').value = (document.getElementById('cfgTitle')?.value || '') + '模板';
     document.getElementById('tplDescInput').value = '';
@@ -1545,7 +1484,6 @@ window.deleteSelectedTemplate = function(id, name) {
             : '🗑️ 确定要清空所有运动员的现有比赛成绩吗？\n\n【保留】：运动员报名名单、项目设置、组别班级及密码均不会丢失。\n【清空】：仅将录入的比赛成绩、名次和积分归零。';
             
         if (confirm(msg) && confirm('请再次确认此操作！')) {
-            // 🌟 1. 彻底清空前端所有全局对象与内存沙盘
             if (mode === 'all') {
                 window.manualScheduleMap = {};
                 db.schedule = [];
@@ -1564,7 +1502,6 @@ window.deleteSelectedTemplate = function(id, name) {
             .then(r => r.json())
             .then(res => {
                 alert(res.msg);
-                // 🌟 2. 避免普通刷新复用缓存，通过替换 href 强制纯净重载
                 window.location.href = '/admin?reset=' + Date.now();
             });
         }
@@ -1573,8 +1510,7 @@ window.deleteSelectedTemplate = function(id, name) {
     function formatTrackTime(val) {
         if (!val) return '';
         let s = String(val).trim().replace(/：/g, ':').replace(/。/g, '.');
-        
-        // 匹配裁判小键盘输入的双点格式: "1.02.05" -> 转化为标准 "1:02.05"
+       
         if ((s.match(/\./g) || []).length >= 2) {
             let parts = s.split('.');
             if (parts.length === 3) {
@@ -1592,14 +1528,12 @@ window.deleteSelectedTemplate = function(id, name) {
     if (!val) return 0;
     let s = String(val).trim().replace(/：/g, ':').replace(/。/g, '.');
     
-    // 冒号形式: 1:02.05
     if (s.includes(':')) {
         let parts = s.split(':');
         if (parts.length === 3) return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
         if (parts.length === 2) return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
     }
 
-    // 双点形式: 1.02.05
     if ((s.match(/\./g) || []).length >= 2) {
         let parts = s.split('.');
         if (parts.length === 3) {
@@ -1625,7 +1559,6 @@ if (typeof io !== 'undefined') {
 
         window.socket.on('rank_updated', function(data) {
             const isEditing = document.getElementById('enableEditRankScore')?.checked;
-            // 只要管理员开启了附加分编辑，坚决不重绘表格，防止光标丢失或输入数值被冲掉
             if (isEditing) {
                 return;
             }
@@ -1637,12 +1570,11 @@ if (typeof io !== 'undefined') {
         window.socket.on('score_updated', function(data) {
             const isEditing = document.getElementById('enableEditRankScore')?.checked;
             if (isEditing) {
-                return; // 编辑状态下屏蔽全局重绘刷新
+                return; 
             }
         });
     }
 
-    // --- Step 6 横排按钮全局变量 ---
     window.curResGroup = '';
     window.curResGender = '';
     window.curResEvent = '';
@@ -1658,7 +1590,6 @@ if (typeof io !== 'undefined') {
     }
 
     const sortedGroups = [...db.groups].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh-CN', { numeric: true }));
-    // 🌟 修正：统一使用 window.curResGroup
     if (!window.curResGroup || !sortedGroups.some(g => g.name === window.curResGroup)) {
         window.curResGroup = sortedGroups[0].name;
     }
@@ -1734,7 +1665,6 @@ if (typeof io !== 'undefined') {
 
         const targetSchedule = db.schedule.filter(s => s.groupName === window.curResGroup && s.gender === window.curResGender);
         
-        // 🌟 核心：清洗去除 (场地1)、(场地2) 等后缀，将多场地项目合并为一个统一按钮
         const cleanEventSet = new Set();
         targetSchedule.forEach(s => {
             if (s.eventName) {
@@ -1744,14 +1674,12 @@ if (typeof io !== 'undefined') {
         });
 
         const events = [...cleanEventSet].sort((a, b) => {
-            // 剥离预赛/决赛后缀，获取纯项目名
             const baseA = a.replace(' (预赛)', '').replace(' (决赛)', '').replace('（预赛）', '').replace('（决赛）', '').trim();
             const baseB = b.replace(' (预赛)', '').replace(' (决赛)', '').replace('（预赛）', '').replace('（决赛）', '').trim();
             
             if (baseA !== baseB) {
                 return baseA.localeCompare(baseB, 'zh-CN');
             }
-            // 如果是同一个项目（如 100米），强制让带有“预赛”的排在前面，“决赛”排在后面
             const isPreA = a.includes('预赛');
             const isPreB = b.includes('预赛');
             if (isPreA && !isPreB) return -1;
@@ -1782,7 +1710,6 @@ if (typeof io !== 'undefined') {
             };
             container.appendChild(btn);
         });
-        // 🌟 精准匹配该组别、该项目独立设置的录取名次
     const activeClean = (window.curResEvent || '').replace(' (预赛)', '').replace(' (决赛)', '').trim();
     const activeNorm = activeClean.replace(/[*xX]/g, '×');
     const activeCfg = db.events.find(e => e.name === activeClean || e.name === activeNorm || e.name === window.curResEvent);
@@ -1819,21 +1746,18 @@ window.updateEventQualifyCount = function(val) {
     const cleanCore = eName.replace(' (预赛)', '').replace(' (决赛)', '').trim();
     const normCore = cleanCore.replace(/[*xX]/g, '×');
 
-    // 1. 立即锁定本地缓存
     if (gName) {
         window.groupQualifyCache[`${gName}_${cleanCore}`] = qCount;
         window.groupQualifyCache[`${gName}_${normCore}`] = qCount;
         window.groupQualifyCache[`${gName}_${eName}`] = qCount;
     }
 
-    // 视觉反馈：闪烁绿框提示已持久化
     const inputEl = document.getElementById('finalsTopN');
     if (inputEl) {
         inputEl.style.borderColor = '#10b981';
         inputEl.style.backgroundColor = '#ecfdf5';
     }
 
-    // 2. 发送请求落盘存库
     fetch('/api/save_group_qualify_count', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1854,14 +1778,13 @@ window.updateEventQualifyCount = function(val) {
                 inputEl.style.backgroundColor = '';
             }
         }, 800);
-        // 重新渲染当前项目成绩表
         renderResultSheet();
     })
     .catch(() => {
         if (inputEl) inputEl.style.backgroundColor = '#fee2e2';
     });
 };
-// 🌟 专门处理报名截止时间的一键自动持久化保存
+
 window.saveRegDeadline = function(val) {
     const tip = document.getElementById('deadlineSaveStatus');
     if (tip) {
@@ -1904,7 +1827,6 @@ window.saveRegDeadline = function(val) {
             regDeadline: getVal('cfgRegDeadline', '')
         };
         
-        // 🌟 核心：确保每个代表队都完整封装 leader, coach, phone, groupId
         const formattedTeams = (db.teams || []).map(t => ({
             id: t.id,
             groupId: t.groupId || t.group_id,
@@ -2054,6 +1976,11 @@ window.saveRegDeadline = function(val) {
     if (typeof renderManualScheduleGrid === 'function') renderManualScheduleGrid();
 
     const schOut = document.getElementById('scheduleOutput');
+    const curSchSig = (db && db.schedule) ? `${db.schedule.length}_${db.schedule[0]?.id || ''}_${db.schedule[0]?.estTime || ''}_${db.schedule[db.schedule.length - 1]?.name || ''}` : 'empty';
+    if (schOut && schOut.children.length > 0 && window._lastRenderedScheduleSig === curSchSig) {
+        break;
+    }
+
     if (schOut && (!schOut.children || schOut.children.length === 0)) {
         schOut.innerHTML = '<div class="text-center py-10 text-gray-400 font-bold text-xs animate-pulse">正在载入赛程检录表...</div>';
     }
@@ -2067,7 +1994,7 @@ window.saveRegDeadline = function(val) {
                 calculateEventTimeBudget();
             }
         }
-    }, 40); 
+    }, 20); 
     break;
             case 5: 
                 if (typeof initResGroupTabs === 'function') initResGroupTabs();
@@ -2092,7 +2019,7 @@ case 11:
     break;
         }
     }
-// 🌟 单击沙盘卡片，自动平滑滚动定位到下方对应检录表并高亮提醒
+
     window.scrollToScheduleCard = function(gName, eName, gen) {
         const anchorId = `rc_card_${gName}_${eName}_${gen}`.replace(/\s+/g, '_');
         const targetCard = document.getElementById(anchorId);
@@ -2102,11 +2029,7 @@ case 11:
             console.log("未找到对应检录表:", anchorId);
             return;
         }
-
-        // 平滑滚动居中定位
         targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-        // 呼吸脉冲高亮 1.5 秒，方便一眼看到
         targetCard.classList.remove('border-gray-300');
         targetCard.classList.add('border-blue-500', 'ring-4', 'ring-blue-300', 'shadow-2xl');
         setTimeout(() => {
@@ -2128,9 +2051,6 @@ window.syncSandtableToServer = function() {
         return res;
     }).catch(e => console.warn("沙盘离线同步异常", e));
 };
-// ========================================================
-// 🌟 沙盘卡片专属颜色与徽标解析（100% 严格依照【项目设置】的项目类型）
-// ========================================================
 function getItemCategoryStyle(eventName) {
     const rawName = (eventName || '').trim();
     const cleanName = rawName.replace(" (预赛)", "").replace(" (决赛)", "").replace(/[\(（]场地\d+[\)）]/, "").trim();
@@ -2161,7 +2081,6 @@ function getItemCategoryStyle(eventName) {
 
     switch (matchedType) {
         case '健康测试':
-            // 🌟 换用全新亮橙琥珀金色（与绿色径赛形成强烈对比！）
             return {
                 type: 'fitness',
                 badgeText: '体测',
@@ -2171,7 +2090,6 @@ function getItemCategoryStyle(eventName) {
             };
         case '趣味项目':
         case '趣味':
-            // 鲜艳紫色
             return {
                 type: 'fun',
                 badgeText: '趣味',
@@ -2180,7 +2098,6 @@ function getItemCategoryStyle(eventName) {
                 subTag: '<span class="bg-purple-900/60 text-purple-200 text-[9px] px-1.5 py-0.5 rounded font-black border border-purple-400/30">趣味</span>'
             };
         case '田赛':
-            // 纯正蓝色
             return {
                 type: 'field',
                 badgeText: '田赛',
@@ -2190,7 +2107,6 @@ function getItemCategoryStyle(eventName) {
             };
         case '径赛':
         default:
-            // 翠绿色
             return {
                 type: 'track',
                 badgeText: '径赛',
@@ -2201,7 +2117,6 @@ function getItemCategoryStyle(eventName) {
     }
 }
    window.exportWordWithFreshData = function() {
-    // 1. 如果存在沙盘映射，只同步时间单元，决不重新分组打乱人员道次
     const syncTasks = [];
 
     if (window.manualScheduleMap) {
@@ -2214,9 +2129,7 @@ function getItemCategoryStyle(eventName) {
         );
     }
 
-    // 2. 如果当前内存中有更新过赛程时间（estTime/timeIndex），仅同步时间字段，不碰道次
     if (window.db && Array.isArray(window.db.schedule) && window.db.schedule.length > 0) {
-        // 只同步现成的内容，坚决不调用 compileFinalScheduleData() 重新生成新名单
         syncTasks.push(
             fetch('/api/save_schedule_to_db', {
                 method: 'POST',
@@ -2226,7 +2139,6 @@ function getItemCategoryStyle(eventName) {
         );
     }
 
-    // 3. 执行同步并直接下载，严格保证组次和道次是数据库里锁定的那一套
     Promise.all(syncTasks)
         .then(() => {
             window.location.href = '/api/export_handbook_word?_t=' + Date.now();
@@ -2243,7 +2155,9 @@ function getItemCategoryStyle(eventName) {
             return;
         }
         const maxDays = window.competitionTotalDays || 2;
-        let html = '';
+      let html = '';
+      const teamGroupMap = {};
+      (db.teams || []).forEach(t => { teamGroupMap[String(t.id)] = String(t.groupId || t.group_id); });
 
         for (let d = 1; d <= maxDays; d++) {
             const dayConf = window.dailyScheduleTimes[d] || { amStart: "08:30", pmStart: "14:30" };
@@ -2598,11 +2512,10 @@ return `
         const schOut = document.getElementById('scheduleOutput');
         const schStatus = document.getElementById('scheduleStatus');
 
-        // 清除上一次的更新计时器
+
         clearTimeout(window._autoCompileScheduleTimer);
 
         if (unscheduledCount > 0) {
-            // 🌟 1. 待排池 > 0 时：挂起右侧大表，展示微调等待提示，保持页面操作 0 延迟
             if (schOut) {
                 schOut.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-96 text-gray-400 space-y-3 select-none">
@@ -2615,8 +2528,6 @@ return `
             }
             if (schStatus) schStatus.innerText = '微调中...';
         } else {
-            // 🌟 2. 待排池 == 0 时：
-            // 如果是一键编排刚执行完毕（没有处于手动微调标记），直接瞬时渲染
             if (!window._isUserTweaking) {
                 if (window.isManualRescheduling || !db.schedule || db.schedule.length === 0 || Object.keys(window.manualScheduleMap).some(k => (window.manualScheduleMap[k]||[]).length > 0)) {
                     compileFinalScheduleData();
@@ -2624,7 +2535,6 @@ return `
                     renderScheduleResult();
                 }
             } else {
-                // 🌟 3. 用户微调后待排池重新为 0：给出倒计时提示，1秒后自动触发更新！
                if (schOut) {
                     schOut.innerHTML = `
                         <div class="flex flex-col items-center justify-center h-96 text-gray-400 space-y-3 select-none">
@@ -2650,7 +2560,7 @@ return `
    window.removeJobFromUnit = function(unitKey, jobKey) {
         if (!window.manualScheduleMap[unitKey]) return;
 
-        window._isUserTweaking = true; // 👈 标记：用户开始微调
+        window._isUserTweaking = true; 
 
         window.manualScheduleMap[unitKey] = window.manualScheduleMap[unitKey].filter(item => item.jobKey !== jobKey);
         localStorage.setItem('manual_schedule_map', JSON.stringify(window.manualScheduleMap));
@@ -2672,7 +2582,6 @@ return `
         localStorage.removeItem('manual_schedule_map');
         db.schedule = [];
 
-        // 🌟 核心：立刻主动重绘沙盘为空白单元（达到图2效果）并清空检录表
         renderManualScheduleGrid();
         renderScheduleResult();
         recalculateUnitTimelines();
@@ -3056,7 +2965,7 @@ function deleteGroupItem(groupId) {
     db.groups = db.groups.filter(g => String(g.id) !== String(groupId));
     db.teams = db.teams.filter(t => String(t.groupId || t.group_id) !== String(groupId));
     renderAll();
-    saveData(true); // 自动落盘保存到数据库
+    saveData(true); 
 }
 
 function deleteTeamItem(teamId) {
@@ -3302,7 +3211,7 @@ window.promptRenameAthlete = function(oldName, teamId) {
             alert("网络请求失败，请检查后端运行状态！");
         });
     }
-    // 🌟 清空运动员名单功能
+
     window.clearAthletesModal = function() {
         let tip = "⚠️ 请选择清空范围：\n\n【确定】仅清空当前选中的班级/代表队名单\n【取消】清空全校/全场所有运动员的全部报名名单";
         
@@ -3334,7 +3243,6 @@ window.promptRenameAthlete = function(oldName, teamId) {
         .then(res => {
             if (res.status === 'success') {
                 alert("✔ " + res.msg);
-                // 🌟 同步清空前端的编排缓存
                 if (!payload.team_id && !payload.group_id) {
                     db.schedule = [];
                     db.athletes = [];
@@ -3519,14 +3427,15 @@ window.promptRenameAthlete = function(oldName, teamId) {
     }
 
     function renderScheduleResult() {
-        const div = document.getElementById('scheduleOutput');
-        if(!db.schedule || db.schedule.length === 0) { 
-            div.innerHTML='<div class="text-center text-gray-400 mt-10 text-sm">暂无自动化编排结果数据</div>'; 
-            document.getElementById('scheduleStatus').innerText='0人次'; 
-            return; 
-        }
-        document.getElementById('scheduleStatus').innerText = db.schedule.length + ' 人次';
-        div.innerHTML = '';
+      const div = document.getElementById('scheduleOutput');
+      if(!db.schedule || db.schedule.length === 0) { 
+          div.innerHTML='<div class="text-center text-gray-400 mt-10 text-sm">暂无自动化编排结果数据</div>'; 
+          document.getElementById('scheduleStatus').innerText='0人次'; 
+          window._lastRenderedScheduleSig = 'empty';
+          return; 
+      }
+      document.getElementById('scheduleStatus').innerText = db.schedule.length + ' 人次';
+      const allCardsHtml = [];
         
         const grouped = {};
         db.schedule.forEach(i => { 
@@ -3570,11 +3479,10 @@ window.promptRenameAthlete = function(oldName, teamId) {
             try {
                 const [gName, eName, gen, heat] = k.split('#');
                 const items = grouped[k];
-               // 🌟 核心过滤：如果该组是决赛，且里面的选手属于占位待定，不予渲染与打印！
                 const isFinalsRound = eName.includes('决赛') && !eName.includes('预赛');
                 const isDummyFinals = items.some(item => !item.name || item.name.includes('待定') || item.teamName === '预赛出线' || item.name === '预赛晋级选手');
                 if (isFinalsRound && isDummyFinals) {
-                    return; // 跳过此待定决赛表，不显示也不打印
+                    return; 
                 }
                 const type = items[0].type || 'sprint';
                 const totalHeats = heatCounts[`${gName}#${eName}#${gen}`] || 1;
@@ -3662,16 +3570,17 @@ window.promptRenameAthlete = function(oldName, teamId) {
                     html += `</tbody></table>`;
                 }
                 html += `</div></div>`; 
-                div.innerHTML += html;
-            } catch(err) { console.error("渲染错误", err); }
-        });
-    }
+              allCardsHtml.push(html);
+          } catch(err) { console.error("渲染错误", err); }
+      });
+      div.innerHTML = allCardsHtml.join('');
+      window._lastRenderedScheduleSig = `${db.schedule.length}_${db.schedule[0]?.id || ''}_${db.schedule[0]?.estTime || ''}_${db.schedule[db.schedule.length - 1]?.name || ''}`;
+  }
 
    function syncScheduleToCloud() {
     if (!db.schedule || db.schedule.length === 0) return alert("请先点击【一键编排】生成数据！");
     if (!confirm("⚠️ 确定要发布当前的最新编排吗？\n\n【注意】：发布后将把当前排定的道次、组次与比赛时间同步至云端数据库！")) return;
 
-    // 🌟 核心：发布时绝不调用重新随机分组，只根据沙盘当前位置精准刷新每个项目的比赛时间 estTime 与 timeIndex！
     if (window.manualScheduleMap && Object.keys(window.manualScheduleMap).length > 0) {
         const formatMins = (base, offset) => {
             let total = base + offset;
@@ -3713,7 +3622,6 @@ window.promptRenameAthlete = function(oldName, teamId) {
                 const singleDuration = parseFloat(evtCfg.duration) || 5;
                 const jobMins = parseInt(job.minutes) || 5;
 
-                // 遍历现有 db.schedule，原汁原味保留选手与道次，仅校准更新时间 estTime 和 timeIndex
                 const matchedAthletes = db.schedule.filter(s => s.groupName === job.gname && s.gender === job.gender && s.eventName === job.ename);
                 const heatGroups = {};
                 matchedAthletes.forEach(s => {
@@ -3751,7 +3659,6 @@ window.promptRenameAthlete = function(oldName, teamId) {
     btn.innerText = "正在发布并同步沙盘..."; 
     btn.disabled = true;
 
-    // 存沙盘 + 存数据库赛程（人员、道次 100% 保持锁定不变）
     fetch('/api/save_sandtable', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3786,7 +3693,6 @@ window.promptRenameAthlete = function(oldName, teamId) {
     });
 }
 
-    // 前端独立的田联抽签算法（方便管理员点击“重新抽签”时免刷新重排）
   window.drawWorldAthleticsLanes = function(eventName, numAthletes) {
         const clean = eventName.replace(" (预赛)", "").replace(" (决赛)", "").trim();
         const isStraight = ['100米', '100m', '110米', '110m', '60米', '50米', '栏'].some(k => clean.includes(k)) && !clean.includes('400') && !clean.includes('接力');
@@ -3802,7 +3708,6 @@ window.promptRenameAthlete = function(oldName, teamId) {
             return [...t1, ...t2, ...t3];
         }
 
-        // 8人决赛
         let t1, t2, t3;
         if (isStraight) {
             t1 = [3, 4, 5, 6].sort(() => Math.random() - 0.5);
@@ -3843,7 +3748,6 @@ window.promptRenameAthlete = function(oldName, teamId) {
         .then(data => {
             if(data.status === "error") return alert(data.msg);
 
-            // 🌟 并列第 8 名提示
             if (data.has_tie) {
                 const names = (data.tied_athletes || []).map(a => `• ${a.name}（${a.team}）：成绩 ${a.score}`).join('\n');
                 alert(
@@ -3888,7 +3792,6 @@ window.promptRenameAthlete = function(oldName, teamId) {
         });
     }
 
-    // 独立出决赛表渲染函数（支持重新抽签刷新）
     window.renderFinalsSheetUI = function(topN) {
         const div = document.getElementById('resultOutput');
         const finalData = window.pendingFinalsData;
@@ -4071,7 +3974,6 @@ window.promptRenameAthlete = function(oldName, teamId) {
 
         div.innerHTML = '<div class="text-center text-blue-500 mt-10 font-bold text-xs animate-pulse">正在生成成绩公告...</div>';
 
-        // 🌟 优化：取消全站重算，直接并发拉取该项目的成绩与纪录，毫秒级秒出公告！
         Promise.all([
             fetch('/api/get_group_records', {
                 method: 'POST',
@@ -4122,13 +4024,11 @@ window.promptRenameAthlete = function(oldName, teamId) {
                 });
                 rawValid = Object.values(validTeamMap);
 
-                // 🌟 核心拦截：收集所有已经有真实有效成绩的代表队名称
                 const finishedTeamNames = new Set(rawValid.map(it => String(it.team_name || it.teamName).trim()));
 
                 const invalidTeamMap = {};
                 rawInvalid.forEach(item => {
                     const tKey = String(item.team_name || item.teamName).trim();
-                    // 🌟 如果这个班级已经跑完了且有有效成绩，绝对禁止再以“弃权”身份出现！
                     if (!finishedTeamNames.has(tKey)) {
                         if (!invalidTeamMap[tKey]) {
                             invalidTeamMap[tKey] = { ...item };
@@ -4139,7 +4039,7 @@ window.promptRenameAthlete = function(oldName, teamId) {
             }
 
             const validAthletes = rawValid;
-            const invalidAthletes = rawInvalid; // 👈 统一命名为 invalidAthletes
+            const invalidAthletes = rawInvalid; 
 
             if(validAthletes.length === 0 && invalidAthletes.length === 0) {
                 div.innerHTML = `<div class="text-center text-gray-400 mt-10"><p class="text-xl mb-2">该项目暂无成绩</p></div>`;
@@ -4149,7 +4049,7 @@ window.promptRenameAthlete = function(oldName, teamId) {
             const isTimingEvent = ['跑', '绕杆', '计时', '接力', '冲刺', '米', '栏'].some(k => rawEventName.includes(k)) 
                       && !['跳绳', '投篮'].some(k => rawEventName.includes(k));
 
-// 2. 远度、高度、次数类（数值越大越优：跳绳、实心球、垫球、引体、跳远等）
+
 const isCountingOrField = !isTimingEvent && (
     isField || 
     ['仰卧', '起坐', '引体', '向上', '跳绳', '垫球', '踢毽', '跳远', '跳高', '实心球', '铅球', '标枪', '铁饼', '投', '掷', '篮', '立定跳远'].some(k => rawEventName.includes(k))
@@ -4164,7 +4064,6 @@ if (isTimingEvent) {
     sortAsc = validAthletes.some(i => String(i.score).includes(':') || String(i.score).includes('：'));
 }
 
-// 执行排序
 validAthletes.sort((a, b) => {
     const valA = parseTimeVal(a.score);
     const valB = parseTimeVal(b.score);
@@ -4175,7 +4074,7 @@ validAthletes.sort((a, b) => {
             const myRecords = (groupRecordsData[`${coreMatchName}_${gender}`] || []).filter(r => r.en && parseTimeVal(r.val) > 0);
 let rowsHtml = ''; 
 let currentRank = 1;
-// 读取设置的名次积分规则（默认 9,7,6,5,4,3,2,1）
+
 const ruleStr = evtCfg?.scoreRule || evtCfg?.score_rule || "9,7,6,5,4,3,2,1";
 const rules = ruleStr.replace(/，/g, ',').split(',').map(Number);
 const isDouble = (evtCfg && (String(evtCfg.isTeam) === 'true' || String(evtCfg.is_team) === '1' || String(evtCfg.isRelay) === 'true' || String(evtCfg.is_relay) === '1'));
@@ -4195,7 +4094,6 @@ validAthletes.forEach((p, idx) => {
     let remark = '';
     let qualifyStr = '';
 
-    // 🌟 核心：第 currentRank 名精准对应 rules[currentRank - 1]
    if (actualRound === '决赛') {
         if (isAllHeatsFinished) {
             if (currentRank <= settingQualifyCount && currentRank <= rules.length) {
@@ -4213,7 +4111,6 @@ validAthletes.forEach((p, idx) => {
         }
     }
 
-    // 破纪录与备注判定
     const scoreVal = parseTimeVal(p.score);
     let brokenCodeFrontend = ''; 
     let isRecordBrokenFrontend = false;
@@ -4312,7 +4209,6 @@ function exportWord() {
         if (!db.schedule || db.schedule.length === 0) return alert("暂无数据，请先编排");
         const events = {}; 
         db.schedule.forEach(s => { 
-            // 🌟 核心过滤：有预决赛且决赛名单仍待定的项目，不导出进 Word
             const isFinals = s.eventName.includes('决赛') && !s.eventName.includes('预赛');
             const isDummy = !s.name || s.name.includes('待定') || s.teamName === '预赛出线' || s.name === '预赛晋级选手';
             if (isFinals && isDummy) {
@@ -4451,7 +4347,6 @@ function exportWord() {
                     };
                 });
 
-                // 用数据库现有配置覆盖前端展示池
                 window.PRESET_MATRIX_POOL = db.events.map(e => ({
                     name: e.name,
                     type: e.type,
@@ -4499,12 +4394,10 @@ function exportWord() {
             roundStatus = (evtCfg && (String(evtCfg.hasPrelim) === 'true' || String(evtCfg.has_prelim) === '1')) ? "预赛" : "决赛";
         }
 
-        // 🌟 优化1：采用轻量轻柔提示，不再展示厚重阻塞动画
         if (div && (!div.children || div.children.length === 0)) {
             div.innerHTML = '<div class="text-center text-blue-500 py-10 font-bold text-xs animate-pulse">正在载入成绩表...</div>';
         }
 
-        // 🌟 优化2：直接拉取该项目的成绩道次，毫秒级即时响应！
         fetch('/api/get_event_start_list?_t=' + Date.now(), {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}, 
@@ -4524,9 +4417,6 @@ function exportWord() {
             const qualifyLimit = parseInt(data[0].qualify_count) || 8;
             const isRelayEvent = eventName.includes('接力') || eventName.includes('4×') || eventName.includes('4*') || eventName.includes('4x');
 
-            // =========================================================
-            // 🌟 核心：前端全局推算兜底（跨越所有小组，统一计算全场全局排名！）
-            // =========================================================
             const isTimingEventGlobal = ['跑', '绕杆', '计时', '接力', '冲刺', '米', '栏'].some(k => eventName.includes(k)) && !['跳绳', '投篮'].some(k => eventName.includes(k));
             const isCountingOrFieldGlobal = !isTimingEventGlobal && ['跳', '投', '掷', '起坐', '引体', '垫球', '踢毽', '跳绳', '篮', '立定跳远'].some(k => eventName.includes(k));
             
@@ -4552,14 +4442,12 @@ function exportWord() {
                 globalValidAthletes = data.filter(it => parseTimeVal(it.score) > 0 && !String(it.score).includes('弃权'));
             }
 
-            // 执行全场所有小组的全局大排名
             globalValidAthletes.sort((a, b) => {
                 const valA = parseTimeVal(a.score);
                 const valB = parseTimeVal(b.score);
                 return sortAscGlobal ? (valA - valB) : (valB - valA);
             });
 
-            // 赋予全局推算名次
             const activeCleanEvt = (eventName || '').replace(' (预赛)', '').replace(' (决赛)', '').trim();
             const activeNormEvt = activeCleanEvt.replace(/[*xX]/g, '×');
             const globalEvtCfg = db.events.find(e => e.name === activeCleanEvt || e.name === activeNormEvt || e.name === eventName);
@@ -4573,7 +4461,6 @@ function exportWord() {
                 item._global_computed_rank = currentGlobalRank;
             });
 
-            // 将全局名次回填给原数据
             data.forEach(it => {
                 if (isRelayEvent) {
                     const tKey = String(it.team_name || it.teamName || it.lane).trim();
@@ -4584,7 +4471,6 @@ function exportWord() {
                     if (match) it._global_computed_rank = match._global_computed_rank;
                 }
             });
-            // =========================================================
 
             const heats = {};
             data.forEach(item => { 
@@ -4615,7 +4501,6 @@ function exportWord() {
                     items = Object.values(teamMap);
                 }
 
-                // 强制按后端绝对名次或前端全局大排名的名次排序
                 items.sort((a, b) => {
                     const rA = a._global_computed_rank || ((a.rank && a.rank !== '--') ? parseInt(a.rank) : 999);
                     const rB = b._global_computed_rank || ((b.rank && b.rank !== '--') ? parseInt(b.rank) : 999);
@@ -4633,7 +4518,6 @@ function exportWord() {
                 let desktopTableHtml = '';
 
                 if (useVerticalTable) {
-                    // 田赛竖排
                     desktopTableHtml = `
                     <table class="w-full text-center border-collapse" style="border: 2px solid #000; margin-top: 8px;">
                         <thead>
@@ -4709,7 +4593,6 @@ function exportWord() {
                     });
                     desktopTableHtml += `</tbody></table>`;
                 } else {
-                    // 径赛/接力横排
                     const laneMap = {}; 
                     items.forEach(p => { 
                         const laneNum = parseInt(p.lane);
@@ -4833,7 +4716,6 @@ function exportWord() {
         });
     };
 
-    // --- Step 7 团体总分逻辑 ---
     window.currentRankGroupName = '';
 
     function initRankPage() {
@@ -4868,7 +4750,7 @@ function exportWord() {
         window.currentRankGroupName = groupName;
         initRankPage();
     }
-// 🌟 显示班级得分明细弹窗
+
 window.showAdminTeamScoreDetail = function(groupName, teamName, totalScore) {
     const modal = document.getElementById('teamScoreDetailModal');
     const title = document.getElementById('modalTeamDetailTitle');
@@ -4905,7 +4787,6 @@ window.showAdminTeamScoreDetail = function(groupName, teamName, totalScore) {
             const isRelay = item.event_name.includes('接力') || item.event_name.includes('4×') || item.event_name.includes('4*');
             const displayName = isRelay ? '集体接力队' : item.name;
 
-            // 🌟 格式化名次：1/2/3 显示金银铜，其余显示标准名次，消灭“第 附加 名”
             let rankDisplay = '--';
             if (item.rank == 1) rankDisplay = '🥇 第1名';
             else if (item.rank == 2) rankDisplay = '🥈 第2名';
@@ -4967,11 +4848,7 @@ window.closeTeamScoreDetailModal = function() {
 
         let num = parseFloat(s);
         if (isNaN(num)) return { rank: '', score: 0 };
-
-        // 默认双倍名次积分规则 (9->18, 7->14, 6->12, 5->10, 4->8, 3->6, 2->4, 1->2)
         const rules = [18, 14, 12, 10, 8, 6, 4, 2];
-
-        // 如果输入的整数在 1~8 范围内，判定为录入名次，自动套用规则双倍分！
         if (Number.isInteger(num) && num >= 1 && num <= rules.length) {
             return {
                 rank: num,
@@ -4979,7 +4856,6 @@ window.closeTeamScoreDetailModal = function() {
             };
         }
 
-        // 否则直接作为自定义加分项
         return {
             rank: '',
             score: num
@@ -5020,10 +4896,7 @@ window.closeTeamScoreDetailModal = function() {
             const today = new Date(); 
             const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
             
-            // 动态构建表头各附加列
             let customHeaders = cols.map(c => `<th class="w-24 text-indigo-700 bg-indigo-50/50">${c}</th>`).join('');
-
-            // 渲染各行
             let rows = '';
             data.forEach((t, idx) => {
                 let rankIcon = idx + 1; 
@@ -5035,14 +4908,9 @@ window.closeTeamScoreDetailModal = function() {
                 const sMap = t.custom_scores || {};
                 const totalScoreVal = parseFloat(t.score) || 0;
                 const extraSumVal = parseFloat(t.extra_sum) || 0;
-                // 安全计算基础竞技单项分（防 NaN）
                 const baseAthScore = Math.round((totalScoreVal - extraSumVal) * 100) / 100;
-
-                // 动态构建各附加分输入框
-                // 动态构建各附加分输入框 / 显示单元格
                 let customCells = cols.map(col => {
                     const rawVal = (sMap[col] !== undefined && sMap[col] !== null) ? sMap[col] : '';
-                    // 解析出当前保存的真实名次和折算分
                     const parsed = window.convertCustomRankToScore(rawVal);
                     const currentScore = parsed.score;
 
@@ -5064,7 +4932,6 @@ window.closeTeamScoreDetailModal = function() {
                             </div>
                         </td>`;
                     } else {
-                        // 🌟 查看/打印模式：如果录入的是名次，展示“第X名 (+XX分)”；直接录入分值的展示“+XX分”
                         let displayTxt = '-';
                         let badgeColor = 'text-gray-300';
 
@@ -5134,25 +5001,19 @@ window.closeTeamScoreDetailModal = function() {
 
 window.onToggleEditRankScore = function(checkboxEl) {
     if (!checkboxEl.checked) {
-        // 关闭编辑：统一重绘并更新排名与总分
         calculateTeamRanking(window.currentRankGroupName);
     } else {
-        // 开启编辑：仅渲染出带输入框的表格，不打乱焦点
         calculateTeamRanking(window.currentRankGroupName);
     }
 };
-// 🌟 录入名次时即时计算提示与联动整行总分
 window.onCustomRankInput = function(inputEl) {
     const rawVal = inputEl.value.trim();
     const parsed = window.convertCustomRankToScore(rawVal);
-    
-    // 动态更新输入框下方的绿色折算提示标签
     const tipSpan = inputEl.nextElementSibling;
     if (tipSpan) {
         tipSpan.innerText = parsed.score > 0 ? `+${parsed.score}分` : '';
     }
 
-    // 联动重新计算当前行的总分
     const tr = inputEl.closest('tr');
     if (!tr) return;
 
@@ -5169,15 +5030,12 @@ window.onCustomRankInput = function(inputEl) {
     }
 };
 
-// 🌟 保存单个附加项：把原始输入与换算后的分值一并传给后端持久化
 window.saveTeamCustomScore = function(teamName, groupName, itemKey, inputEl) {
     const rawVal = inputEl.value.trim();
     const parsed = window.convertCustomRankToScore(rawVal);
-    
-    // 如果录入为空，存为 0
     const finalStoredVal = rawVal === '' ? 0 : rawVal;
     
-    inputEl.style.backgroundColor = '#fef3c7'; // 保存中变黄
+    inputEl.style.backgroundColor = '#fef3c7'; 
 
     fetch('/api/update_team_custom_score', {
         method: 'POST',
@@ -5186,14 +5044,14 @@ window.saveTeamCustomScore = function(teamName, groupName, itemKey, inputEl) {
             team_name: teamName,
             group_name: groupName,
             item_key: itemKey,
-            score: finalStoredVal, // 存入原始值（如 "1" 或 "18"）
-            calc_points: parsed.score // 传递换算后的实际得分
+            score: finalStoredVal, 
+            calc_points: parsed.score 
         })
     })
     .then(r => r.json())
     .then(res => {
         if (res.status === 'success') {
-            inputEl.style.backgroundColor = '#dcfce7'; // 保存成功变绿
+            inputEl.style.backgroundColor = '#dcfce7'; 
             setTimeout(() => {
                 inputEl.style.backgroundColor = '';
             }, 600);
@@ -5237,9 +5095,7 @@ window.recalcRowTotalScore = function(inputEl) {
             curText
         );
         
-        if (input === null) return; // 用户点击取消
-
-        // 统一按中英文逗号切割并去重
+        if (input === null) return; 
         const newCols = input.split(/[,，]/).map(s => s.trim()).filter(Boolean);
         if (newCols.length === 0) {
             alert("⚠️ 至少需要保留一个项目名称！");
@@ -5254,7 +5110,6 @@ window.recalcRowTotalScore = function(inputEl) {
         .then(r => r.json())
         .then(res => {
             alert(`✔ 附加项目设置成功！当前共包含 ${newCols.length} 个项目：\n${newCols.join('、')}`);
-            // 立即以无缓存方式重新拉取并重绘总分榜
             calculateTeamRanking(window.currentRankGroupName);
         })
         .catch(err => alert("保存失败: " + err.message));
@@ -5284,37 +5139,26 @@ window.recalcRowTotalScore = function(inputEl) {
                 return; 
             }
 
-            // 表头第1行：班级 + 常规项目 + 集体附加项目 + 总分 + 名次
             let headerRow1 = `<th rowspan="2" style="width:110px;">班级</th>`; 
             let headerRow2 = ``;
-
-            // 常规单项（带男女拆分）
             compCols.forEach(col => { 
                 headerRow1 += `<th colspan="2">${col}</th>`; 
                 headerRow2 += `<th style="width:35px; font-weight:normal; font-size:10pt;">男</th><th style="width:35px; font-weight:normal; font-size:10pt;">女</th>`; 
             });
-
-            // 🌟 集体附加项目（整列直出）
             customCols.forEach(col => {
                 headerRow1 += `<th rowspan="2" style="width:75px; color:#4338ca; background-color:#eef2ff;">${col}</th>`;
             });
 
             headerRow1 += `<th rowspan="2" style="width:65px;">总分</th><th rowspan="2" style="width:50px;">名次</th>`;
-
-            // 渲染数据行
             let bodyHtml = '';
             rows.forEach((row, idx) => {
                 let cells = `<td style="font-weight:bold;">${row.team}</td>`;
-                
-                // 常规项目得分
                 compCols.forEach(col => {
                     const detail = row.details[col] || { '男': 0, '女': 0 };
                     const scoreM = detail['男'] > 0 ? detail['男'] : ''; 
                     const scoreF = detail['女'] > 0 ? detail['女'] : '';
                     cells += `<td style="color:#666;">${scoreM}</td><td style="color:#666;">${scoreF}</td>`;
                 });
-
-                // 🌟 集体附加项目得分
                 customCols.forEach(col => {
                     const extraVal = row.custom_details[col];
                     const displayExtra = (extraVal && extraVal > 0) ? `+${extraVal}` : '';
@@ -5355,7 +5199,6 @@ window.recalcRowTotalScore = function(inputEl) {
         });
     };
 
-    // 🌟 导出团体总分详细表（原生强制 Word/WPS A4 横向纸张 29.7cm × 21.0cm）
     window.exportAllDetailedScoreTables = async function(format = 'word', onlyCurrentGroup = false) {
         if (!db.groups || db.groups.length === 0) {
             return alert("当前系统暂无组别数据！");
@@ -5405,7 +5248,6 @@ window.recalcRowTotalScore = function(inputEl) {
             allGroupsData.forEach((gData, gIdx) => {
                 const { groupName, compCols, customCols, rows } = gData;
                 const totalSubCols = compCols.length * 2 + customCols.length + 3;
-                // 根据列数自适应字号，确保在 A4 横向一页宽度内完整放下
                 const tableFontSize = totalSubCols > 26 ? '7.5pt' : (totalSubCols > 18 ? '8.5pt' : '9.5pt');
 
                 let headerRow1 = `<th rowspan="2" style="width:75pt; border:1px solid #000; background-color:#f3f4f6;">班级</th>`;
@@ -5439,8 +5281,6 @@ window.recalcRowTotalScore = function(inputEl) {
                     cells += `<td style="font-weight:bold; color:#b45309; border:1px solid #000; text-align:center;">${row.total}</td><td style="font-weight:bold; border:1px solid #000; text-align:center;">${idx + 1}</td>`;
                     bodyHtml += `<tr style="height:22px;">${cells}</tr>`;
                 });
-
-                // 🌟 使用普通分页符而非分节符，确保后续每一页都继承 WordSection1 的横向纸张设置
                 const pageBreak = (format === 'word' && gIdx > 0)
                     ? `<br clear="all" style="page-break-before:always">`
                     : (gIdx > 0 ? `<br><br>` : ``);
@@ -5470,8 +5310,6 @@ window.recalcRowTotalScore = function(inputEl) {
             const ext = isExcel ? 'xls' : 'doc';
             const mimeType = isExcel ? 'application/vnd.ms-excel;charset=utf-8' : 'application/msword;charset=utf-8';
             const fileScopeName = onlyCurrentGroup ? window.currentRankGroupName : '全部组别';
-
-            // 🌟 核心：通过 WordSection1 指定 29.7cm × 21.0cm 与 mso-page-orientation:landscape 强制 Word/WPS 横向打开
             const fullDoc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
             <head>
                 <meta charset="utf-8">
@@ -5579,7 +5417,6 @@ window.recalcRowTotalScore = function(inputEl) {
         let csvContent = "\ufeff组别,代表队名称,登录密码\n";
         currentPassData.forEach(item => { 
             const pwd = String(item.password || '').padStart(6, '0');
-            // 🌟 核心技巧：使用 "\t015177" 强转纯文本，Excel 显示干净且不会丢开头的 0
             csvContent += `"${item.group}","${item.team}","\t${pwd}"\n`; 
         });
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -5647,7 +5484,6 @@ window.recalcRowTotalScore = function(inputEl) {
         fetch('/api/get_statistics').then(r => r.json()).then(data => {
             currentEventGroupDetails = data.event_group_details || [];
 
-            // 1. 组别/性别人数统计表
             const groupBody = document.getElementById('statsGroupBody');
             let groupHtml = data.group_gender.map(r => `
                 <tr class="border-b"> 
@@ -5661,7 +5497,6 @@ window.recalcRowTotalScore = function(inputEl) {
                 <tr class="bg-orange-50 border-t border-orange-200"> <td class="p-2 font-bold text-orange-800" colspan="2">🏃 全场总参加人次</td> <td class="p-2 text-right font-mono font-bold text-orange-900">${data.total_participations} 人次</td> </tr>`;
             groupBody.innerHTML = groupHtml;
 
-            // 2. 项目报名分布卡片（绑定点击下钻查看各组别人数）
             const eventCont = document.getElementById('statsEventContainer');
             eventCont.innerHTML = data.events.map(e => `
                 <div onclick="showEventGroupDetails('${e.event_name}', ${e.count})" 
@@ -5677,18 +5512,14 @@ window.recalcRowTotalScore = function(inputEl) {
         });
     }
 
-    // 🌟 弹窗渲染：显示当前项目的各组别报名人数
     window.showEventGroupDetails = function(eventName, totalCount) {
         document.getElementById('modalEventName').innerText = `${eventName} (${totalCount}人)`;
         const content = document.getElementById('modalEventContent');
-
-        // 筛选出属于该项目的组别明细
         const rows = currentEventGroupDetails.filter(r => r.event_name === eventName);
 
         if (rows.length === 0) {
             content.innerHTML = '<div class="text-center py-8 text-gray-400 text-xs font-bold">暂无该项目的组别分布数据</div>';
         } else {
-            // 按组别聚合男女
             const groupMap = {};
             rows.forEach(r => {
                 if (!groupMap[r.group_name]) {
@@ -5796,12 +5627,12 @@ window.recalcRowTotalScore = function(inputEl) {
             if (limInput) limInput.value = 0;
             if (isFunChk) isFunChk.checked = true;
             if (needLaneChk) needLaneChk.checked = false;
-            if (denseRankChk) denseRankChk.checked = true; // 🌟 默认并列不跳名次
+            if (denseRankChk) denseRankChk.checked = true; 
         } else {
             if (durInput) durInput.value = 5;
             if (limInput) limInput.value = 8;
             if (isFunChk) isFunChk.checked = false;
-            if (denseRankChk) denseRankChk.checked = false; // 🌟 常规单项默认跳名次 (1,1,3)
+            if (denseRankChk) denseRankChk.checked = false; 
         }
     };
 
@@ -5860,7 +5691,6 @@ window.recalcRowTotalScore = function(inputEl) {
         alert(`🎉 项目【${name}】已成功放入矩阵池，请在下方列表核对并点击“保存所有项目配置”！`);
     };
 
-   // 🌟 彻底删除项目
 window.deleteMatrixEvent = function(index) {
     const item = window.PRESET_MATRIX_POOL[index];
     if (!confirm(`确定要从系统项目中彻底删除【${item.name}】吗？`)) return;
@@ -6030,14 +5860,13 @@ fetch('/api/batch_save_events', {
         })
         .then(res => res.json()).then(data => { 
             if (data.success) { 
-                // 🌟 同步更新本地全局池
                 selectedEvents.forEach(se => {
                     const target = window.PRESET_MATRIX_POOL.find(p => p.name === se.name);
                     if (target) {
                         target.duration = se.duration;
                         target.limit = se.limit;
                         target.venueCount = se.venueCount;
-                        target.isTeam = se.isTeam; // 👈 保持团体勾选状态
+                        target.isTeam = se.isTeam; 
                     }
                 });
                 alert('🎉 项目选用矩阵及限定组别配置已成功保存！'); 
@@ -6056,7 +5885,7 @@ fetch('/api/batch_save_events', {
             if (target) {
                 window.draggedJobElement = target;
                 target.classList.add('dragging');
-                document.body.classList.add('is-dragging'); // 👈 激活轻量级拖拽模式
+                document.body.classList.add('is-dragging'); 
                 e.dataTransfer.setData('text/plain', target.dataset.jobkey || '');
                 e.dataTransfer.effectAllowed = 'move';
             }
@@ -6067,12 +5896,11 @@ fetch('/api/batch_save_events', {
                 window.draggedJobElement.classList.remove('dragging');
                 window.draggedJobElement = null;
             }
-            document.body.classList.remove('is-dragging'); // 👈 恢复正常状态
+            document.body.classList.remove('is-dragging'); 
         });
         window.hasInitializedGlobalDrag = true;
     }
 
-   // 🌟 空间换时间：缓存元素位置，不再在拖动中高频调用 getBoundingClientRect
     function getDragAfterElement(container, y) {
         const draggableElements = [...container.querySelectorAll('.draggable-job:not(.dragging)')];
         let closest = null;
@@ -6097,7 +5925,7 @@ fetch('/api/batch_save_events', {
                 e.preventDefault();
                 e.stopPropagation();
 
-                if (_dragRafId) return; // 🌟 双重锁：确保每一帧（16.6ms）最多只执行一次 DOM 移动
+                if (_dragRafId) return; 
                 _dragRafId = requestAnimationFrame(() => {
                     const container = zone.querySelector('.job-container');
                     if (window.draggedJobElement && container) {
@@ -6115,7 +5943,6 @@ fetch('/api/batch_save_events', {
             };
 
             zone.ondragleave = function(e) {
-                // 仅当光标真正移出容器时清除高亮，避免内部子元素触发频闪
                 if (!zone.contains(e.relatedTarget)) {
                     this.classList.remove('bg-indigo-50/80', 'border-indigo-500');
                 }
@@ -6127,7 +5954,7 @@ fetch('/api/batch_save_events', {
                 this.classList.remove('bg-indigo-50/80', 'border-indigo-500');
                 if (!window.draggedJobElement) return;
 
-                window._isUserTweaking = true; // 👈 标记：用户手动调整/拖放
+                window._isUserTweaking = true; 
 
                 const newMap = {};
                 document.querySelectorAll('.drop-zone').forEach(dz => {
@@ -6166,14 +5993,12 @@ fetch('/api/batch_save_events', {
         });
     };
 
-// 🌟 运动员个人项目兼项冲突检测函数（仅检查田赛和径赛个人项目，过滤趣味和团体/接力，阈值：40分钟）
 window.checkAthleteScheduleConflicts = function() {
     if (!db.schedule || db.schedule.length === 0) {
         alert("⚠️ 当前沙盘尚未生成任何赛程，请先点击【⚡ 一键编排】！");
         return;
     }
 
-    // 辅助时间解析：将 "第1天上午 08:30" 拆分为 单元标识 + 分钟数
     const parseUnitAndMinutes = (estTimeStr) => {
         if (!estTimeStr) return null;
         const match = estTimeStr.match(/第(\d+)天(上午|下午)?\s*(\d+[:：]\d+)/);
@@ -6191,13 +6016,11 @@ window.checkAthleteScheduleConflicts = function() {
         };
     };
 
-    // 辅助判断：是否为被排除的项目（趣味项目、接力/团体项目）
     const isExcludedEvent = (eventName) => {
         if (!eventName) return true;
         const cleanName = eventName.replace(" (预赛)", "").replace(" (决赛)", "").replace(/[\(（]场地\d+[\)）]/, "").trim();
         const cfg = (db.events || []).find(e => e.name === cleanName || e.name === eventName) || {};
 
-        // 1. 过滤趣味项目
         const isFun = (
             cfg.type === '趣味项目' || 
             cfg.type === '趣味' || 
@@ -6207,7 +6030,6 @@ window.checkAthleteScheduleConflicts = function() {
         );
         if (isFun) return true;
 
-        // 2. 过滤团体与接力项目
         const isTeamRelay = (
             String(cfg.isRelay) === 'true' || 
             String(cfg.is_relay) === '1' || 
@@ -6223,14 +6045,10 @@ window.checkAthleteScheduleConflicts = function() {
         return false;
     };
 
-    // 1. 按“选手唯一标识 (组别_班级_姓名)”聚拢其所有排定的个人比赛项目
     const athleteEventsMap = {};
 
     db.schedule.forEach(item => {
-        // 过滤占位待定选手、接力队占位
         if (!item.name || item.name.includes('待定') || item.name.includes('接力队') || item.teamName === '预赛出线') return;
-        
-        // 核心过滤：不检查趣味项目和团体/接力项目
         if (isExcludedEvent(item.eventName)) return;
 
         const athleteName = item.name.trim();
@@ -6261,20 +6079,15 @@ window.checkAthleteScheduleConflicts = function() {
         }
     });
 
-    // 2. 遍历个人兼项选手，比对同一单元内间隔 < 40 分钟的记录
     const conflictList = [];
 
     Object.values(athleteEventsMap).forEach(ath => {
-        if (ath.items.length < 2) return; // 单项选手跳过
-
-        // 按比赛单元（如 第1天上午）分组
+        if (ath.items.length < 2) return; 
         const unitMap = {};
         ath.items.forEach(it => {
             if (!unitMap[it.unitKey]) unitMap[it.unitKey] = [];
             unitMap[it.unitKey].push(it);
         });
-
-        // 检查同一单元内项目
         Object.keys(unitMap).forEach(unitKey => {
             const list = unitMap[unitKey];
             if (list.length >= 2) {
@@ -6299,7 +6112,6 @@ window.checkAthleteScheduleConflicts = function() {
         });
     });
 
-    // 3. 渲染检测报告弹窗
     const content = document.getElementById('conflictModalContent');
     const countEl = document.getElementById('conflictSummaryCount');
 
@@ -6487,9 +6299,6 @@ window.closeConflictModal = function() {
                 });
             });
         });
-        // ========================================================
-        // 🌟 核心：短跑/决赛/接力多单元隔离与长跑生理缓冲排期
-        // ========================================================
         const getPrio = (name) => {
             if (/栏|跨栏/.test(name)) return 10;
             if (/50米|60米/.test(name)) return 20;
@@ -6518,7 +6327,6 @@ window.closeConflictModal = function() {
         let fieldJobs = allJobs.filter(j => j.isField);
         let trackJobs = allJobs.filter(j => !j.isField);
 
-        // 1. 计算每个单元的绝对时间容量上限（若起止时间相同，容量为 0，视为禁用单元）
         const unitCapacities = {};
         const unitScheduledMins = {};
         const activeUnits = []; // 真正可用于比赛的单元列表
@@ -6532,8 +6340,6 @@ window.closeConflictModal = function() {
             };
             const sMins = parseTimeVal(isAm ? conf.amStart : conf.pmStart);
             const eMins = parseTimeVal(isAm ? conf.amEnd : conf.pmEnd);
-            
-            // 若结束时间 <= 开始时间，则容量为 0
             const cap = Math.max(0, eMins - sMins);
             unitCapacities[u] = cap;
             unitScheduledMins[u] = 0;
@@ -6546,13 +6352,10 @@ window.closeConflictModal = function() {
             }
         });
 
-        // 容错：如果所有单元都被禁用了，至少保底激活一个单元
         if (activeUnits.length === 0) {
             activeUnits.push(units[0]);
             unitCapacities[units[0]] = 240;
         }
-
-        // 2. 将径赛合理聚合（同性别同项目聚合在一起）
         let trackGroups = [];
         let curKey = '';
         trackJobs.forEach(j => {
@@ -6576,9 +6379,7 @@ window.closeConflictModal = function() {
         let longRunGroups = []; // 收集所有中长跑项目作为缓冲池
 
         const firstActiveUnit = activeUnits[0]; 
-        // 第2个实赛单元：200米预赛（与100米预赛完全隔离在不同半天）
         const secondActiveUnit = activeUnits.length > 1 ? activeUnits[1] : activeUnits[0];
-        // 终局收官单元：100米决赛 -> 中长跑缓冲 -> 200米决赛 -> 4×100米接力
         const finalActiveUnit = activeUnits[activeUnits.length - 1];
 
         trackGroups.forEach(tg => {
@@ -6589,23 +6390,18 @@ window.closeConflictModal = function() {
             const totalM = tg.jobs.reduce((s, x) => s + x.minutes, 0);
 
             if (/100米/.test(cName) && !isRelay && rd === 'prelim') {
-                // 🌟 1. 动态第 1 个实赛单元：100米预赛
                 unitAssigned[firstActiveUnit].push(tg);
                 unitScheduledMins[firstActiveUnit] += totalM;
             } else if (/200米/.test(cName) && rd === 'prelim') {
-                // 🌟 2. 动态第 2 个实赛单元：200米预赛
                 unitAssigned[secondActiveUnit].push(tg);
                 unitScheduledMins[secondActiveUnit] += totalM;
             } else if (/100米/.test(cName) && !isRelay && rd === 'final') {
-                // 🌟 3. 终局单元：100米决赛
                 unitAssigned[finalActiveUnit].push(tg);
                 unitScheduledMins[finalActiveUnit] += totalM;
             } else if (/200米/.test(cName) && rd === 'final') {
-                // 🌟 4. 终局单元：200米决赛
                 unitAssigned[finalActiveUnit].push(tg);
                 unitScheduledMins[finalActiveUnit] += totalM;
             } else if (isRelay) {
-                // 🌟 5. 终局单元：4×100米接力压轴
                 unitAssigned[finalActiveUnit].push(tg);
                 unitScheduledMins[finalActiveUnit] += totalM;
             } else if (isLong) {
@@ -6615,14 +6411,12 @@ window.closeConflictModal = function() {
             }
         });
 
-        // 🌟 强行借调中长跑至终局单元充当 100米决赛 与 200米决赛 之间的缓冲隔离
         if (longRunGroups.length > 0) {
             const bufferJob = longRunGroups.shift();
             unitAssigned[finalActiveUnit].push(bufferJob);
             unitScheduledMins[finalActiveUnit] += bufferJob.jobs.reduce((s, x) => s + x.minutes, 0);
         }
 
-        // 其余项目（400米男女、剩余中长跑等）按单元容量贪心平衡分配
         const remainingPool = [...flexGroups, ...longRunGroups];
         remainingPool.forEach(tg => {
             const groupMins = tg.jobs.reduce((s, x) => s + x.minutes, 0);
@@ -6652,7 +6446,6 @@ window.closeConflictModal = function() {
             unitAssigned[bestUnit].push(tg);
         });
 
-        // 🌟 单元内部物理排序逻辑（确保 Day 2 下午的严格执行顺序）
         units.forEach(u => {
             const list = unitAssigned[u] || [];
 
@@ -6680,15 +6473,14 @@ window.closeConflictModal = function() {
                 else others.push(tg);
             });
 
-            // 严格装配链：常规项 -> 预赛 -> 400米 -> 100米决赛 -> 🏃中长跑(缓冲) -> 200米决赛 -> 4×100接力(末尾)
             const ordered = [];
             ordered.push(...others);
             ordered.push(...sprintPrelim);
             ordered.push(...middleSprint);
-            ordered.push(...sprint100Final); // 1. 100米决赛
-            ordered.push(...longRun);        // 2. 中长跑生理缓冲带
-            ordered.push(...sprint200Final); // 3. 200米决赛
-            ordered.push(...relays);         // 4. 4×100米接力压轴
+            ordered.push(...sprint100Final); 
+            ordered.push(...longRun);        
+            ordered.push(...sprint200Final); 
+            ordered.push(...relays);         
 
             ordered.forEach(tg => {
                 tg.jobs.forEach(job => {
@@ -6697,7 +6489,6 @@ window.closeConflictModal = function() {
             });
         });
 
-        // 🌟 田赛分配：仅分配到实际可用的比赛单元中
         let processedVenues = new Set();
         fieldJobs.forEach(job => {
             let baseKey = job.jobKey.replace(/_venue\d+$/, '');
@@ -6706,7 +6497,6 @@ window.closeConflictModal = function() {
             let groupVenueJobs = fieldJobs.filter(j => j.jobKey.replace(/_venue\d+$/, '') === baseKey);
             let targetTrack = job.fType === 'high' ? fieldHighTrack : (job.fType === 'long' ? fieldLongTrack : fieldThrowTrack);
             
-            // 仅在 activeUnits 中按占用时长升序挑选
             let sortedUnits = [...activeUnits].sort((a, b) => (targetTrack[a] || 0) - (targetTrack[b] || 0));
             let bestUnit = sortedUnits[0];
 
@@ -6751,7 +6541,6 @@ window.closeConflictModal = function() {
             return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.floor(total%60)).padStart(2,'0')}`;
         };
 
-        // 🌟 最外层：遍历每一天的上下午单元
         Object.keys(window.manualScheduleMap).sort().forEach(unitKey => {
             const match = unitKey.match(/Day(\d+)_(AM|PM)/);
             if (!match) return;
@@ -6769,7 +6558,6 @@ window.closeConflictModal = function() {
             let fieldThrowPointer = 0; 
             let venueStartMap = {};
 
-            // 🌟 内层：遍历当前单元里排进去的每一个项目卡片
             window.manualScheduleMap[unitKey].forEach(savedJob => {
                 const group = db.groups.find(g => String(g.id) === String(savedJob.jobKey.split('_')[0]));
                 if(!group) return;
@@ -6777,11 +6565,9 @@ window.closeConflictModal = function() {
                 const cleanEventName = savedJob.ename.replace(" (预赛)", "").replace(" (决赛)", "").replace(/[\(（]场地\d+[\)）]/, "").trim();
                 const gender = savedJob.gender;
                 
-                // 1. 完全以配置表 db.events 为准判断属性
                 const eventCfg = db.events.find(e => e.name === cleanEventName || e.name === savedJob.ename) || {};
                 const settings = getEventSettings(eventCfg || {name: cleanEventName});
-                
-                // 2. 统一判定项目属性
+
                 const isFun = (
                     eventCfg.type === '趣味项目' || 
                     eventCfg.type === '趣味' || 
@@ -6816,7 +6602,6 @@ window.closeConflictModal = function() {
                     let heatEstTimeStr = `第${dayNum}天${unitType === 'AM' ? '上午' : '下午'} ${formatMins(baseStartMins, trackPointer)}`;
                     let heatTimeIndexValue = dayNum * 100000 + (unitType === 'PM' ? 5000 : 0) + trackPointer;
 
-                    // 预排决赛占位
                     for (let l = 1; l <= 8; l++) {
                         db.schedule.push({
                             id: Date.now() + Math.random(),
@@ -6839,10 +6624,10 @@ window.closeConflictModal = function() {
                     return; 
                 }
 
-                let rawEntries = db.athletes.filter(a => { 
-                    const t = db.teams.find(x => String(x.id) === String(a.teamId)); 
-                    return t && String(t.groupId || t.group_id) === String(group.id) && a.gender === gender && a.events.includes(cleanEventName); 
-                });
+                const targetGid = String(group.id);
+                      let rawEntries = db.athletes.filter(a =>
+                          teamGroupMap[String(a.teamId)] === targetGid && a.gender === job.gender && a.events.includes(cleanEvt)
+                      );
                 if(!rawEntries.length) return; 
                 
                 const curVMatch = savedJob.ename.match(/[\(（]场地(\d+)[\)）]/);
@@ -6879,17 +6664,16 @@ window.closeConflictModal = function() {
                 maxPerHeat = settings.limit || 15;
                 totalHeats = Math.ceil(processList.length / maxPerHeat) || 1;
 
-                // 3. 计算时间指针
                 let currentPointer = 0;
                 let baseKey = `${savedJob.jobKey.split('_')[0]}_${cleanEventName}_${gender}`;
 
                 if (isFun) {
-                    currentPointer = 0; // 趣味直接从 0 分钟起排
+                    currentPointer = 0; 
                 } else if (isField) {
                     let activeTrackPointer = fType === 'high' ? fieldHighPointer : (fType === 'long' ? fieldLongPointer : fieldThrowPointer);
                     if (curVMatch) {
                         if (venueStartMap[baseKey] !== undefined) {
-                            currentPointer = venueStartMap[baseKey]; // 场地2同步场地1
+                            currentPointer = venueStartMap[baseKey]; 
                         } else {
                             venueStartMap[baseKey] = activeTrackPointer;
                             currentPointer = activeTrackPointer;
@@ -6973,12 +6757,9 @@ window.closeConflictModal = function() {
                         });
                     });
                 });
-
-                // 4. 累加时间指针（趣味不累加）
                 let jobMins = parseInt(savedJob.minutes) || 5;
                 if (!isFun) {
                     if (isField) {
-                        // 重新匹配一次，防止上方逻辑串线
                         let postMatch = savedJob.ename.match(/[\(（]场地(\d+)[\)）]/);
                         if (!postMatch || postMatch[1] === '1') {
                             if (fType === 'high') fieldHighPointer += jobMins;
@@ -6989,8 +6770,8 @@ window.closeConflictModal = function() {
                         trackPointer += jobMins;
                     }
                 }
-            }); // 🌟 结束内层 forEach
-        }); // 🌟 结束外层 Object.keys.forEach
+            }); 
+        }); 
 
         renderScheduleResult();
     };
@@ -7137,7 +6918,6 @@ window.closeConflictModal = function() {
         });
     }
 
-   // 🌟 记录监控面板各单元展开/折叠状态
     window.monitorExpandedUnits = window.monitorExpandedUnits || new Set();
 
     window.toggleMonitorUnit = function(unitKey) {
@@ -7174,7 +6954,6 @@ window.closeConflictModal = function() {
                 let countOngoing = 0;
                 let countFinished = 0;
 
-                // 1. 统计顶部 4 块核心看板数值
                 tasks.forEach(t => {
                     if (t.status === 'finished') countFinished++;
                     else if (t.status === 'ongoing') countOngoing++;
@@ -7187,7 +6966,6 @@ window.closeConflictModal = function() {
                 document.getElementById('monStatOngoing').innerText = countOngoing;
                 document.getElementById('monStatFinished').innerText = countFinished;
 
-                // 2. 获取当前现实时段（判断今天、上午/下午）
                 const now = new Date();
                 const curHour = now.getHours();
                 const curAmpm = (curHour < 12 || (curHour === 12 && now.getMinutes() < 30)) ? '上午' : '下午';
@@ -7200,8 +6978,6 @@ window.closeConflictModal = function() {
                     curDayNum = Math.max(1, Math.floor((nowDateOnly - sDate) / (1000 * 60 * 60 * 24)) + 1);
                 }
                 const currentActiveUnitKey = `${curDayNum}_${curAmpm}`;
-
-                // 3. 将全量任务按【比赛单元】归集
                 const unitsMap = {};
                 tasks.forEach(task => {
                     const timeStr = task.est_time || '';
@@ -7228,14 +7004,11 @@ window.closeConflictModal = function() {
                     }
                 });
 
-                // 4. 排序比赛单元
                 const sortedUnitKeys = Object.keys(unitsMap).sort((a, b) => {
                     const ua = unitsMap[a], ub = unitsMap[b];
                     if (ua.day !== ub.day) return ua.day - ub.day;
                     return ua.ampm === '上午' ? -1 : 1;
                 });
-
-                // 单条任务卡片渲染模板
                 const renderTaskCard = (task, displayIndex) => {
                     let cardStyle = '';
                     let badgeStyle = '';
@@ -7314,7 +7087,6 @@ window.closeConflictModal = function() {
                     `;
                 };
 
-                // 5. 拼装大类列表与比赛单元卡片
                 let fullHtml = '';
                 let globalIndex = 1;
 
@@ -7337,8 +7109,6 @@ window.closeConflictModal = function() {
                         isExpanded = true;
                         window.monitorExpandedUnits.add(uKey);
                     }
-
-                    // 类别内部按时间升序排序
                     const sortTasks = (arr) => arr.sort((a, b) => {
                         if (a.time_index !== b.time_index) return a.time_index - b.time_index;
                         return (a.est_time || '').localeCompare(b.est_time || '');
@@ -7368,7 +7138,6 @@ window.closeConflictModal = function() {
 
                         <div id="monitor_unit_content_${uKey}" class="${isExpanded ? '' : 'hidden'} p-4 bg-gray-50/50 space-y-5">
                             
-                            <!-- 1. 径赛区 -->
                             <div>
                                 <div class="flex items-center gap-2 mb-2 pb-1.5 border-b-2 border-blue-200 text-blue-900 font-black text-xs">
                                     <span>🏃</span> <span>径赛项目</span> <span class="text-[10px] font-normal text-gray-500 font-mono">(${trackTasks.length} 组)</span>
@@ -7376,15 +7145,12 @@ window.closeConflictModal = function() {
                                 ${trackTasks.length > 0 ? trackTasks.map(t => renderTaskCard(t, globalIndex++)).join('') : '<div class="text-xs text-gray-400 py-2 text-center bg-white rounded-lg border border-dashed">本单元无径赛组次</div>'}
                             </div>
 
-                            <!-- 2. 田赛区 -->
                             <div>
                                 <div class="flex items-center gap-2 mb-2 pb-1.5 border-b-2 border-orange-200 text-orange-900 font-black text-xs">
                                     <span>🎯</span> <span>田赛项目</span> <span class="text-[10px] font-normal text-gray-500 font-mono">(${fieldTasks.length} 组)</span>
                                 </div>
                                 ${fieldTasks.length > 0 ? fieldTasks.map(t => renderTaskCard(t, globalIndex++)).join('') : '<div class="text-xs text-gray-400 py-2 text-center bg-white rounded-lg border border-dashed">本单元无田赛组次</div>'}
                             </div>
-
-                            <!-- 3. 趣味项目区 -->
                             <div>
                                 <div class="flex items-center gap-2 mb-2 pb-1.5 border-b-2 border-purple-200 text-purple-900 font-black text-xs">
                                     <span>🎈</span> <span>趣味与集体项目</span> <span class="text-[10px] font-normal text-gray-500 font-mono">(${funTasks.length} 组)</span>
@@ -7535,8 +7301,7 @@ window.closeConflictModal = function() {
     if (!window.dailyScheduleTimes[day]) window.dailyScheduleTimes[day] = {};
     window.dailyScheduleTimes[day][field] = val;
     localStorage.setItem('daily_schedule_times', JSON.stringify(window.dailyScheduleTimes));
-    
-    // 🌟 同步保存到数据库，供手机端多设备读取
+
     fetch('/api/save_config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -7550,7 +7315,6 @@ window.closeConflictModal = function() {
     }
 };
 
-// 渲染移动端横向滑动的班级胶囊栏
 function renderMobileTeamSelector() {
     const container = document.getElementById('mobileTeamSelector');
     if (!container) return;
@@ -7644,14 +7408,12 @@ let rawAnalysisData = {};
         const gradeData = rawAnalysisData[gName];
         if (!gradeData) return;
 
-        // 填充班级下拉框
         const teams = gradeData.teams || [];
         const prevTeam = teamSelect.value;
         teamSelect.innerHTML = '<option value="ALL">全部班级(年级大盘)</option>' + 
             teams.map(t => `<option value="${t.team}">${t.team}</option>`).join('');
         if (teams.some(t => t.team === prevTeam)) teamSelect.value = prevTeam;
 
-        // 填充项目下拉框
         const events = Object.keys(gradeData.events || {});
         const prevEvt = eventSelect.value;
         eventSelect.innerHTML = '<option value="ALL">全项目概览</option>' + 
@@ -7682,9 +7444,6 @@ let rawAnalysisData = {};
             activeEventNames = activeEventNames.filter(e => e === selEvt);
         }
 
-        // ==========================================
-        // 1. 渲染各项目详细指标卡片 (平均值 + 极值)
-        // ==========================================
         const metricsContainer = document.getElementById('eventMetricsContainer');
         let cardHtml = '';
 
@@ -7692,16 +7451,12 @@ let rawAnalysisData = {};
             if (val === null || val === undefined || val === '' || val <= 0) return '--';
             const num = parseFloat(val);
             if (isNaN(num) || num <= 0) return '--';
-
-            // 判断是否属于纯计数型项目
             if (cat === 'count' || ['跳绳', '仰卧', '垫球', '引体', '踢毽'].some(k => eName.includes(k))) {
                 return `${Math.round(num * 10) / 10}个`;
             }
-            // 远度/度量型田赛
             if (cat === 'distance' || ['跳远', '实心球', '铅球', '跳高'].some(k => eName.includes(k))) {
                 return `${num}m`;
             }
-            // 计时型径赛
             if (num >= 60) {
                 const m = Math.floor(num / 60);
                 const s = (num % 60).toFixed(2);
@@ -7719,7 +7474,6 @@ let rawAnalysisData = {};
                 else cat = 'timing';
             }
 
-            // 标签颜色与文案匹配
             let tagColor = 'bg-blue-50 text-blue-700 border-blue-200';
             let tagLabel = '径赛/用时';
             let icon = '🏃';
@@ -7733,8 +7487,6 @@ let rawAnalysisData = {};
                 tagLabel = '田赛/远度';
                 icon = '🎯';
             }
-
-            // 班级均值覆盖
             let customTeamAvg = null;
             if (selTeam !== 'ALL') {
                 const teamObj = (gradeData.teams || []).find(t => t.team === selTeam);
@@ -7799,9 +7551,6 @@ let rawAnalysisData = {};
         });
         metricsContainer.innerHTML = cardHtml || '<div class="col-span-full py-8 text-center text-gray-400 text-xs font-bold">无匹配项目数据</div>';
 
-        // ==========================================
-        // 2. 柱状图：项目男女生平均对比
-        // ==========================================
         const ctxBar = document.getElementById('chartDimensionBar').getContext('2d');
         if (dimensionBarChart) dimensionBarChart.destroy();
 
@@ -7843,9 +7592,6 @@ let rawAnalysisData = {};
             }
         });
 
-        // ==========================================
-        // 3. 最优极值条形对比图
-        // ==========================================
         const ctxRadar = document.getElementById('chartDimensionRadar').getContext('2d');
         if (dimensionRadarChart) dimensionRadarChart.destroy();
 
@@ -7886,9 +7632,6 @@ let rawAnalysisData = {};
             }
         });
 
-        // ==========================================
-        // 4. 班级横向具体单项明细对照表
-        // ==========================================
         const tableHead = document.getElementById('teamTableHead');
         const tableBody = document.getElementById('teamTableBody');
         
@@ -7946,7 +7689,6 @@ window.toggleGroupSectionMobile = function() {
     }
 };
 
-// 🌟 移动端：折叠/展开添加代表队表单
 window.toggleAddTeamMobile = function() {
     const form = document.getElementById('teamAddFormWrapper');
     const btn = document.getElementById('btnAddTeamToggle');
@@ -7965,36 +7707,23 @@ window.refreshAthleteView = function(btnEl) {
         btnEl.disabled = true;
     }
 
-    // 🌟 1. 加上强力防缓存随机数，强迫后端直接查 SQLite 数据库
     fetch('/api/get_data?_nocache=' + Date.now())
         .then(r => r.json())
         .then(data => {
             if (!data || data.status !== 'success') {
                 throw new Error("获取数据失败");
             }
-
-            // 🌟 2. 覆盖前端全局数据
             db.groups = data.groups || [];
             db.teams = data.teams || [];
             db.athletes = data.athletes || [];
-
-            // 🌟 3. 重新渲染左侧队伍树
             renderTeamTree();
-
-            // 🌟 4. 获取当前正在查看的代表队 ID
             let activeTeamId = currentId || currentSelectedTeamId;
-
-            // 如果当前没选队伍，默认锁定第一个队伍
             if (!activeTeamId && db.teams.length > 0) {
                 activeTeamId = db.teams[0].id;
                 currentId = activeTeamId;
                 viewMode = 'team';
             }
-
-            // 🌟 5. 关键：强制按当前队伍重绘报名名单列表与复选框
             renderAthleteList();
-
-            // 🌟 6. 更新左侧选中的队伍标题与高亮状态
             const curTeam = db.teams.find(t => String(t.id) === String(activeTeamId));
             if (curTeam) {
                 const titleEl = document.getElementById('currentViewTitle');
@@ -8005,8 +7734,6 @@ window.refreshAthleteView = function(btnEl) {
                 const activeEl = document.querySelector(`.tree-team[onclick*="${activeTeamId}"]`);
                 if (activeEl) activeEl.classList.add('active');
             }
-
-           // 🌟 7. 按钮给出生动反馈，提示共同步到多少人
             if (btnEl) {
                 const currentTeamAthletes = db.athletes.filter(a => String(a.teamId) === String(activeTeamId));
                 btnEl.innerText = `✔ 已同步(${currentTeamAthletes.length}人)`;
@@ -8080,12 +7807,9 @@ window.exportAllAnnouncementsWord = function() {
     window.location.href = '/api/export_all_announcements_word?_t=' + Date.now();
 };
 
-// 🌟 2. 一键批量生成/另存为高清矢量 PDF
 window.exportAllAnnouncementsPDF = function() {
     window.open('/admin/print_all_announcements', '_blank');
 };
-
-// 🌟 3. 一键批量导出/套打获奖证书 Word（支持带框标准版 & 空白奖状纸套打版）
 window.exportCertificatesWord = function(isOverlay = false, onlyCurrentGroup = false) {
     let gName = '';
     if (onlyCurrentGroup) {
@@ -8097,7 +7821,6 @@ window.exportCertificatesWord = function(isOverlay = false, onlyCurrentGroup = f
     window.location.href = url;
 };
 
-// 🌟 4. 自动快照管理与一键热恢复弹窗
 window.openAutoBackupModal = function() {
     let modal = document.getElementById('autoBackupModal');
     if (!modal) {
@@ -8110,8 +7833,8 @@ window.openAutoBackupModal = function() {
                     <div class="flex items-center gap-2">
                         <span class="text-xl">🛡️</span>
                         <div>
-                            <h3 class="font-black text-base">系统数据库自动快照库 (每30分钟自动热备)</h3>
-                            <p class="text-[11px] text-emerald-100">保留最近 20 份本地快照，支持随时一键生成快照或时光机回滚</p>
+                            <h3 class="font-black text-base">系统数据库自动快照 (每30分钟自动热备)</h3>
+                            <p class="text-[11px] text-emerald-100">保留最近 20 份本地快照，支持一键回滚</p>
                         </div>
                     </div>
                     <button onclick="document.getElementById('autoBackupModal').classList.add('hidden')" class="text-white/80 hover:text-white text-2xl font-bold leading-none">&times;</button>
@@ -8121,7 +7844,7 @@ window.openAutoBackupModal = function() {
                     <button onclick="createInstantSnapshot()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-black shadow transition active:scale-95">📸 立即拍快照</button>
                 </div>
                 <div id="autoBackupListBody" class="p-4 overflow-y-auto flex-1 space-y-2 text-xs">
-                    <div class="text-center py-8 text-gray-400 font-bold">正在读取飞牛 NAS 本地快照列表...</div>
+                    <div class="text-center py-8 text-gray-400 font-bold">正在读取本地快照列表...</div>
                 </div>
                 <div class="p-3 bg-gray-50 border-t border-gray-100 text-right">
                     <button onclick="document.getElementById('autoBackupModal').classList.add('hidden')" class="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold">关 闭</button>
@@ -8307,7 +8030,6 @@ window.switchRefTab = function(tabName) {
     document.getElementById('btnTabAccounts').className = isAcc ? "px-3 py-1 rounded-md bg-white text-amber-800 shadow-xs" : "px-3 py-1 rounded-md text-gray-600 hover:text-black";
     document.getElementById('btnTabLogs').className = !isAcc ? "px-3 py-1 rounded-md bg-white text-amber-800 shadow-xs" : "px-3 py-1 rounded-md text-gray-600 hover:text-black";
 
-    // 🌟 核心：只要切到日志视图，立即主动拉取最新记录！
     if (!isAcc) {
         loadRefereeLogs();
     }
@@ -8350,23 +8072,18 @@ window.loadRefereeLogs = function() {
         }
     });
 };
-// =======================================================
-// 🌟 管理端 Socket.IO 全局长连接与事件驱动中心
-// =======================================================
-const socket = io();
-// 1. 跑道起点发令广播 -> 实时刷新赛事监控进度
+
+const socket = window.socket || (window.socket = io());
 socket.on('heat_activated', function(payload) {
     if (currentStepId === 10 && typeof renderProcessMonitor === 'function') {
         renderProcessMonitor();
     }
 });
-// 2. 检录打钩/弃权广播 -> 实时刷新赛事监控与进度条
 socket.on('checkin_updated', function(payload) {
     if (currentStepId === 10 && typeof renderProcessMonitor === 'function') {
         renderProcessMonitor();
     }
 });
-// 3. 裁判录入成绩广播 -> 实时刷新后台成绩单、总分榜与监控进度
 socket.on('score_updated', function(payload) {
     if (currentStepId === 10 && typeof renderProcessMonitor === 'function') {
         renderProcessMonitor();
@@ -8382,7 +8099,6 @@ socket.on('score_updated', function(payload) {
     }
 });
 
-// 4. 监听跑道成绩录完释放广播
 socket.on('track_released', function(payload) {
     if (currentStepId === 10 && typeof renderProcessMonitor === 'function') {
         renderProcessMonitor();
@@ -8393,7 +8109,6 @@ socket.on('meta_updated', function() {
         fetchLatestData();
     }
 });
-// 监听自动晋级因并列而阻断的通知
 socket.on('finals_tie_warning', function(payload) {
     alert(
         `🚨【赛场预警】项目【${payload.group_name} ${payload.gender}·${payload.event_name}】预赛完赛！\n\n` +
